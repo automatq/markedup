@@ -30,14 +30,36 @@ export default function OnboardingPage() {
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checkingExisting, setCheckingExisting] = useState(true);
 
   const initials = user
     ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || user.emailAddresses[0]?.emailAddress[0]?.toUpperCase() || "U"
     : "U";
 
+  // Check if user already has workspaces — if so, skip onboarding
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/workspaces");
+        if (res.ok) {
+          const workspaces = await res.json();
+          if (workspaces.length > 0) {
+            router.replace(`/${workspaces[0].id}`);
+            return;
+          }
+        }
+      } catch {}
+      setCheckingExisting(false);
+    })();
+  }, [isLoaded, user, router]);
+
   const handleComplete = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setError(null);
 
     try {
       // Upload avatar if provided
@@ -45,16 +67,7 @@ export default function OnboardingPage() {
         await user.setProfileImage({ file: avatarFile });
       }
 
-      // Save metadata
-      await user.update({
-        unsafeMetadata: {
-          role,
-          avatarColor,
-          onboardingComplete: true,
-        },
-      });
-
-      // Create workspace
+      // Create workspace first
       const wsName = workspaceName || `${user.firstName ?? "My"}'s Workspace`;
       const slug = wsName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace";
       const res = await fetch("/api/workspaces", {
@@ -63,41 +76,33 @@ export default function OnboardingPage() {
         body: JSON.stringify({ name: wsName, slug }),
       });
 
-      if (res.ok) {
-        const ws = await res.json();
-        router.push(`/${ws.id}`);
-      } else {
-        console.error("Failed to create workspace:", await res.text());
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.detail || body.error || "Failed to create workspace");
+        setLoading(false);
+        return;
       }
-    } catch (err) {
+
+      const ws = await res.json();
+
+      // Save metadata only after workspace creation succeeds
+      await user.update({
+        unsafeMetadata: {
+          role,
+          avatarColor,
+          onboardingComplete: true,
+        },
+      });
+
+      router.push(`/${ws.id}`);
+    } catch (err: any) {
       console.error("Onboarding error:", err);
-    } finally {
+      setError(err?.message || "Something went wrong");
       setLoading(false);
     }
   }, [user, avatarFile, role, avatarColor, workspaceName, router]);
 
-  // If onboarding already complete, redirect to their workspace
-  useEffect(() => {
-    if (!isLoaded || !user) return;
-    if (user.unsafeMetadata?.onboardingComplete) {
-      // Fetch their workspace and redirect
-      (async () => {
-        try {
-          const res = await fetch("/api/workspaces");
-          if (res.ok) {
-            const workspaces = await res.json();
-            if (workspaces.length > 0) {
-              router.push(`/${workspaces[0].id}`);
-              return;
-            }
-          }
-        } catch {}
-        // If no workspace found, let them re-onboard
-      })();
-    }
-  }, [isLoaded, user, router]);
-
-  if (!isLoaded) {
+  if (!isLoaded || checkingExisting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black">
         <div className="h-6 w-6 rounded-full border-2 border-black/20 dark:border-white/20 border-t-black dark:border-t-white animate-spin" />
@@ -117,6 +122,13 @@ export default function OnboardingPage() {
             style={{ width: `${((step + 1) / 3) * 100}%` }}
           />
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400 animate-fade-in-up">
+            {error}
+          </div>
+        )}
 
         {/* Step 0: Avatar & Name */}
         {step === 0 && (
