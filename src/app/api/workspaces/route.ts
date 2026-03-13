@@ -8,9 +8,12 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
     return NextResponse.json(workspaces);
-  } catch (err) {
+  } catch (err: any) {
     console.error("GET /api/workspaces error:", err);
-    return NextResponse.json({ error: "Failed to fetch workspaces" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch workspaces", detail: err?.message ?? String(err) },
+      { status: 500 }
+    );
   }
 }
 
@@ -38,8 +41,11 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(workspace, { status: 201 });
-  } catch (err) {
+  } catch (err: any) {
     console.error("POST /api/workspaces error:", err);
-    return NextResponse.json({ error: "Failed to create workspace" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create workspace", detail: err?.message ?? String(err) },
+      { status: 500 }
+    );
   }
 }
