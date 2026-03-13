@@ -367,15 +367,21 @@ export default function DocumentPage() {
           <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
 
           {/* Editor */}
-          <MarkedUpEditor
-            ydoc={ydoc}
-            provider={provider}
-            userName={userName}
-            userColor={userColor}
-            className={smallText ? "text-sm" : ""}
-            editable={!locked}
-            onEditorReady={handleEditorReady}
-          />
+          {ydoc ? (
+            <MarkedUpEditor
+              ydoc={ydoc}
+              provider={provider}
+              userName={userName}
+              userColor={userColor}
+              className={smallText ? "text-sm" : ""}
+              editable={!locked}
+              onEditorReady={handleEditorReady}
+            />
+          ) : (
+            <div className="flex items-center justify-center py-20">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black/60 dark:border-white/20 dark:border-t-white/60" />
+            </div>
+          )}
         </div>
       </div>
 

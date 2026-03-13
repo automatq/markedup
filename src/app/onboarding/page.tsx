@@ -55,12 +55,12 @@ export default function OnboardingPage() {
       });
 
       // Create workspace
+      const wsName = workspaceName || `${user.firstName ?? "My"}'s Workspace`;
+      const slug = wsName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace";
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: workspaceName || `${user.firstName ?? "My"}'s Workspace`,
-        }),
+        body: JSON.stringify({ name: wsName, slug }),
       });
 
       if (res.ok) {
