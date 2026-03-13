@@ -11,7 +11,7 @@ import {
   LogOut,
   ChevronDown,
 } from "lucide-react";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useUser, useClerk, OrganizationSwitcher } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export interface SidebarDocument {
@@ -108,6 +108,22 @@ export function Sidebar({
         >
           <PanelLeftClose className="h-3.5 w-3.5" />
         </button>
+      </div>
+
+      {/* Organization switcher */}
+      <div className="px-3 pb-2">
+        <OrganizationSwitcher
+          hidePersonal={false}
+          createOrganizationMode="modal"
+          organizationProfileMode="modal"
+          appearance={{
+            elements: {
+              rootBox: "w-full",
+              organizationSwitcherTrigger:
+                "w-full rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white hover:border-black/20 dark:hover:border-white/25 transition-colors",
+            },
+          }}
+        />
       </div>
 
       {/* Search */}

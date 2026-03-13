@@ -11,11 +11,17 @@ model Workspace {
   id        String     @id @default(cuid())
   name      String
   slug      String     @unique
+  /// Clerk organization ID — null for personal workspaces
+  orgId     String?
+  /// Clerk user ID of the workspace owner
+  ownerId   String
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   documents Document[]
 
   @@index([slug])
+  @@index([orgId])
+  @@index([ownerId])
 }
 
 model Document {
@@ -25,15 +31,15 @@ model Document {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   /// Yjs document state as a binary blob
-  yjsState    Bytes?
+  yjsState Bytes?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Backlink graph edges: this document links TO others
-  outgoingLinks Node[] @relation("SourceDocument")
-  // Backlink graph edges: other documents link TO this one
-  incomingLinks Node[] @relation("TargetDocument")
+  // Backlink graph edges
+  outgoingLinks Node[]      @relation("SourceDocument")
+  incomingLinks Node[]      @relation("TargetDocument")
+  shareLinks    ShareLink[]
 
   @@index([workspaceId])
 }
@@ -47,12 +53,30 @@ model Node {
   targetDocumentId String
   targetDocument   Document @relation("TargetDocument", fields: [targetDocumentId], references: [id], onDelete: Cascade)
 
-  /// The raw [[link_text]] that created this edge
-  linkText String
-
+  linkText  String
   createdAt DateTime @default(now())
 
   @@unique([sourceDocumentId, targetDocumentId, linkText])
   @@index([sourceDocumentId])
   @@index([targetDocumentId])
+}
+
+/// Public/private share links for documents
+model ShareLink {
+  id         String   @id @default(cuid())
+  /// Short token for the URL (e.g. /share/abc123)
+  token      String   @unique @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// Who created the link
+  createdBy  String
+  /// "view" or "edit"
+  permission String   @default("view")
+  /// Whether the link is active
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime?
+
+  @@index([token])
+  @@index([documentId])
 }
