@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import * as Y from "yjs";
 import { createSyncProvider } from "./provider";
@@ -11,16 +11,17 @@ import { createSyncProvider } from "./provider";
  */
 export function useCollaboration(documentId: string) {
   const [synced, setSynced] = useState(false);
-  const ydocRef = useRef<Y.Doc | null>(null);
-  const providerRef = useRef<HocuspocusProvider | null>(null);
+  const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
+  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
 
   useEffect(() => {
     if (!documentId) return;
-    const { ydoc, provider } = createSyncProvider({ documentId });
-    ydocRef.current = ydoc;
-    providerRef.current = provider;
 
-    provider.on("synced", () => setSynced(true));
+    const result = createSyncProvider({ documentId });
+    setYdoc(result.ydoc);
+    setProvider(result.provider);
+
+    result.provider.on("synced", () => setSynced(true));
 
     // If we can't connect within 2s, still mark as "synced" so the editor loads
     const fallbackTimer = setTimeout(() => {
@@ -29,15 +30,13 @@ export function useCollaboration(documentId: string) {
 
     return () => {
       clearTimeout(fallbackTimer);
-      provider.destroy();
-      ydoc.destroy();
+      result.provider.destroy();
+      result.ydoc.destroy();
+      setYdoc(null);
+      setProvider(null);
       setSynced(false);
     };
   }, [documentId]);
 
-  return {
-    ydoc: ydocRef.current,
-    provider: providerRef.current,
-    synced,
-  };
+  return { ydoc, provider, synced };
 }

@@ -59,6 +59,7 @@ export function MarkedUpEditor({
           undoRedo: false,
           codeBlock: false,
           link: false,
+          underline: false,
         }),
         Placeholder.configure({
           placeholder: 'Type "/" for commands…',
