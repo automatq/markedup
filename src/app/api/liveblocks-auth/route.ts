@@ -4,10 +4,12 @@ import { NextResponse } from "next/server";
 
 let _liveblocks: Liveblocks | null = null;
 function getLiveblocks() {
+  const secret = process.env.LIVEBLOCKS_SECRET_KEY;
+  if (!secret) {
+    throw new Error("LIVEBLOCKS_SECRET_KEY environment variable is not set");
+  }
   if (!_liveblocks) {
-    _liveblocks = new Liveblocks({
-      secret: process.env.LIVEBLOCKS_SECRET_KEY!,
-    });
+    _liveblocks = new Liveblocks({ secret });
   }
   return _liveblocks;
 }
@@ -43,8 +45,9 @@ export async function POST() {
     return new Response(body, { status });
   } catch (err) {
     console.error("Liveblocks auth error:", err);
+    const message = err instanceof Error ? err.message : "Authentication failed";
     return NextResponse.json(
-      { error: "Authentication failed" },
+      { error: message },
       { status: 500 }
     );
   }
