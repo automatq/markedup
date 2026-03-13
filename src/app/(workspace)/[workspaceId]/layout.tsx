@@ -7,31 +7,10 @@ import { TemplatePicker } from "@/components/TemplatePicker";
 import { GraphView, GraphNode, GraphEdge } from "@/components/graph/GraphView";
 import { useRouter, useParams } from "next/navigation";
 
-// Mock data — will be replaced with API calls
-const mockDocuments = [
-  { id: "doc-1", title: "Getting Started" },
-  { id: "doc-2", title: "Architecture Notes" },
-  { id: "doc-3", title: "Meeting Notes" },
-  { id: "doc-4", title: "Project Brief" },
-  { id: "doc-5", title: "Daily Journal" },
-];
-
-// Mock graph data
-const mockGraphNodes: GraphNode[] = mockDocuments.map((doc, i) => ({
-  id: doc.id,
-  title: doc.title,
-  x: Math.cos((i / mockDocuments.length) * Math.PI * 2) * 100,
-  y: Math.sin((i / mockDocuments.length) * Math.PI * 2) * 100,
-  vx: 0,
-  vy: 0,
-}));
-
-const mockGraphEdges: GraphEdge[] = [
-  { source: "doc-1", target: "doc-2", label: "Architecture Notes" },
-  { source: "doc-2", target: "doc-3", label: "Meeting Notes" },
-  { source: "doc-3", target: "doc-4", label: "Project Brief" },
-  { source: "doc-1", target: "doc-5", label: "Daily Journal" },
-];
+interface DocEntry {
+  id: string;
+  title: string;
+}
 
 export default function WorkspaceLayoutPage({
   children,
@@ -40,12 +19,30 @@ export default function WorkspaceLayoutPage({
 }) {
   const router = useRouter();
   const params = useParams<{ workspaceId: string; documentId?: string }>();
+  const workspaceId = params?.workspaceId ?? "";
 
+  const [documents, setDocuments] = useState<DocEntry[]>([]);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [graphViewOpen, setGraphViewOpen] = useState(false);
 
-  // Cmd+K to open Quick Switcher
+  // Fetch documents from API
+  useEffect(() => {
+    if (!workspaceId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/documents?workspaceId=${workspaceId}`);
+        if (res.ok) {
+          const docs = await res.json();
+          setDocuments(docs);
+        }
+      } catch (err) {
+        console.error("Failed to fetch documents:", err);
+      }
+    })();
+  }, [workspaceId]);
+
+  // Cmd+K to open Quick Switcher, Cmd+G for graph
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -63,9 +60,9 @@ export default function WorkspaceLayoutPage({
 
   const handleSelectDocument = useCallback(
     (id: string) => {
-      router.push(`/${params.workspaceId}/${id}`);
+      router.push(`/${workspaceId}/${id}`);
     },
-    [router, params.workspaceId]
+    [router, workspaceId]
   );
 
   const handleCreateDocument = useCallback(() => {
@@ -73,20 +70,43 @@ export default function WorkspaceLayoutPage({
   }, []);
 
   const handleTemplateSelect = useCallback(
-    (template: any) => {
-      // TODO: Create document via API with template content, then navigate
-      const newId = `doc-${Date.now()}`;
-      console.log("Creating document from template:", template.title, newId);
-      router.push(`/${params.workspaceId}/${newId}`);
+    async (template: any) => {
+      try {
+        const res = await fetch("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceId,
+            title: template.title || "Untitled",
+          }),
+        });
+        if (res.ok) {
+          const doc = await res.json();
+          setDocuments((prev) => [doc, ...prev]);
+          router.push(`/${workspaceId}/${doc.id}`);
+        }
+      } catch (err) {
+        console.error("Failed to create document:", err);
+      }
     },
-    [router, params.workspaceId]
+    [router, workspaceId]
   );
+
+  // Build graph data from documents
+  const graphNodes: GraphNode[] = documents.map((doc, i) => ({
+    id: doc.id,
+    title: doc.title,
+    x: Math.cos((i / Math.max(documents.length, 1)) * Math.PI * 2) * 100,
+    y: Math.sin((i / Math.max(documents.length, 1)) * Math.PI * 2) * 100,
+    vx: 0,
+    vy: 0,
+  }));
 
   return (
     <>
       <WorkspaceLayout
-        documents={mockDocuments}
-        activeDocumentId={params.documentId}
+        documents={documents}
+        activeDocumentId={params?.documentId}
         onSelectDocument={handleSelectDocument}
         onCreateDocument={handleCreateDocument}
       >
@@ -97,13 +117,13 @@ export default function WorkspaceLayoutPage({
       <QuickSwitcher
         open={quickSwitcherOpen}
         onClose={() => setQuickSwitcherOpen(false)}
-        documents={mockDocuments}
+        documents={documents}
         onSelect={(id) => {
           handleSelectDocument(id);
           setQuickSwitcherOpen(false);
         }}
         onCreate={(title) => {
-          console.log("Creating document:", title);
+          handleTemplateSelect({ title });
           setQuickSwitcherOpen(false);
         }}
       />
@@ -119,9 +139,9 @@ export default function WorkspaceLayoutPage({
       <GraphView
         open={graphViewOpen}
         onClose={() => setGraphViewOpen(false)}
-        nodes={mockGraphNodes}
-        edges={mockGraphEdges}
-        activeNodeId={params.documentId}
+        nodes={graphNodes}
+        edges={[]}
+        activeNodeId={params?.documentId}
         onNodeClick={(id) => {
           handleSelectDocument(id);
           setGraphViewOpen(false);
