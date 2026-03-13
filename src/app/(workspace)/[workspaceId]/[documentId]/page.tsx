@@ -6,7 +6,6 @@ import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
 import { MarkedUpEditor } from "@/components/editor/Editor";
 import { DocumentHeader } from "@/components/DocumentHeader";
-import { useCollaboration } from "@/lib/crdt/hooks";
 import { toMarkdown } from "@/lib/export/to-markdown";
 
 // Dialogs
@@ -41,7 +40,6 @@ export default function DocumentPage() {
   const documentId = params?.documentId ?? "";
   const workspaceId = params?.workspaceId ?? "";
   const { user } = useUser();
-  const { ydoc, provider, synced } = useCollaboration(documentId);
   const editorRef = useRef<Editor | null>(null);
 
   const userName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "You" : "You";
@@ -309,8 +307,8 @@ export default function DocumentPage() {
       <DocumentHeader
         documentId={documentId}
         documentTitle={title}
-        provider={provider}
-        synced={synced}
+        provider={null}
+        synced={false}
         lastEdited={new Date(Date.now() - 1000 * 60 * 5)}
         onAction={handleAction}
         notificationCount={unreadCount}
@@ -367,21 +365,11 @@ export default function DocumentPage() {
           <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
 
           {/* Editor */}
-          {ydoc ? (
-            <MarkedUpEditor
-              ydoc={ydoc}
-              provider={provider}
-              userName={userName}
-              userColor={userColor}
-              className={smallText ? "text-sm" : ""}
-              editable={!locked}
-              onEditorReady={handleEditorReady}
-            />
-          ) : (
-            <div className="flex items-center justify-center py-20">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black/60 dark:border-white/20 dark:border-t-white/60" />
-            </div>
-          )}
+          <MarkedUpEditor
+            className={smallText ? "text-sm" : ""}
+            editable={!locked}
+            onEditorReady={handleEditorReady}
+          />
         </div>
       </div>
 

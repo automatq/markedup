@@ -14,11 +14,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import Color from "@tiptap/extension-color";
-import * as Y from "yjs";
 import tippy, { Instance as TippyInstance } from "tippy.js";
-import { HocuspocusProvider } from "@hocuspocus/provider";
-import { Extension } from "@tiptap/core";
-import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from "y-prosemirror";
 
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
@@ -33,74 +29,20 @@ import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
 
-/**
- * Custom TipTap extension that wraps y-prosemirror plugins directly,
- * bypassing the broken @tiptap/extension-collaboration.
- * Includes guard: if fragment.doc is unavailable, editor works without collab.
- */
-function YjsExtension(getFragment: () => Y.XmlFragment | null) {
-  return Extension.create({
-    name: "yjs-sync",
-    addProseMirrorPlugins() {
-      const fragment = getFragment();
-      if (!fragment || !fragment.doc) {
-        console.warn("[MarkedUp] Yjs fragment not ready, editor running without collaboration sync");
-        return [];
-      }
-      return [
-        ySyncPlugin(fragment),
-        yUndoPlugin(),
-      ];
-    },
-  });
-}
-
-function YjsCursorExtension(
-  provider: HocuspocusProvider,
-  user: { name: string; color: string }
-) {
-  return Extension.create({
-    name: "yjs-cursor",
-    addProseMirrorPlugins() {
-      if (!provider?.awareness) return [];
-      return [yCursorPlugin(provider.awareness, { cursorBuilder: undefined })];
-    },
-    onCreate() {
-      provider?.awareness?.setLocalStateField("user", user);
-    },
-  });
-}
-
 interface EditorProps {
-  ydoc: Y.Doc;
-  provider?: HocuspocusProvider | null;
-  userName?: string;
-  userColor?: string;
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
 export function MarkedUpEditor({
-  ydoc,
-  provider,
-  userName = "Anonymous",
-  userColor = "#6366f1",
   className,
   editable = true,
   onEditorReady,
 }: EditorProps) {
-  // Stable ref for the ydoc — ensures fragment is always from the current doc
-  const ydocRef = useRef(ydoc);
-  ydocRef.current = ydoc;
-
-  const providerRef = useRef(provider);
-  providerRef.current = provider;
-
   const extensions = useMemo(() => {
     const exts: any[] = [
       StarterKit.configure({
-        undoRedo: false, // Yjs handles undo/redo
         codeBlock: false,
         link: false,
         underline: false,
@@ -184,21 +126,7 @@ export function MarkedUpEditor({
         },
       }),
 
-      // Yjs collaboration — getter defers fragment access to plugin init time
-      YjsExtension(() => {
-        try {
-          return ydocRef.current?.getXmlFragment("default") ?? null;
-        } catch {
-          return null;
-        }
-      }),
     ];
-
-    if (providerRef.current) {
-      exts.push(
-        YjsCursorExtension(providerRef.current, { name: userName, color: userColor })
-      );
-    }
 
     return exts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
