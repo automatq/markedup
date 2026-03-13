@@ -1,12 +1,9 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "installCommand": "npm install --legacy-peer-deps",
-    "buildCommand": "npx prisma generate"
+    "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npx tsx src/server/hocuspocus/index.ts",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

@@ -2,10 +2,10 @@
 nixPkgs = ["nodejs_22", "npm-10_x", "openssl"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = ["cd server && npm install"]
 
 [phases.build]
-cmds = ["npx prisma generate"]
+cmds = ["cd server && npx prisma generate --schema schema.prisma"]
 
 [start]
-cmd = "npx tsx src/server/hocuspocus/index.ts"
+cmd = "cd server && npm start"
