@@ -9,13 +9,13 @@ import { PageActionsMenu } from "./PageActionsMenu";
 interface DocumentHeaderProps {
   documentId: string;
   documentTitle: string;
-  provider?: any;
   synced: boolean;
   lastEdited?: Date;
   onAction: (action: string) => void;
   notificationCount?: number;
   onNotificationsClick?: () => void;
   currentUser?: PresenceUser;
+  commentCount?: number;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -36,17 +36,16 @@ function formatRelativeTime(date: Date): string {
 export function DocumentHeader({
   documentId,
   documentTitle,
-  provider,
   synced,
   lastEdited,
   onAction,
   notificationCount = 0,
   onNotificationsClick,
   currentUser,
+  commentCount = 0,
 }: DocumentHeaderProps) {
   const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [commentCount] = useState(3); // Mock
 
   return (
     <>
@@ -79,7 +78,7 @@ export function DocumentHeader({
           )}
 
           {/* Presence avatars */}
-          <PresenceAvatars provider={provider} currentUser={currentUser} />
+          <PresenceAvatars currentUser={currentUser} />
 
           {/* Notifications bell */}
           <button

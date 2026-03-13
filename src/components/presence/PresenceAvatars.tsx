@@ -10,7 +10,6 @@ export interface PresenceUser {
 }
 
 interface PresenceAvatarsProps {
-  provider?: any;
   currentUser?: PresenceUser;
 }
 

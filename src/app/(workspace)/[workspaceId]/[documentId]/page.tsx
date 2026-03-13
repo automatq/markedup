@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
+import { useSyncStatus, useThreads } from "@liveblocks/react/suspense";
 import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
@@ -26,13 +27,30 @@ import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
 // Notifications
 import { useEditNotifications } from "@/lib/notifications/useEditNotifications";
 
-const CURSOR_COLORS = [
-  "#6366f1", "#ec4899", "#f59e0b", "#10b981",
-  "#3b82f6", "#8b5cf6", "#ef4444", "#14b8a6",
-];
+/**
+ * Bridge component — must be rendered inside a RoomProvider.
+ * Reports live sync status and comment count up to the parent.
+ */
+function LiveRoomStatus({
+  onSyncChange,
+  onCommentCountChange,
+}: {
+  onSyncChange: (synced: boolean) => void;
+  onCommentCountChange: (count: number) => void;
+}) {
+  const syncStatus = useSyncStatus({ smooth: true });
+  const { threads } = useThreads();
 
-function randomColor() {
-  return CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)];
+  useEffect(() => {
+    onSyncChange(syncStatus === "synchronized");
+  }, [syncStatus, onSyncChange]);
+
+  useEffect(() => {
+    const openCount = threads?.filter((t) => !t.resolved).length ?? 0;
+    onCommentCountChange(openCount);
+  }, [threads, onCommentCountChange]);
+
+  return null; // Invisible — just reports data up
 }
 
 export default function DocumentPage() {
@@ -44,6 +62,9 @@ export default function DocumentPage() {
   const editorRef = useRef<Editor | null>(null);
   const [initialContent, setInitialContent] = useState<any>(undefined);
   const [contentLoaded, setContentLoaded] = useState(false);
+  const [lastEdited, setLastEdited] = useState<Date | undefined>(undefined);
+  const [synced, setSynced] = useState(true);
+  const [commentCount, setCommentCount] = useState(0);
 
   // Load document metadata (title + initial content for new docs)
   useEffect(() => {
@@ -55,6 +76,7 @@ export default function DocumentPage() {
           const doc = await res.json();
           if (doc.content) setInitialContent(doc.content);
           if (doc.title) setTitle(doc.title);
+          if (doc.updatedAt) setLastEdited(new Date(doc.updatedAt));
         }
       } catch (err) {
         console.error("Failed to load document:", err);
@@ -62,6 +84,18 @@ export default function DocumentPage() {
       setContentLoaded(true);
     })();
   }, [documentId]);
+
+  // Update lastEdited when user makes edits (track via sync status changes)
+  const handleSyncChange = useCallback((isSynced: boolean) => {
+    setSynced(isSynced);
+    if (isSynced) {
+      setLastEdited(new Date());
+    }
+  }, []);
+
+  const handleCommentCountChange = useCallback((count: number) => {
+    setCommentCount(count);
+  }, []);
 
   const userName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "You" : "You";
   const userColor = (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
@@ -328,13 +362,13 @@ export default function DocumentPage() {
       <DocumentHeader
         documentId={documentId}
         documentTitle={title}
-        provider={null}
-        synced={false}
-        lastEdited={new Date(Date.now() - 1000 * 60 * 5)}
+        synced={synced}
+        lastEdited={lastEdited}
         onAction={handleAction}
         notificationCount={unreadCount}
         onNotificationsClick={() => setNotificationsOpen(true)}
         currentUser={currentPresenceUser}
+        commentCount={commentCount}
       />
 
       {/* Content area */}
@@ -394,6 +428,10 @@ export default function DocumentPage() {
           {/* Editor — wrapped in Liveblocks Room for real-time collaboration */}
           {contentLoaded ? (
             <Room roomId={`document:${documentId}`}>
+              <LiveRoomStatus
+                onSyncChange={handleSyncChange}
+                onCommentCountChange={handleCommentCountChange}
+              />
               <MarkedUpEditor
                 initialContent={initialContent}
                 className={smallText ? "text-sm" : ""}
