@@ -67,7 +67,7 @@ export function Sidebar({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const filtered = documents.filter((doc) =>
-    doc.title.toLowerCase().includes(search.toLowerCase())
+    (doc.title ?? "Untitled").toLowerCase().includes(search.toLowerCase())
   );
 
   if (collapsed) {

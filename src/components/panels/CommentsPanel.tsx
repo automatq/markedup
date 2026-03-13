@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Send, Check, MoreHorizontal, MessageSquare } from "lucide-react";
+import { X, Send, Check, MessageSquare } from "lucide-react";
 
 export interface CommentThread {
   id: string;
@@ -21,40 +21,6 @@ interface CommentReply {
   timestamp: Date;
 }
 
-const MOCK_THREADS: CommentThread[] = [
-  {
-    id: "c-1",
-    text: "Should we add more detail to the timeline section?",
-    author: "Sarah K",
-    authorColor: "#ec4899",
-    timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    resolved: false,
-    replies: [
-      { id: "r-1", text: "Yes, let's add milestones for each sprint.", author: "You", authorColor: "#6366f1", timestamp: new Date(Date.now() - 1000 * 60 * 20) },
-    ],
-  },
-  {
-    id: "c-2",
-    text: "This code example needs updating for v3 API",
-    author: "James L",
-    authorColor: "#10b981",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3),
-    resolved: false,
-    replies: [],
-  },
-  {
-    id: "c-3",
-    text: "Typo in the third paragraph",
-    author: "Sarah K",
-    authorColor: "#ec4899",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    resolved: true,
-    replies: [
-      { id: "r-2", text: "Fixed, thanks!", author: "You", authorColor: "#6366f1", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 23) },
-    ],
-  },
-];
-
 function formatTime(date: Date): string {
   const diff = Date.now() - date.getTime();
   const mins = Math.floor(diff / 60000);
@@ -71,7 +37,7 @@ interface CommentsPanelProps {
 }
 
 export function CommentsPanel({ open, onClose }: CommentsPanelProps) {
-  const [threads, setThreads] = useState<CommentThread[]>(MOCK_THREADS);
+  const [threads, setThreads] = useState<CommentThread[]>([]);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [filter, setFilter] = useState<"open" | "resolved" | "all">("open");
@@ -124,9 +90,11 @@ export function CommentsPanel({ open, onClose }: CommentsPanelProps) {
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-black/40 dark:text-white/40" />
             <h2 className="text-sm font-semibold text-black dark:text-white">Comments</h2>
-            <span className="text-[10px] text-black/30 dark:text-white/30">
-              {threads.filter((t) => !t.resolved).length} open
-            </span>
+            {threads.filter((t) => !t.resolved).length > 0 && (
+              <span className="text-[10px] text-black/30 dark:text-white/30">
+                {threads.filter((t) => !t.resolved).length} open
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <X className="h-4 w-4" />
@@ -155,7 +123,16 @@ export function CommentsPanel({ open, onClose }: CommentsPanelProps) {
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-black/20 dark:text-white/20">
               <MessageSquare className="h-8 w-8 mb-2" />
-              <p className="text-xs">No {filter} comments</p>
+              <p className="text-xs">
+                {threads.length === 0
+                  ? "No comments yet"
+                  : `No ${filter} comments`}
+              </p>
+              {threads.length === 0 && (
+                <p className="text-[10px] mt-1 text-black/15 dark:text-white/15">
+                  Select text in the editor to add a comment
+                </p>
+              )}
             </div>
           )}
           {filtered.map((thread) => (

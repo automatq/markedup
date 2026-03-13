@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const workspaceId = request.nextUrl.searchParams.get("workspaceId");
     if (!workspaceId) {
       return NextResponse.json(
         { error: "workspaceId is required" },
         { status: 400 }
       );
+    }
+
+    // Verify user owns this workspace
+    const workspace = await db.workspace.findFirst({
+      where: { id: workspaceId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const documents = await db.document.findMany({
@@ -26,6 +41,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { workspaceId, title, content } = body;
 
@@ -34,6 +54,15 @@ export async function POST(request: NextRequest) {
         { error: "workspaceId is required" },
         { status: 400 }
       );
+    }
+
+    // Verify user owns this workspace
+    const workspace = await db.workspace.findFirst({
+      where: { id: workspaceId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const document = await db.document.create({

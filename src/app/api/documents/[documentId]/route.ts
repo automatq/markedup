@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
 export async function GET(
@@ -6,6 +7,11 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { documentId } = await params;
     const document = await db.document.findUnique({
       where: { id: documentId },
@@ -14,6 +20,15 @@ export async function GET(
 
     if (!document) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Verify user owns the workspace this document belongs to
+    const workspace = await db.workspace.findFirst({
+      where: { id: document.workspaceId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     return NextResponse.json(document);
@@ -28,7 +43,29 @@ export async function PATCH(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { documentId } = await params;
+
+    // Verify ownership
+    const existing = await db.document.findUnique({
+      where: { id: documentId },
+      select: { workspaceId: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const workspace = await db.workspace.findFirst({
+      where: { id: existing.workspaceId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { title, content } = body;
 
@@ -54,7 +91,29 @@ export async function DELETE(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { documentId } = await params;
+
+    // Verify ownership
+    const existing = await db.document.findUnique({
+      where: { id: documentId },
+      select: { workspaceId: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const workspace = await db.workspace.findFirst({
+      where: { id: existing.workspaceId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     await db.document.delete({ where: { id: documentId } });
     return NextResponse.json({ ok: true });
   } catch (err) {

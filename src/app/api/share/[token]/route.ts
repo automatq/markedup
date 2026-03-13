@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
-/// Resolve a share token to a document
+/// Resolve a share token to a document (public — anyone with the link)
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -32,25 +33,43 @@ export async function GET(
       workspaceId: link.document.workspaceId,
       permission: link.permission,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("GET /api/share/[token] error:", err);
     return NextResponse.json({ error: "Failed to resolve share link" }, { status: 500 });
   }
 }
 
-/// Disable a share link
+/// Disable a share link (only the creator can do this)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { token } = await params;
+
+    // Verify the user created this share link
+    const link = await db.shareLink.findUnique({
+      where: { token },
+      select: { createdBy: true },
+    });
+    if (!link) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (link.createdBy !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     await db.shareLink.update({
       where: { token },
       data: { enabled: false },
     });
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err) {
     console.error("DELETE /api/share/[token] error:", err);
     return NextResponse.json({ error: "Failed to disable share link" }, { status: 500 });
   }

@@ -9,7 +9,7 @@ import { EditNotification, EditAction } from "./types";
  * Deduplicates rapid edits from the same user in the same section within a window.
  */
 export function useEditNotifications() {
-  const [notifications, setNotifications] = useState<EditNotification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<EditNotification[]>([]);
   const debounceMap = useRef<Map<string, number>>(new Map());
 
   const DEBOUNCE_MS = 3000; // Collapse edits within 3s from same user in same section
@@ -78,10 +78,7 @@ export function useEditNotifications() {
       }
 
       // Determine the action type
-      let action: EditAction = "edited";
-      const docSize = state.doc.content.size;
-      // Heuristic: if doc grew a lot it's likely an "add"
-      // For simplicity we default to "edited"
+      const action: EditAction = "edited";
 
       pushNotification({
         userId,
@@ -121,95 +118,3 @@ export function useEditNotifications() {
     clearAll,
   };
 }
-
-// ── Mock data so the panel looks populated on first load ──
-const MOCK_NOTIFICATIONS: EditNotification[] = [
-  {
-    id: "n-1",
-    userId: "sarah",
-    userName: "Sarah K",
-    userColor: "#ec4899",
-    action: "edited",
-    sectionTitle: "Project Timeline",
-    nodeType: "paragraph",
-    timestamp: new Date(Date.now() - 1000 * 60 * 2),
-    read: false,
-  },
-  {
-    id: "n-2",
-    userId: "james",
-    userName: "James L",
-    userColor: "#10b981",
-    action: "added",
-    sectionTitle: "Technical Spec",
-    nodeType: "table",
-    timestamp: new Date(Date.now() - 1000 * 60 * 8),
-    read: false,
-  },
-  {
-    id: "n-3",
-    userId: "sarah",
-    userName: "Sarah K",
-    userColor: "#ec4899",
-    action: "commented",
-    sectionTitle: "Action Items",
-    nodeType: "paragraph",
-    timestamp: new Date(Date.now() - 1000 * 60 * 15),
-    read: false,
-  },
-  {
-    id: "n-4",
-    userId: "james",
-    userName: "James L",
-    userColor: "#10b981",
-    action: "formatted",
-    sectionTitle: "Introduction",
-    nodeType: "heading",
-    timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    read: true,
-  },
-  {
-    id: "n-5",
-    userId: "sarah",
-    userName: "Sarah K",
-    userColor: "#ec4899",
-    action: "deleted",
-    sectionTitle: "Old Notes",
-    nodeType: "paragraph",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60),
-    read: true,
-  },
-  {
-    id: "n-6",
-    userId: "james",
-    userName: "James L",
-    userColor: "#10b981",
-    action: "added",
-    sectionTitle: null,
-    nodeType: "codeBlock",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    read: true,
-  },
-  {
-    id: "n-7",
-    userId: "you",
-    userName: "You",
-    userColor: "#6366f1",
-    action: "edited",
-    sectionTitle: "Budget Overview",
-    nodeType: "table",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3),
-    read: true,
-  },
-  {
-    id: "n-8",
-    userId: "sarah",
-    userName: "Sarah K",
-    userColor: "#ec4899",
-    action: "added",
-    sectionTitle: "Milestones",
-    nodeType: "taskList",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5),
-    read: true,
-  },
-];

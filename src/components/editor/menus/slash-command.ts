@@ -126,10 +126,10 @@ export const slashCommandItems: SlashCommandItem[] = [
   },
   {
     title: "Highlight",
-    description: "Highlight selected text",
+    description: "Highlight selected text in yellow",
     icon: "Highlighter",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleHighlight().run();
+      editor.chain().focus().deleteRange(range).toggleHighlight({ color: "#fef08a" }).run();
     },
   },
 ];

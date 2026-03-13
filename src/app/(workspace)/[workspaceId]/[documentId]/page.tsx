@@ -181,7 +181,7 @@ export default function DocumentPage() {
             const body = {
               workspaceId: workspaceId,
               title: `${title} (copy)`,
-              content: editor ? JSON.stringify(editor.getJSON()) : undefined,
+              content: editor ? editor.getJSON() : undefined,
             };
             const res = await fetch("/api/documents", {
               method: "POST",
