@@ -34,7 +34,7 @@ import { createLowlight, common } from "lowlight";
 const lowlight = createLowlight(common);
 
 interface EditorProps {
-  ydoc: Y.Doc | null;
+  ydoc: Y.Doc;
   provider?: HocuspocusProvider | null;
   userName?: string;
   userColor?: string;
@@ -140,10 +140,8 @@ export function MarkedUpEditor({
           },
         }),
 
-        // Collaboration
-        ...(ydoc
-          ? [Collaboration.configure({ document: ydoc })]
-          : []),
+        // Collaboration — ydoc is guaranteed non-null by parent guard
+        Collaboration.configure({ document: ydoc }),
         ...(provider
           ? [
               CollaborationCursor.configure({
