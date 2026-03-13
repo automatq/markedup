@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -14,11 +14,11 @@ import TaskItem from "@tiptap/extension-task-item";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import Color from "@tiptap/extension-color";
-import Collaboration from "@tiptap/extension-collaboration";
-import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
 import * as Y from "yjs";
 import tippy, { Instance as TippyInstance } from "tippy.js";
 import { HocuspocusProvider } from "@hocuspocus/provider";
+import { Extension } from "@tiptap/core";
+import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from "y-prosemirror";
 
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
@@ -32,6 +32,38 @@ import {
 import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
+
+/**
+ * Custom TipTap extension that wraps y-prosemirror plugins directly,
+ * bypassing the broken @tiptap/extension-collaboration.
+ */
+function YjsExtension(fragment: Y.XmlFragment) {
+  return Extension.create({
+    name: "yjs-sync",
+    addProseMirrorPlugins() {
+      return [
+        ySyncPlugin(fragment),
+        yUndoPlugin(),
+      ];
+    },
+  });
+}
+
+function YjsCursorExtension(
+  provider: HocuspocusProvider,
+  user: { name: string; color: string }
+) {
+  return Extension.create({
+    name: "yjs-cursor",
+    addProseMirrorPlugins() {
+      if (!provider.awareness) return [];
+      return [yCursorPlugin(provider.awareness, { cursorBuilder: undefined })];
+    },
+    onCreate() {
+      provider.awareness?.setLocalStateField("user", user);
+    },
+  });
+}
 
 interface EditorProps {
   ydoc: Y.Doc;
@@ -52,16 +84,16 @@ export function MarkedUpEditor({
   editable = true,
   onEditorReady,
 }: EditorProps) {
-  // Create fragment once and keep it stable
+  // Create the Yjs fragment once — stable across re-renders
   const fragmentRef = useRef<Y.XmlFragment | null>(null);
   if (!fragmentRef.current) {
     fragmentRef.current = ydoc.getXmlFragment("default");
   }
 
   const extensions = useMemo(() => {
-    const exts = [
+    const exts: any[] = [
       StarterKit.configure({
-        undoRedo: false,
+        undoRedo: false, // Yjs handles undo/redo
         codeBlock: false,
         link: false,
         underline: false,
@@ -145,16 +177,13 @@ export function MarkedUpEditor({
         },
       }),
 
-      // Collaboration — use pre-created fragment directly
-      Collaboration.configure({ fragment: fragmentRef.current! }),
+      // Yjs collaboration — using y-prosemirror directly
+      YjsExtension(fragmentRef.current!),
     ];
 
     if (provider) {
       exts.push(
-        CollaborationCursor.configure({
-          provider,
-          user: { name: userName, color: userColor },
-        })
+        YjsCursorExtension(provider, { name: userName, color: userColor })
       );
     }
 
@@ -175,11 +204,11 @@ export function MarkedUpEditor({
     []
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (editor) editor.setEditable(editable);
   }, [editor, editable]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (editor) onEditorReady?.(editor);
   }, [editor, onEditorReady]);
 
