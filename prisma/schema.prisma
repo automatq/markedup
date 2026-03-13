@@ -1,0 +1,59 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../node_modules/.prisma/client"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Workspace {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  documents Document[]
+
+  @@index([slug])
+}
+
+model Document {
+  id          String    @id @default(cuid())
+  title       String    @default("Untitled")
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  /// Yjs document state as a binary blob
+  yjsState    Bytes?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Backlink graph edges: this document links TO others
+  outgoingLinks Node[] @relation("SourceDocument")
+  // Backlink graph edges: other documents link TO this one
+  incomingLinks Node[] @relation("TargetDocument")
+
+  @@index([workspaceId])
+}
+
+model Node {
+  id String @id @default(cuid())
+
+  sourceDocumentId String
+  sourceDocument   Document @relation("SourceDocument", fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+
+  targetDocumentId String
+  targetDocument   Document @relation("TargetDocument", fields: [targetDocumentId], references: [id], onDelete: Cascade)
+
+  /// The raw [[link_text]] that created this edge
+  linkText String
+
+  createdAt DateTime @default(now())
+
+  @@unique([sourceDocumentId, targetDocumentId, linkText])
+  @@index([sourceDocumentId])
+  @@index([targetDocumentId])
+}

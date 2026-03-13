@@ -1,63 +1,130 @@
-import Image from "next/image";
+"use client";
+
+import React from "react";
+import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Home() {
+  const router = useRouter();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-200">
+      {/* Subtle grid background */}
+      <div className="bg-grid fixed inset-0 pointer-events-none" />
+
+      {/* Theme toggle */}
+      <div className="fixed top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+
+      <main className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 gap-6 text-center">
+        {/* Logo mark */}
+        <div className="flex items-center gap-3 animate-fade-in-up">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03]">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-black dark:text-white">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <line x1="10" y1="9" x2="8" y2="9" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-semibold text-black dark:text-white tracking-tight">
+            MarkedUp
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+        </div>
+
+        {/* Tagline */}
+        <div className="flex flex-col gap-1 animate-fade-in-up" style={{ animationDelay: "60ms" }}>
+          <p className="text-sm text-black/50 dark:text-white/50 max-w-xs">
+            A collaborative, block-based Markdown editor.
+            Local-first speed meets real-time sync.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* CTA buttons — Linktree style */}
+        <div className="flex gap-3 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
+          <button
+            onClick={() => router.push("/demo/doc-1")}
+            className="flex h-9 items-center rounded-lg bg-black px-5 text-sm font-medium text-white hover:opacity-80 transition-opacity dark:bg-white dark:text-black"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Open editor
+          </button>
+          <button
+            onClick={() => {}}
+            className="flex h-9 items-center rounded-lg border border-black/10 dark:border-white/10 px-5 text-sm font-medium text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           >
-            Documentation
-          </a>
+            Learn more
+          </button>
+        </div>
+
+        {/* Feature pills */}
+        <div
+          className="mt-6 flex flex-wrap justify-center gap-2.5 animate-fade-in-up"
+          style={{ animationDelay: "180ms" }}
+        >
+          {[
+            { label: "/ Slash Commands", delay: "240ms" },
+            { label: "[[ Backlinks", delay: "300ms" },
+            { label: "# Markdown Native", delay: "360ms" },
+          ].map((item) => (
+            <span
+              key={item.label}
+              className="animate-fade-in-up inline-flex items-center rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-1.5 text-xs text-black/50 dark:text-white/50"
+              style={{ animationDelay: item.delay }}
+            >
+              {item.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Bottom feature cards — Linktree "minimal" card style */}
+        <div
+          className="mt-4 w-full max-w-sm flex flex-col gap-2.5 animate-fade-in-up"
+          style={{ animationDelay: "420ms" }}
+        >
+          {[
+            {
+              title: "Real-time collaboration",
+              desc: "CRDT-powered sync via Yjs",
+            },
+            {
+              title: "Block-based editing",
+              desc: "TipTap engine with custom extensions",
+            },
+            {
+              title: "Clean Markdown export",
+              desc: "Standard-compliant .md output",
+            },
+          ].map((card, i) => (
+            <div
+              key={card.title}
+              className="group flex items-center justify-between rounded-xl border border-black/8 bg-black/[0.03] px-5 py-4 transition-all duration-150 hover:border-black/20 hover:bg-black/[0.06] active:scale-[0.99] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/25 dark:hover:bg-white/[0.07] animate-fade-in-up"
+              style={{ animationDelay: `${480 + i * 60}ms` }}
+            >
+              <div className="text-left">
+                <p className="text-sm font-medium text-black dark:text-white">
+                  {card.title}
+                </p>
+                <p className="text-xs text-black/40 dark:text-white/40 mt-0.5">
+                  {card.desc}
+                </p>
+              </div>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-black/20 dark:text-white/20 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-black/50 dark:group-hover:text-white/60 shrink-0 ml-4"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </div>
+          ))}
         </div>
       </main>
     </div>
