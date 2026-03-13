@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -52,6 +52,10 @@ export function MarkedUpEditor({
   editable = true,
   onEditorReady,
 }: EditorProps) {
+  // Capture initial values in refs so the editor is only created once
+  const ydocRef = useRef(ydoc);
+  const providerRef = useRef(provider);
+
   const editor = useEditor(
     {
       extensions: [
@@ -141,11 +145,11 @@ export function MarkedUpEditor({
         }),
 
         // Collaboration — ydoc is guaranteed non-null by parent guard
-        Collaboration.configure({ document: ydoc }),
-        ...(provider
+        Collaboration.configure({ document: ydocRef.current }),
+        ...(providerRef.current
           ? [
               CollaborationCursor.configure({
-                provider,
+                provider: providerRef.current,
                 user: { name: userName, color: userColor },
               }),
             ]
@@ -158,7 +162,7 @@ export function MarkedUpEditor({
       },
       immediatelyRender: false,
     },
-    [ydoc, provider]
+    [] // Empty deps — editor created once, never re-created
   );
 
   React.useEffect(() => {
