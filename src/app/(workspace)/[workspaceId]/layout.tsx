@@ -78,6 +78,7 @@ export default function WorkspaceLayoutPage({
           body: JSON.stringify({
             workspaceId,
             title: template.title || "Untitled",
+            content: template.content || undefined,
           }),
         });
         if (res.ok) {

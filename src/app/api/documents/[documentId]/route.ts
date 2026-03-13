@@ -9,7 +9,7 @@ export async function GET(
     const { documentId } = await params;
     const document = await db.document.findUnique({
       where: { id: documentId },
-      select: { id: true, title: true, workspaceId: true, updatedAt: true },
+      select: { id: true, title: true, workspaceId: true, content: true, updatedAt: true },
     });
 
     if (!document) {
@@ -20,6 +20,32 @@ export async function GET(
   } catch (err) {
     console.error("GET /api/documents/[id] error:", err);
     return NextResponse.json({ error: "Failed to fetch document" }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ documentId: string }> }
+) {
+  try {
+    const { documentId } = await params;
+    const body = await request.json();
+    const { title, content } = body;
+
+    const data: Record<string, unknown> = {};
+    if (title !== undefined) data.title = title;
+    if (content !== undefined) data.content = content;
+
+    const document = await db.document.update({
+      where: { id: documentId },
+      data,
+      select: { id: true, title: true, updatedAt: true },
+    });
+
+    return NextResponse.json(document);
+  } catch (err) {
+    console.error("PATCH /api/documents/[id] error:", err);
+    return NextResponse.json({ error: "Failed to update document" }, { status: 500 });
   }
 }
 

@@ -31,7 +31,10 @@ model Document {
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  /// Yjs document state as a binary blob
+  /// TipTap JSONContent stored as JSON
+  content Json?
+
+  /// Yjs document state as a binary blob (reserved for future collab)
   yjsState Bytes?
 
   createdAt DateTime @default(now())
