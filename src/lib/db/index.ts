@@ -2,26 +2,29 @@ import { Pool } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+let _db: PrismaClient | null = null;
 
-function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL environment variable is not set");
+function getDb(): PrismaClient {
+  if (!_db) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("DATABASE_URL environment variable is not set");
+    }
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaNeon(pool as any);
+    _db = new PrismaClient({ adapter });
   }
-  const pool = new Pool({ connectionString });
-  const adapter = new PrismaNeon(pool as any);
-  return new PrismaClient({ adapter });
+  return _db;
 }
 
-// Lazy singleton — only created on first access
-export const db = new Proxy({} as PrismaClient, {
-  get(_target, prop) {
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = createPrismaClient();
+// Proxy that lazily initializes on any property access
+export const db: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getDb();
+    const value = (client as any)[prop];
+    if (typeof value === "function") {
+      return value.bind(client);
     }
-    return (globalForPrisma.prisma as any)[prop];
+    return value;
   },
 });

@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
-import { Pool } from "@neondatabase/serverless";
+import { db } from "@/lib/db";
 
 export async function GET() {
-  const url = process.env.DATABASE_URL;
   const checks: Record<string, any> = {
     env: {
-      DATABASE_URL: url ? `set (starts: ${url.substring(0, 15)}...)` : "MISSING",
-      NODE_ENV: process.env.NODE_ENV,
+      DATABASE_URL: process.env.DATABASE_URL ? "set" : "MISSING",
     },
   };
 
   try {
-    // Test direct pool connection (bypass Prisma)
-    const pool = new Pool({ connectionString: url });
-    const result = await pool.query("SELECT 1 as ok");
+    const count = await db.workspace.count();
     checks.db = "connected";
-    checks.result = result.rows;
-    await pool.end();
+    checks.workspaceCount = count;
   } catch (err: any) {
     checks.db = { error: err?.message ?? String(err) };
   }
