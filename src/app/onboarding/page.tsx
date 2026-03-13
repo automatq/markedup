@@ -67,12 +67,10 @@ export default function OnboardingPage() {
         const ws = await res.json();
         router.push(`/${ws.id}`);
       } else {
-        // Fallback: go to a default workspace
-        router.push("/demo/doc-1");
+        console.error("Failed to create workspace:", await res.text());
       }
     } catch (err) {
       console.error("Onboarding error:", err);
-      router.push("/demo/doc-1");
     } finally {
       setLoading(false);
     }
