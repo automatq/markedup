@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
 import { MarkedUpEditor } from "@/components/editor/Editor";
+import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
 import { toMarkdown } from "@/lib/export/to-markdown";
 
@@ -43,9 +44,8 @@ export default function DocumentPage() {
   const editorRef = useRef<Editor | null>(null);
   const [initialContent, setInitialContent] = useState<any>(undefined);
   const [contentLoaded, setContentLoaded] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load document content from API
+  // Load document metadata (title + initial content for new docs)
   useEffect(() => {
     if (!documentId) return;
     (async () => {
@@ -62,25 +62,6 @@ export default function DocumentPage() {
       setContentLoaded(true);
     })();
   }, [documentId]);
-
-  // Auto-save: debounce content updates
-  const handleEditorUpdate = useCallback(
-    (json: any) => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(async () => {
-        try {
-          await fetch(`/api/documents/${documentId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: json }),
-          });
-        } catch (err) {
-          console.error("Auto-save failed:", err);
-        }
-      }, 1000);
-    },
-    [documentId]
-  );
 
   const userName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "You" : "You";
   const userColor = (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
@@ -410,15 +391,16 @@ export default function DocumentPage() {
           {/* Divider */}
           <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
 
-          {/* Editor */}
+          {/* Editor — wrapped in Liveblocks Room for real-time collaboration */}
           {contentLoaded ? (
-            <MarkedUpEditor
-              initialContent={initialContent}
-              className={smallText ? "text-sm" : ""}
-              editable={!locked}
-              onEditorReady={handleEditorReady}
-              onUpdate={handleEditorUpdate}
-            />
+            <Room roomId={`document:${documentId}`}>
+              <MarkedUpEditor
+                initialContent={initialContent}
+                className={smallText ? "text-sm" : ""}
+                editable={!locked}
+                onEditorReady={handleEditorReady}
+              />
+            </Room>
           ) : (
             <div className="flex items-center justify-center py-20">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black/60 dark:border-white/20 dark:border-t-white/60" />

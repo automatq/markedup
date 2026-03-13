@@ -5,12 +5,11 @@ import { MoreHorizontal, Share2, MessageSquare, Clock, Bell } from "lucide-react
 import { PresenceAvatars, PresenceUser } from "./presence/PresenceAvatars";
 import { ShareDialog } from "./ShareDialog";
 import { PageActionsMenu } from "./PageActionsMenu";
-import { HocuspocusProvider } from "@hocuspocus/provider";
 
 interface DocumentHeaderProps {
   documentId: string;
   documentTitle: string;
-  provider?: HocuspocusProvider | null;
+  provider?: any;
   synced: boolean;
   lastEdited?: Date;
   onAction: (action: string) => void;

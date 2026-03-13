@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { HocuspocusProvider } from "@hocuspocus/provider";
+import React from "react";
 
 export interface PresenceUser {
   name: string;
@@ -11,7 +10,7 @@ export interface PresenceUser {
 }
 
 interface PresenceAvatarsProps {
-  provider?: HocuspocusProvider | null;
+  provider?: any;
   currentUser?: PresenceUser;
 }
 
@@ -24,45 +23,9 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-export function PresenceAvatars({ provider, currentUser }: PresenceAvatarsProps) {
-  const [users, setUsers] = useState<PresenceUser[]>(
-    currentUser ? [currentUser] : []
-  );
-
-  useEffect(() => {
-    if (!provider) return;
-
-    const updateUsers = () => {
-      const states = provider.awareness?.getStates();
-      if (!states) return;
-
-      const awarenessUsers: PresenceUser[] = [];
-      states.forEach((state: any) => {
-        if (state.user) {
-          awarenessUsers.push({
-            name: state.user.name ?? "Anonymous",
-            color: state.user.color ?? "#6366f1",
-            avatar: state.user.avatar,
-            isCurrentUser: false,
-          });
-        }
-      });
-
-      if (awarenessUsers.length > 0) {
-        setUsers(awarenessUsers);
-      }
-    };
-
-    provider.awareness?.on("change", updateUsers);
-    updateUsers();
-
-    return () => {
-      provider.awareness?.off("change", updateUsers);
-    };
-  }, [provider]);
-
-  // Fall back to current user if no awareness data
-  const displayUsers = users.length > 0 ? users : currentUser ? [currentUser] : [];
+export function PresenceAvatars({ currentUser }: PresenceAvatarsProps) {
+  // Liveblocks handles presence via its own UI — this shows the current user fallback
+  const displayUsers: PresenceUser[] = currentUser ? [currentUser] : [];
   const maxVisible = 4;
   const visible = displayUsers.slice(0, maxVisible);
   const overflow = displayUsers.length - maxVisible;

@@ -1,0 +1,51 @@
+import { Liveblocks } from "@liveblocks/node";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+
+let _liveblocks: Liveblocks | null = null;
+function getLiveblocks() {
+  if (!_liveblocks) {
+    _liveblocks = new Liveblocks({
+      secret: process.env.LIVEBLOCKS_SECRET_KEY!,
+    });
+  }
+  return _liveblocks;
+}
+
+export async function POST() {
+  try {
+    const liveblocks = getLiveblocks();
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await currentUser();
+    const name = user
+      ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Anonymous"
+      : "Anonymous";
+    const avatar = user?.imageUrl;
+    const color =
+      (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
+
+    const { status, body } = await liveblocks.identifyUser(
+      { userId, groupIds: [] },
+      {
+        userInfo: {
+          name,
+          avatar,
+          color,
+        },
+      }
+    );
+
+    return new Response(body, { status });
+  } catch (err) {
+    console.error("Liveblocks auth error:", err);
+    return NextResponse.json(
+      { error: "Authentication failed" },
+      { status: 500 }
+    );
+  }
+}

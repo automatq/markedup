@@ -15,6 +15,7 @@ import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import Color from "@tiptap/extension-color";
 import tippy, { Instance as TippyInstance } from "tippy.js";
+import { useLiveblocksExtension } from "@liveblocks/react-tiptap";
 
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
@@ -34,7 +35,6 @@ interface EditorProps {
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
-  onUpdate?: (json: any) => void;
 }
 
 export function MarkedUpEditor({
@@ -42,14 +42,20 @@ export function MarkedUpEditor({
   className,
   editable = true,
   onEditorReady,
-  onUpdate,
 }: EditorProps) {
-  const extensions = useMemo(() => {
-    const exts: any[] = [
+  // Liveblocks extension handles Yjs sync, cursors, and persistence
+  const liveblocks = useLiveblocksExtension({
+    initialContent,
+  });
+
+  const editor = useEditor({
+    extensions: [
+      liveblocks,
       StarterKit.configure({
         codeBlock: false,
         link: false,
         underline: false,
+        undoRedo: false,
       }),
       Placeholder.configure({
         placeholder: 'Type "/" for commands…',
@@ -129,32 +135,14 @@ export function MarkedUpEditor({
           },
         },
       }),
-
-    ];
-
-    return exts;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
-
-  const editor = useEditor(
-    {
-      extensions,
-      content: initialContent || undefined,
-      editorProps: {
-        attributes: {
-          class: `prose prose-sm max-w-none focus:outline-none min-h-[500px] px-4 py-6 text-black dark:text-white prose-headings:text-black dark:prose-headings:text-white prose-p:text-black/80 dark:prose-p:text-white/80 prose-strong:text-black dark:prose-strong:text-white prose-code:text-black/70 dark:prose-code:text-white/70 prose-code:bg-black/5 dark:prose-code:bg-white/5 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-blockquote:border-black/15 dark:prose-blockquote:border-white/15 prose-blockquote:text-black/60 dark:prose-blockquote:text-white/60 prose-hr:border-black/8 dark:prose-hr:border-white/10 ${className ?? ""}`,
-        },
+    ],
+    editorProps: {
+      attributes: {
+        class: `prose prose-sm max-w-none focus:outline-none min-h-[500px] px-4 py-6 text-black dark:text-white prose-headings:text-black dark:prose-headings:text-white prose-p:text-black/80 dark:prose-p:text-white/80 prose-strong:text-black dark:prose-strong:text-white prose-code:text-black/70 dark:prose-code:text-white/70 prose-code:bg-black/5 dark:prose-code:bg-white/5 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-blockquote:border-black/15 dark:prose-blockquote:border-white/15 prose-blockquote:text-black/60 dark:prose-blockquote:text-white/60 prose-hr:border-black/8 dark:prose-hr:border-white/10 ${className ?? ""}`,
       },
-      onUpdate: ({ editor: e }) => {
-        onUpdateRef.current?.(e.getJSON());
-      },
-      immediatelyRender: false,
     },
-    []
-  );
+    immediatelyRender: false,
+  });
 
   useEffect(() => {
     if (editor) editor.setEditable(editable);
