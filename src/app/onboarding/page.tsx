@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { AvatarUpload } from "@/components/AvatarUpload";
@@ -77,6 +77,27 @@ export default function OnboardingPage() {
       setLoading(false);
     }
   }, [user, avatarFile, role, avatarColor, workspaceName, router]);
+
+  // If onboarding already complete, redirect to their workspace
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    if (user.unsafeMetadata?.onboardingComplete) {
+      // Fetch their workspace and redirect
+      (async () => {
+        try {
+          const res = await fetch("/api/workspaces");
+          if (res.ok) {
+            const workspaces = await res.json();
+            if (workspaces.length > 0) {
+              router.push(`/${workspaces[0].id}`);
+              return;
+            }
+          }
+        } catch {}
+        // If no workspace found, let them re-onboard
+      })();
+    }
+  }, [isLoaded, user, router]);
 
   if (!isLoaded) {
     return (
