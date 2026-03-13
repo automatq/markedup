@@ -7,7 +7,11 @@ import {
   Plus,
   FileText,
   Search,
+  Settings,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export interface SidebarDocument {
@@ -24,6 +28,31 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
+function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
+  const { user } = useUser();
+  const avatarColor = (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
+  const initials = user
+    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() ||
+      user.emailAddresses[0]?.emailAddress[0]?.toUpperCase() ||
+      "U"
+    : "U";
+
+  const sizeClass = size === "md" ? "h-8 w-8 text-xs" : "h-6 w-6 text-[9px]";
+
+  return (
+    <div
+      className={`${sizeClass} rounded-full flex items-center justify-center font-semibold text-white overflow-hidden shrink-0`}
+      style={{ backgroundColor: user?.imageUrl ? undefined : avatarColor }}
+    >
+      {user?.imageUrl ? (
+        <img src={user.imageUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initials
+      )}
+    </div>
+  );
+}
+
 export function Sidebar({
   documents,
   activeDocumentId,
@@ -32,7 +61,10 @@ export function Sidebar({
   collapsed,
   onToggleCollapse,
 }: SidebarProps) {
+  const { user } = useUser();
+  const { signOut, openUserProfile } = useClerk();
   const [search, setSearch] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const filtered = documents.filter((doc) =>
     doc.title.toLowerCase().includes(search.toLowerCase())
@@ -55,8 +87,9 @@ export function Sidebar({
         >
           <Plus className="h-4 w-4" />
         </button>
-        <div className="mt-auto">
+        <div className="mt-auto flex flex-col items-center gap-2">
           <ThemeToggle />
+          <UserAvatar size="sm" />
         </div>
       </div>
     );
@@ -126,12 +159,55 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Footer with theme toggle */}
-      <div className="border-t border-black/8 dark:border-white/10 px-3 py-2.5 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-widest text-black/30 dark:text-white/30">
-          Workspace
-        </span>
-        <ThemeToggle />
+      {/* Footer: User profile + theme toggle */}
+      <div className="border-t border-black/8 dark:border-white/10 px-3 py-2.5">
+        <div className="relative">
+          <button
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          >
+            <UserAvatar size="md" />
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-medium text-black dark:text-white truncate">
+                {user?.firstName
+                  ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+                  : user?.emailAddresses[0]?.emailAddress ?? "Account"}
+              </p>
+              <p className="text-[10px] text-black/30 dark:text-white/30 truncate">
+                {user?.emailAddresses[0]?.emailAddress ?? ""}
+              </p>
+            </div>
+            <ChevronDown className={`h-3 w-3 text-black/30 dark:text-white/30 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* User dropdown */}
+          {userMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+              <div className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up py-1">
+                <button
+                  onClick={() => { openUserProfile(); setUserMenuOpen(false); }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  Manage account
+                </button>
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="text-xs text-black/40 dark:text-white/40">Theme</span>
+                  <ThemeToggle />
+                </div>
+                <div className="border-t border-black/6 dark:border-white/6 my-1" />
+                <button
+                  onClick={() => signOut()}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

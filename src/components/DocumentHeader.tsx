@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { MoreHorizontal, Share2, MessageSquare, Clock, Bell } from "lucide-react";
-import { PresenceAvatars } from "./presence/PresenceAvatars";
+import { PresenceAvatars, PresenceUser } from "./presence/PresenceAvatars";
 import { ShareDialog } from "./ShareDialog";
 import { PageActionsMenu } from "./PageActionsMenu";
 import { HocuspocusProvider } from "@hocuspocus/provider";
@@ -16,6 +16,7 @@ interface DocumentHeaderProps {
   onAction: (action: string) => void;
   notificationCount?: number;
   onNotificationsClick?: () => void;
+  currentUser?: PresenceUser;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -42,6 +43,7 @@ export function DocumentHeader({
   onAction,
   notificationCount = 0,
   onNotificationsClick,
+  currentUser,
 }: DocumentHeaderProps) {
   const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,7 +80,7 @@ export function DocumentHeader({
           )}
 
           {/* Presence avatars */}
-          <PresenceAvatars provider={provider} />
+          <PresenceAvatars provider={provider} currentUser={currentUser} />
 
           {/* Notifications bell */}
           <button

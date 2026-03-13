@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
 import { MarkedUpEditor } from "@/components/editor/Editor";
 import { DocumentHeader } from "@/components/DocumentHeader";
@@ -39,8 +40,20 @@ export default function DocumentPage() {
   const router = useRouter();
   const documentId = params?.documentId ?? "";
   const workspaceId = params?.workspaceId ?? "";
+  const { user } = useUser();
   const { ydoc, provider, synced } = useCollaboration(documentId);
   const editorRef = useRef<Editor | null>(null);
+
+  const userName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "You" : "You";
+  const userColor = (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
+  const userAvatar = user?.imageUrl;
+
+  const currentPresenceUser = useMemo(() => ({
+    name: userName,
+    color: userColor,
+    avatar: userAvatar,
+    isCurrentUser: true,
+  }), [userName, userColor, userAvatar]);
 
   // Notifications
   const {
@@ -302,6 +315,7 @@ export default function DocumentPage() {
         onAction={handleAction}
         notificationCount={unreadCount}
         onNotificationsClick={() => setNotificationsOpen(true)}
+        currentUser={currentPresenceUser}
       />
 
       {/* Content area */}
@@ -356,8 +370,8 @@ export default function DocumentPage() {
           <MarkedUpEditor
             ydoc={ydoc}
             provider={provider}
-            userName="You"
-            userColor={randomColor()}
+            userName={userName}
+            userColor={userColor}
             className={smallText ? "text-sm" : ""}
             editable={!locked}
             onEditorReady={handleEditorReady}

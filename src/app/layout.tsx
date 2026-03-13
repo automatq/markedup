@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter, DM_Sans, Space_Grotesk } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "./providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -56,9 +57,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="antialiased">
-        <Providers>
-          <TooltipProvider>{children}</TooltipProvider>
-        </Providers>
+        <ClerkProvider
+          appearance={{
+            variables: {
+              colorPrimary: "#000000",
+              borderRadius: "0.75rem",
+            },
+          }}
+        >
+          <Providers>
+            <TooltipProvider>{children}</TooltipProvider>
+          </Providers>
+        </ClerkProvider>
       </body>
     </html>
   );

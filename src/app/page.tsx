@@ -45,16 +45,16 @@ export default function Home() {
         {/* CTA buttons — Linktree style */}
         <div className="flex gap-3 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
           <button
-            onClick={() => router.push("/demo/doc-1")}
+            onClick={() => router.push("/sign-up")}
             className="flex h-9 items-center rounded-lg bg-black px-5 text-sm font-medium text-white hover:opacity-80 transition-opacity dark:bg-white dark:text-black"
           >
-            Open editor
+            Get started
           </button>
           <button
-            onClick={() => {}}
+            onClick={() => router.push("/sign-in")}
             className="flex h-9 items-center rounded-lg border border-black/10 dark:border-white/10 px-5 text-sm font-medium text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           >
-            Learn more
+            Sign in
           </button>
         </div>
 

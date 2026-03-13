@@ -15,13 +15,6 @@ interface PresenceAvatarsProps {
   currentUser?: PresenceUser;
 }
 
-// Mock users for demo — in production these come from provider.awareness
-const MOCK_USERS: PresenceUser[] = [
-  { name: "You", color: "#6366f1", isCurrentUser: true },
-  { name: "Sarah K", color: "#ec4899" },
-  { name: "James L", color: "#10b981" },
-];
-
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -32,7 +25,9 @@ function getInitials(name: string) {
 }
 
 export function PresenceAvatars({ provider, currentUser }: PresenceAvatarsProps) {
-  const [users, setUsers] = useState<PresenceUser[]>(MOCK_USERS);
+  const [users, setUsers] = useState<PresenceUser[]>(
+    currentUser ? [currentUser] : []
+  );
 
   useEffect(() => {
     if (!provider) return;
@@ -47,6 +42,7 @@ export function PresenceAvatars({ provider, currentUser }: PresenceAvatarsProps)
           awarenessUsers.push({
             name: state.user.name ?? "Anonymous",
             color: state.user.color ?? "#6366f1",
+            avatar: state.user.avatar,
             isCurrentUser: false,
           });
         }
@@ -65,24 +61,36 @@ export function PresenceAvatars({ provider, currentUser }: PresenceAvatarsProps)
     };
   }, [provider]);
 
+  // Fall back to current user if no awareness data
+  const displayUsers = users.length > 0 ? users : currentUser ? [currentUser] : [];
   const maxVisible = 4;
-  const visible = users.slice(0, maxVisible);
-  const overflow = users.length - maxVisible;
+  const visible = displayUsers.slice(0, maxVisible);
+  const overflow = displayUsers.length - maxVisible;
 
   return (
     <div className="flex items-center">
-      {/* Avatar stack */}
       <div className="flex -space-x-2">
         {visible.map((user, i) => (
           <div
             key={`${user.name}-${i}`}
             title={`${user.name}${user.isCurrentUser ? " (you)" : ""}`}
-            className="relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-white dark:border-black text-[10px] font-semibold transition-transform hover:scale-110 hover:z-10 cursor-default"
-            style={{ backgroundColor: user.color, zIndex: visible.length - i }}
+            className="relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-white dark:border-black text-[10px] font-semibold transition-transform hover:scale-110 hover:z-10 cursor-default overflow-hidden"
+            style={{
+              backgroundColor: user.avatar ? undefined : user.color,
+              zIndex: visible.length - i,
+            }}
           >
-            <span className="text-white mix-blend-luminosity">
-              {getInitials(user.name)}
-            </span>
+            {user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-white mix-blend-luminosity">
+                {getInitials(user.name)}
+              </span>
+            )}
             {/* Online dot */}
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-black bg-emerald-500" />
           </div>
