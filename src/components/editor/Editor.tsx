@@ -36,11 +36,17 @@ const lowlight = createLowlight(common);
 /**
  * Custom TipTap extension that wraps y-prosemirror plugins directly,
  * bypassing the broken @tiptap/extension-collaboration.
+ * Includes guard: if fragment.doc is unavailable, editor works without collab.
  */
-function YjsExtension(fragment: Y.XmlFragment) {
+function YjsExtension(getFragment: () => Y.XmlFragment | null) {
   return Extension.create({
     name: "yjs-sync",
     addProseMirrorPlugins() {
+      const fragment = getFragment();
+      if (!fragment || !fragment.doc) {
+        console.warn("[MarkedUp] Yjs fragment not ready, editor running without collaboration sync");
+        return [];
+      }
       return [
         ySyncPlugin(fragment),
         yUndoPlugin(),
@@ -56,11 +62,11 @@ function YjsCursorExtension(
   return Extension.create({
     name: "yjs-cursor",
     addProseMirrorPlugins() {
-      if (!provider.awareness) return [];
+      if (!provider?.awareness) return [];
       return [yCursorPlugin(provider.awareness, { cursorBuilder: undefined })];
     },
     onCreate() {
-      provider.awareness?.setLocalStateField("user", user);
+      provider?.awareness?.setLocalStateField("user", user);
     },
   });
 }
@@ -84,11 +90,12 @@ export function MarkedUpEditor({
   editable = true,
   onEditorReady,
 }: EditorProps) {
-  // Create the Yjs fragment once — stable across re-renders
-  const fragmentRef = useRef<Y.XmlFragment | null>(null);
-  if (!fragmentRef.current) {
-    fragmentRef.current = ydoc.getXmlFragment("default");
-  }
+  // Stable ref for the ydoc — ensures fragment is always from the current doc
+  const ydocRef = useRef(ydoc);
+  ydocRef.current = ydoc;
+
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
 
   const extensions = useMemo(() => {
     const exts: any[] = [
@@ -177,13 +184,19 @@ export function MarkedUpEditor({
         },
       }),
 
-      // Yjs collaboration — using y-prosemirror directly
-      YjsExtension(fragmentRef.current!),
+      // Yjs collaboration — getter defers fragment access to plugin init time
+      YjsExtension(() => {
+        try {
+          return ydocRef.current?.getXmlFragment("default") ?? null;
+        } catch {
+          return null;
+        }
+      }),
     ];
 
-    if (provider) {
+    if (providerRef.current) {
       exts.push(
-        YjsCursorExtension(provider, { name: userName, color: userColor })
+        YjsCursorExtension(providerRef.current, { name: userName, color: userColor })
       );
     }
 

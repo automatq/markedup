@@ -3,13 +3,13 @@
  * Deployed separately on Railway.
  */
 import { Server } from "@hocuspocus/server";
-import { Pool } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
 import * as Y from "yjs";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaNeon(pool as any);
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is required");
+const adapter = new PrismaNeon({ connectionString });
 const db = new PrismaClient({ adapter });
 
 const port = parseInt(process.env.PORT ?? "1234", 10);
