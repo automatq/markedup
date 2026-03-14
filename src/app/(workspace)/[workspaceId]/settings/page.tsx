@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useUser, useOrganization } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import {
   ArrowLeft,
   Users,
@@ -177,7 +177,6 @@ export default function SettingsPage() {
   const params = useParams<{ workspaceId: string }>();
   const router = useRouter();
   const { user } = useUser();
-  const { organization } = useOrganization();
   const workspaceId = params?.workspaceId ?? "";
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -196,47 +195,36 @@ export default function SettingsPage() {
 
   const isOwner = user?.id === ownerId;
 
-  // Use Clerk org as primary orgId source, fall back to DB
-  const clerkOrgId = organization?.id;
-
-  // Set orgName from Clerk org when available
-  useEffect(() => {
-    if (organization?.name && !orgName) {
-      setOrgName(organization.name);
-    }
-  }, [organization?.name, orgName]);
-
-  // Fetch workspace info
+  // Fetch workspace info + members in one flow
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/workspaces");
-        if (res.ok) {
-          const workspaces = await res.json();
-          const ws = workspaces.find((w: any) => w.id === workspaceId);
-          setWorkspace(ws || null);
+        // 1. Get workspace to find orgId
+        const wsRes = await fetch("/api/workspaces");
+        if (!wsRes.ok) {
+          setMembersError(true);
+          setLoading(false);
+          return;
         }
-      } catch {}
-    })();
-  }, [workspaceId]);
+        const workspaces = await wsRes.json();
+        const ws = workspaces.find((w: any) => w.id === workspaceId);
+        setWorkspace(ws || null);
 
-  // Resolve orgId — prefer Clerk session, fall back to workspace DB field
-  const resolvedOrgId = clerkOrgId || workspace?.orgId;
+        if (!ws?.orgId) {
+          setLoading(false);
+          return;
+        }
 
-  // Fetch members
-  useEffect(() => {
-    if (!resolvedOrgId) {
-      setLoading(false);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await fetch(`/api/organizations/members?orgId=${resolvedOrgId}`);
-        if (res.ok) {
-          const data = await res.json();
+        // Also set name from workspace as initial fallback
+        if (ws.name) setOrgName(ws.name);
+
+        // 2. Fetch members using the orgId from DB
+        const membersRes = await fetch(`/api/organizations/members?orgId=${ws.orgId}`);
+        if (membersRes.ok) {
+          const data = await membersRes.json();
           setMembers(data.members);
           setOwnerId(data.ownerId);
-          setOrgName(data.orgName);
+          if (data.orgName) setOrgName(data.orgName);
         } else {
           setMembersError(true);
         }
@@ -245,7 +233,7 @@ export default function SettingsPage() {
       }
       setLoading(false);
     })();
-  }, [resolvedOrgId]);
+  }, [workspaceId]);
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -261,24 +249,24 @@ export default function SettingsPage() {
   }, [fetchAgents]);
 
   const handleRemoveMember = useCallback(async (targetUserId: string) => {
-    if (!resolvedOrgId) return;
+    if (!workspace?.orgId) return;
     if (!confirm("Remove this member from the group?")) return;
     try {
-      await fetch(`/api/organizations/members?orgId=${resolvedOrgId}&userId=${targetUserId}`, {
+      await fetch(`/api/organizations/members?orgId=${workspace?.orgId}&userId=${targetUserId}`, {
         method: "DELETE",
       });
       setMembers((prev) => prev.filter((m) => m.userId !== targetUserId));
     } catch {}
-  }, [resolvedOrgId]);
+  }, [workspace?.orgId]);
 
   const handleRenameSave = useCallback(async () => {
-    if (!resolvedOrgId || !nameInput.trim()) return;
+    if (!workspace?.orgId || !nameInput.trim()) return;
     setSavingName(true);
     try {
       const res = await fetch("/api/organizations", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: resolvedOrgId, name: nameInput.trim() }),
+        body: JSON.stringify({ orgId: workspace?.orgId, name: nameInput.trim() }),
       });
       if (res.ok) {
         setOrgName(nameInput.trim());
@@ -289,7 +277,7 @@ export default function SettingsPage() {
       }
     } catch {}
     setSavingName(false);
-  }, [resolvedOrgId, nameInput]);
+  }, [workspace?.orgId, nameInput]);
 
   const handleDeleteAgent = useCallback(async (agentId: string) => {
     if (!confirm("Delete this agent?")) return;
@@ -300,14 +288,14 @@ export default function SettingsPage() {
   }, []);
 
   const handleLeaveGroup = useCallback(async () => {
-    if (!resolvedOrgId) return;
+    if (!workspace?.orgId) return;
     if (!confirm("Are you sure you want to leave this group? You will lose access to all shared documents.")) return;
     setLeaving(true);
     try {
       const res = await fetch("/api/organizations/leave", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: resolvedOrgId }),
+        body: JSON.stringify({ orgId: workspace?.orgId }),
       });
       if (res.ok) {
         // Redirect to next available workspace instead of landing page
@@ -329,7 +317,7 @@ export default function SettingsPage() {
       }
     } catch {}
     setLeaving(false);
-  }, [resolvedOrgId, router]);
+  }, [workspace?.orgId, router]);
 
   if (workspace?.isPersonal) {
     return (
@@ -393,7 +381,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-black/60 dark:text-white/60">
-                {orgName || organization?.name || workspace?.name || "Loading..."}
+                {orgName || workspace?.name || "Loading..."}
               </p>
               {isOwner && (
                 <button
