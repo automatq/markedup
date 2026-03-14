@@ -14,7 +14,7 @@ import {
   Check,
   Lock,
 } from "lucide-react";
-import { AGENTS, AgentRole } from "@/lib/agents";
+import { AgentRole } from "@/lib/agents";
 import ReactMarkdown from "react-markdown";
 
 interface Breakout {
@@ -33,6 +33,7 @@ interface BreakoutPanelProps {
   documentId: string;
   documentTitle: string;
   getDocumentContent: () => string;
+  workspaceId: string;
 }
 
 function AgentBreakoutSection({
@@ -190,7 +191,9 @@ export function BreakoutPanel({
   documentId,
   documentTitle,
   getDocumentContent,
+  workspaceId,
 }: BreakoutPanelProps) {
+  const [agents, setAgents] = useState<(AgentRole & { dbId: string })[]>([]);
   const [breakouts, setBreakouts] = useState<Breakout[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingAgent, setGeneratingAgent] = useState<string | null>(null);
@@ -223,13 +226,34 @@ export function BreakoutPanel({
     } catch {}
   }, []);
 
+  // Fetch workspace agents
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agents/config?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.map((a: any) => ({
+          id: a.roleId,
+          dbId: a.id,
+          name: a.name,
+          title: a.title,
+          color: a.color,
+          avatar: a.avatar,
+          description: a.description,
+          systemPrompt: a.systemPrompt,
+        })));
+      }
+    } catch {}
+  }, [workspaceId]);
+
   useEffect(() => {
     if (open) {
       setLoading(true);
+      fetchAgents();
       fetchBreakouts();
       fetchAutoSaveSetting();
     }
-  }, [open, fetchBreakouts, fetchAutoSaveSetting]);
+  }, [open, fetchAgents, fetchBreakouts, fetchAutoSaveSetting]);
 
   const toggleAutoSave = useCallback(async () => {
     setAutoSaveLoading(true);
@@ -254,7 +278,7 @@ export function BreakoutPanel({
   }, [autoSave]);
 
   const handleGenerate = useCallback(
-    async (agent: AgentRole) => {
+    async (agent: AgentRole & { dbId: string }) => {
       setGeneratingAgent(agent.id);
       try {
         const res = await fetch("/api/breakouts", {
@@ -262,7 +286,7 @@ export function BreakoutPanel({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             documentId,
-            agentId: agent.id,
+            agentId: agent.dbId,
             documentContent: getDocumentContent(),
             documentTitle,
           }),
@@ -300,10 +324,10 @@ export function BreakoutPanel({
   }, []);
 
   const handleGenerateAll = useCallback(async () => {
-    for (const agent of AGENTS) {
+    for (const agent of agents) {
       await handleGenerate(agent);
     }
-  }, [handleGenerate]);
+  }, [agents, handleGenerate]);
 
   if (!open) return null;
 
@@ -376,16 +400,27 @@ export function BreakoutPanel({
           </div>
         ) : (
           <>
-            <p className="text-xs text-black/40 dark:text-white/40 mb-2">
-              Each agent generates a role-specific action plan from your
-              document. Breakout files are visible to the entire team.
-              {autoSave && (
-                <span className="block mt-1 text-emerald-600 dark:text-emerald-400">
-                  Auto-saving breakouts to your personal workspace.
-                </span>
-              )}
-            </p>
-            {AGENTS.map((agent) => (
+            {agents.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-black/40 dark:text-white/40 mb-2">
+                  No agents configured yet.
+                </p>
+                <p className="text-xs text-black/30 dark:text-white/30">
+                  Create agents in the group settings to generate breakout files.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-black/40 dark:text-white/40 mb-2">
+                Each agent generates a role-specific action plan from your
+                document. Breakout files are visible to the entire team.
+                {autoSave && (
+                  <span className="block mt-1 text-emerald-600 dark:text-emerald-400">
+                    Auto-saving breakouts to your personal workspace.
+                  </span>
+                )}
+              </p>
+            )}
+            {agents.map((agent) => (
               <AgentBreakoutSection
                 key={agent.id}
                 agent={agent}

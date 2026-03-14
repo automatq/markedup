@@ -22,9 +22,10 @@ model Workspace {
   autoBreakouts Boolean @default(false)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  documents Document[]
-  invites   Invite[]
-  callLogs  CallLog[]
+  documents  Document[]
+  invites    Invite[]
+  callLogs   CallLog[]
+  agentRoles AgentConfig[]
 
   @@index([slug])
   @@index([orgId])
@@ -150,6 +151,34 @@ model CallLog {
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
   @@index([createdBy])
+}
+
+/// Custom AI agent roles created by a workspace/group
+model AgentConfig {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Short identifier (e.g. "ceo", "sales-lead")
+  roleId      String
+  /// Display name (e.g. "Dylan")
+  name        String
+  /// Title (e.g. "CEO", "Head of Sales")
+  title       String
+  /// Hex color for UI
+  color       String    @default("#6366f1")
+  /// Single character avatar
+  avatar      String    @default("A")
+  /// What this agent focuses on
+  description String
+  /// System prompt for AI interactions
+  systemPrompt String
+  /// Who created this agent
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, roleId])
+  @@index([workspaceId])
 }
 
 /// Public/private share links for documents

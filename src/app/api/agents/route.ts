@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
-import { getAgent } from "@/lib/agents";
+import { db } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,9 +17,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { agentId, message, documentContent, history } = await request.json();
+    const { agentId, message, documentContent, history, workspaceId } = await request.json();
 
-    const agent = getAgent(agentId);
+    // Look up agent from workspace config
+    const agent = await db.agentConfig.findFirst({
+      where: { id: agentId },
+    });
     if (!agent) {
       return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
     }
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       response: text,
-      agentId: agent.id,
+      agentId: agent.roleId,
       agentName: agent.name,
       agentTitle: agent.title,
     });

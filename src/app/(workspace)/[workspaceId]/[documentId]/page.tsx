@@ -416,6 +416,7 @@ function DocumentInner({
             open={agentsOpen}
             onClose={() => setAgentsOpen(false)}
             getDocumentContent={() => editorRef.current?.getText() ?? ""}
+            workspaceId={workspaceId}
             onInsertSuggestion={(text) => {
               const editor = editorRef.current;
               if (!editor) return;
@@ -432,6 +433,7 @@ function DocumentInner({
             documentId={documentId}
             documentTitle={title}
             getDocumentContent={() => editorRef.current?.getText() ?? ""}
+            workspaceId={workspaceId}
           />
         )}
       </div>

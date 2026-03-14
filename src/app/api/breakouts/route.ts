@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
-import { getAgent } from "@/lib/agents";
+import type { AgentRole } from "@/lib/agents";
 
 /**
  * GET /api/breakouts?documentId=...
@@ -54,10 +54,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "documentId and agentId required" }, { status: 400 });
     }
 
-    const agent = getAgent(agentId);
-    if (!agent) {
+    // Look up agent from DB
+    const agentConfig = await db.agentConfig.findUnique({ where: { id: agentId } });
+    if (!agentConfig) {
       return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
     }
+    const agent: AgentRole = {
+      id: agentConfig.roleId,
+      name: agentConfig.name,
+      title: agentConfig.title,
+      color: agentConfig.color,
+      avatar: agentConfig.avatar,
+      description: agentConfig.description,
+      systemPrompt: agentConfig.systemPrompt,
+    };
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 

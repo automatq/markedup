@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
-import { AGENTS } from "@/lib/agents";
 
 /**
  * GET /api/wiki?workspaceId=...
@@ -38,6 +37,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Load workspace agents
+    const agentConfigs = await db.agentConfig.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "asc" },
+    });
+
     // Gather data
     const [documents, breakouts, recentDocs] = await Promise.all([
       db.document.findMany({
@@ -66,8 +71,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Build per-agent summaries
-    const agentSummaries = AGENTS.map((agent) => {
-      const agentBreakouts = breakouts.filter((b) => b.agentId === agent.id);
+    const agentSummaries = agentConfigs.map((agent) => {
+      const agentBreakouts = breakouts.filter((b) => b.agentId === agent.roleId);
       const latest = agentBreakouts[0];
       return {
         id: agent.id,
@@ -92,7 +97,7 @@ export async function GET(request: NextRequest) {
       stats: {
         documentCount: documents.length,
         breakoutCount: breakouts.length,
-        agentCount: AGENTS.length,
+        agentCount: agentConfigs.length,
       },
       recentDocuments: recentDocs,
       agentSummaries,
@@ -123,6 +128,14 @@ export async function POST(request: NextRequest) {
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId required" }, { status: 400 });
     }
+
+    // Load workspace agents for context
+    const agentConfigs = await db.agentConfig.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const agentRoles = agentConfigs.map((a) => `${a.name} (${a.title})`).join(", ") || "No agents configured yet";
 
     // Gather all documents and breakouts
     const [documents, breakouts, workspace] = await Promise.all([
@@ -155,13 +168,15 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: "system",
-          content: `You are a strategic business advisor creating a top-down overview of a company's operations. You have access to the company's documents and AI agent breakout files (role-specific action plans from CEO, CRO, and CTO perspectives).
+          content: `You are a strategic business advisor creating a top-down overview of a company's operations. You have access to the company's documents and AI agent breakout files (role-specific action plans).
+
+The team has the following agent roles configured: ${agentRoles}
 
 Your job is to produce TWO things:
 
-1. A **Mermaid.js diagram** that visualizes the organizational structure, key initiatives, and how they connect. Use a flowchart (graph TD) or mindmap. Keep it clean and readable. Include the CEO, CRO, CTO roles and their key focus areas based on the breakout files. Connect documents to the relevant roles.
+1. A **Mermaid.js diagram** that visualizes the organizational structure, key initiatives, and how they connect. Use a flowchart (graph TD) or mindmap. Keep it clean and readable. Include the configured agent roles and their key focus areas based on the breakout files. Connect documents to the relevant roles.
 
-2. **Key advice** — a concise, prioritized list of strategic recommendations for each role (CEO, CRO, CTO) based on what you see across all documents and breakouts. Be specific, actionable, and reference the actual documents.
+2. **Key advice** — a concise, prioritized list of strategic recommendations for each role based on what you see across all documents and breakouts. Be specific, actionable, and reference the actual documents. Include a section for each configured agent role plus a Cross-Functional section.
 
 Format your response EXACTLY like this (the markers are important for parsing):
 
@@ -171,17 +186,7 @@ graph TD
 ---END_MERMAID---
 
 ---ADVICE---
-## CEO — Dylan
-- advice 1
-- advice 2
-
-## CRO — Luke
-- advice 1
-- advice 2
-
-## CTO — Chris
-- advice 1
-- advice 2
+${agentConfigs.map((a) => `## ${a.title} — ${a.name}\n- advice 1\n- advice 2`).join("\n\n")}
 
 ## Cross-Functional
 - advice that applies to multiple roles

@@ -12,7 +12,7 @@ import {
   UserPlus,
   Check,
 } from "lucide-react";
-import { AGENTS, AgentRole, AgentAssignment } from "@/lib/agents";
+import { AgentRole, AgentAssignment } from "@/lib/agents";
 
 interface Message {
   role: "user" | "assistant";
@@ -25,6 +25,7 @@ interface AgentsPanelProps {
   onClose: () => void;
   getDocumentContent: () => string;
   onInsertSuggestion?: (text: string) => void;
+  workspaceId: string;
 }
 
 /* ── Agent Card with assignment ── */
@@ -237,7 +238,9 @@ export function AgentsPanel({
   onClose,
   getDocumentContent,
   onInsertSuggestion,
+  workspaceId,
 }: AgentsPanelProps) {
+  const [agents, setAgents] = useState<AgentRole[]>([]);
   const [activeAgent, setActiveAgent] = useState<AgentRole | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -246,6 +249,28 @@ export function AgentsPanel({
   const [assigningAgent, setAssigningAgent] = useState<AgentRole | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch workspace agents
+  useEffect(() => {
+    if (!open || !workspaceId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/agents/config?workspaceId=${workspaceId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAgents(data.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            title: a.title,
+            color: a.color,
+            avatar: a.avatar,
+            description: a.description,
+            systemPrompt: a.systemPrompt,
+          })));
+        }
+      } catch {}
+    })();
+  }, [open, workspaceId]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -285,6 +310,7 @@ export function AgentsPanel({
           agentId: activeAgent.id,
           message: userMsg.content,
           documentContent: getDocumentContent(),
+          workspaceId,
           history: messages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -403,13 +429,23 @@ export function AgentsPanel({
       {!activeAgent ? (
         /* Agent selection */
         <div className="flex-1 overflow-y-auto p-4">
-          <p className="text-xs text-black/50 dark:text-white/50 mb-4">
-            Choose an AI agent to collaborate with. They can see your
-            document and provide role-specific feedback. Assign agents to
-            team members for role-based reviews.
-          </p>
+          {agents.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-black/40 dark:text-white/40 mb-2">
+                No agents configured yet.
+              </p>
+              <p className="text-xs text-black/30 dark:text-white/30">
+                Create agents in the group settings to get started.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-black/50 dark:text-white/50 mb-4">
+              Choose an AI agent to collaborate with. They can see your
+              document and provide role-specific feedback.
+            </p>
+          )}
           <div className="space-y-2 relative">
-            {AGENTS.map((agent) => (
+            {agents.map((agent) => (
               <div key={agent.id} className="relative">
                 <AgentCard
                   agent={agent}

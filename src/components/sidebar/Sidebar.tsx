@@ -381,9 +381,20 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Invite Team button (only for non-personal workspaces) */}
+      {/* Group Settings button (only for non-personal workspaces) */}
       {currentWorkspace && !currentWorkspace.isPersonal && (
-        <InviteTeamButton workspaceId={currentWorkspace.id} />
+        <>
+          <div className="px-3 pb-2">
+            <button
+              onClick={() => router.push(`/${params?.workspaceId}/settings`)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+            >
+              <Settings className="h-3.5 w-3.5 shrink-0" />
+              Group Settings
+            </button>
+          </div>
+          <InviteTeamButton workspaceId={currentWorkspace.id} />
+        </>
       )}
 
       {/* Search */}

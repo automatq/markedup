@@ -21,7 +21,7 @@ function generateCode(): string {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -31,9 +31,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "workspaceId required" }, { status: 400 });
     }
 
-    // Only workspace owner can create invites
+    // Any org member can create invites for the team workspace
     const workspace = await db.workspace.findFirst({
-      where: { id: workspaceId, ownerId: userId },
+      where: {
+        id: workspaceId,
+        isPersonal: false,
+        OR: [
+          { ownerId: userId },
+          ...(orgId ? [{ orgId }] : []),
+        ],
+      },
     });
     if (!workspace) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
