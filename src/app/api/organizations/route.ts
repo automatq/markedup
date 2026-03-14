@@ -114,27 +114,24 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "orgId and name required" }, { status: 400 });
     }
 
-    const clerk = await clerkClient();
-
-    // Only creator can rename
-    const org = await clerk.organizations.getOrganization({ organizationId: orgId });
-    if (org.createdBy !== userId) {
-      return NextResponse.json({ error: "Only the group creator can rename" }, { status: 403 });
+    // Use DB ownerId as source of truth for ownership
+    const workspace = await db.workspace.findFirst({
+      where: { orgId, isPersonal: false },
+    });
+    if (!workspace || workspace.ownerId !== userId) {
+      return NextResponse.json({ error: "Only the group owner can rename" }, { status: 403 });
     }
+
+    const clerk = await clerkClient();
 
     // Update Clerk org name
     await clerk.organizations.updateOrganization(orgId, { name: name.trim() });
 
     // Update workspace name in DB
-    const workspace = await db.workspace.findFirst({
-      where: { orgId, isPersonal: false },
+    await db.workspace.update({
+      where: { id: workspace.id },
+      data: { name: name.trim() },
     });
-    if (workspace) {
-      await db.workspace.update({
-        where: { id: workspace.id },
-        data: { name: name.trim() },
-      });
-    }
 
     return NextResponse.json({ ok: true, name: name.trim() });
   } catch (err: any) {

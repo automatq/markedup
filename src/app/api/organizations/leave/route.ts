@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import { db } from "@/lib/db";
 
 /**
  * POST /api/organizations/leave
@@ -18,18 +19,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "orgId required" }, { status: 400 });
     }
 
-    const clerk = await clerkClient();
-
-    // Check if user is the org creator — creators can't leave, they must delete
-    const org = await clerk.organizations.getOrganization({ organizationId: orgId });
-    if (org.createdBy === userId) {
+    // Use DB ownerId as source of truth — owners can't leave
+    const workspace = await db.workspace.findFirst({
+      where: { orgId, isPersonal: false },
+    });
+    if (workspace?.ownerId === userId) {
       return NextResponse.json(
-        { error: "As the group creator, you cannot leave. You can delete the group instead." },
+        { error: "As the group owner, you cannot leave. Transfer ownership or delete the group first." },
         { status: 403 }
       );
     }
 
-    // Remove the user from the org
+    const clerk = await clerkClient();
     await clerk.organizations.deleteOrganizationMembership({
       organizationId: orgId,
       userId,

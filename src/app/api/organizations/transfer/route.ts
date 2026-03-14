@@ -19,13 +19,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "orgId and newOwnerId required" }, { status: 400 });
     }
 
-    const clerk = await clerkClient();
-
-    // Only the current creator can transfer ownership
-    const org = await clerk.organizations.getOrganization({ organizationId: orgId });
-    if (org.createdBy !== userId) {
-      return NextResponse.json({ error: "Only the group creator can transfer ownership" }, { status: 403 });
+    // Use DB ownerId as source of truth
+    const workspace = await db.workspace.findFirst({
+      where: { orgId, isPersonal: false },
+    });
+    if (!workspace || workspace.ownerId !== userId) {
+      return NextResponse.json({ error: "Only the group owner can transfer ownership" }, { status: 403 });
     }
+
+    const clerk = await clerkClient();
 
     // Verify new owner is a member
     const memberships = await clerk.organizations.getOrganizationMembershipList({
@@ -47,20 +49,11 @@ export async function POST(request: NextRequest) {
       role: "org:admin",
     });
 
-    // Update workspace ownerId in DB
-    const workspace = await db.workspace.findFirst({
-      where: { orgId, isPersonal: false },
+    // Update workspace ownerId in DB — this is the real ownership record
+    await db.workspace.update({
+      where: { id: workspace.id },
+      data: { ownerId: newOwnerId },
     });
-    if (workspace) {
-      await db.workspace.update({
-        where: { id: workspace.id },
-        data: { ownerId: newOwnerId },
-      });
-    }
-
-    // Note: Clerk doesn't allow changing `createdBy` directly,
-    // but the admin role + DB ownerId is what our app checks.
-    // We store the real owner in workspace.ownerId.
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

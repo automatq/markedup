@@ -10,10 +10,8 @@ import {
   Users,
   Crown,
   Trash2,
-  ArrowRight,
   Check,
 } from "lucide-react";
-import { ScribbleIcon } from "@/components/ScribbleIcon";
 
 interface GroupMember {
   userId: string;
@@ -56,8 +54,12 @@ export default function DeleteAccountPage() {
         if (res.ok) {
           const data = await res.json();
           setOwnedGroups(data.ownedGroups);
+        } else {
+          setError("Failed to load account data. Please try again.");
         }
-      } catch {}
+      } catch {
+        setError("Failed to connect. Please check your connection and try again.");
+      }
       setLoading(false);
     })();
   }, [isLoaded, user]);
@@ -223,7 +225,9 @@ function GroupCard({
         <div>
           <p className="text-sm font-semibold text-black dark:text-white">{group.name}</p>
           <p className="text-[11px] text-black/40 dark:text-white/40">
-            {group.memberCount} member{group.memberCount !== 1 ? "s" : ""}
+            {group.memberCount === 0
+              ? "Only you"
+              : `${group.memberCount} other member${group.memberCount !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>

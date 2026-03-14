@@ -13,7 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Find team workspaces the user owns
+    // Find team workspaces the user owns (DB is source of truth)
     const ownedWorkspaces = await db.workspace.findMany({
       where: { ownerId: userId, isPersonal: false },
     });
@@ -30,24 +30,29 @@ export async function GET() {
           limit: 100,
         });
         const memberList = Array.isArray(memberships) ? memberships : memberships.data ?? [];
-        const members = memberList
-          .filter((m: any) => m.publicUserData?.userId !== userId)
-          .map((m: any) => ({
-            userId: m.publicUserData?.userId,
-            name: [m.publicUserData?.firstName, m.publicUserData?.lastName]
-              .filter(Boolean)
-              .join(" ") || m.publicUserData?.identifier || "Unknown",
-            avatar: m.publicUserData?.imageUrl || null,
-          }));
+
+        // Exclude the current user from the member list
+        const otherMembers = memberList.filter(
+          (m: any) => m.publicUserData?.userId !== userId
+        );
 
         ownedGroups.push({
           orgId: ws.orgId,
           workspaceId: ws.id,
           name: org.name,
-          memberCount: memberList.length,
-          members,
+          // Show count of OTHER members (not including yourself)
+          memberCount: otherMembers.length,
+          members: otherMembers.map((m: any) => ({
+            userId: m.publicUserData?.userId,
+            name: [m.publicUserData?.firstName, m.publicUserData?.lastName]
+              .filter(Boolean)
+              .join(" ") || m.publicUserData?.identifier || "Unknown",
+            avatar: m.publicUserData?.imageUrl || null,
+          })),
         });
-      } catch {}
+      } catch (err) {
+        console.error(`Failed to fetch org ${ws.orgId}:`, err);
+      }
     }
 
     return NextResponse.json({ ownedGroups });
@@ -78,6 +83,10 @@ export async function POST(request: NextRequest) {
     // Process each owned group action
     if (actions && Array.isArray(actions)) {
       for (const action of actions) {
+        const ws = await db.workspace.findFirst({
+          where: { orgId: action.orgId, isPersonal: false },
+        });
+
         if (action.action === "transfer" && action.newOwnerId) {
           // Transfer ownership
           await clerk.organizations.updateOrganizationMembership({
@@ -85,27 +94,35 @@ export async function POST(request: NextRequest) {
             userId: action.newOwnerId,
             role: "org:admin",
           });
-          const ws = await db.workspace.findFirst({
-            where: { orgId: action.orgId, isPersonal: false },
-          });
           if (ws) {
             await db.workspace.update({
               where: { id: ws.id },
               data: { ownerId: action.newOwnerId },
             });
           }
+          // Remove the leaving user from the org
+          try {
+            await clerk.organizations.deleteOrganizationMembership({
+              organizationId: action.orgId,
+              userId,
+            });
+          } catch {}
         } else if (action.action === "delete") {
-          // Delete the workspace (cascades to docs, agents, etc.)
-          const ws = await db.workspace.findFirst({
-            where: { orgId: action.orgId, isPersonal: false },
-          });
+          // Disable all invite codes first
           if (ws) {
+            await db.invite.updateMany({
+              where: { workspaceId: ws.id },
+              data: { enabled: false },
+            });
+            // Delete the workspace (cascades to docs, agents, invites, etc.)
             await db.workspace.delete({ where: { id: ws.id } });
           }
           // Delete the Clerk org
           try {
             await clerk.organizations.deleteOrganization(action.orgId);
-          } catch {}
+          } catch (err) {
+            console.error(`Failed to delete Clerk org ${action.orgId}:`, err);
+          }
         }
       }
     }

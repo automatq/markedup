@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
   }
 
-  // Verify the webhook signature
   const svixId = request.headers.get("svix-id");
   const svixTimestamp = request.headers.get("svix-timestamp");
   const svixSignature = request.headers.get("svix-signature");
@@ -61,6 +60,12 @@ export async function POST(request: NextRequest) {
         const orgId = data.id;
         if (!orgId) break;
 
+        // Disable all invite codes for this org
+        await db.invite.updateMany({
+          where: { orgId },
+          data: { enabled: false },
+        });
+
         // Delete all workspaces tied to this org (cascades to everything)
         const workspaces = await db.workspace.findMany({
           where: { orgId },
@@ -73,15 +78,7 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      case "organizationMembership.deleted": {
-        // A user was removed from an org — no DB cleanup needed
-        // since workspace data is shared, not per-user
-        console.log(`Member removed from org: ${data.organization?.id}`);
-        break;
-      }
-
       default:
-        // Unhandled event type — that's fine
         break;
     }
   } catch (err) {

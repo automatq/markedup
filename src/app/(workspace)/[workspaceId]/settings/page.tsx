@@ -182,18 +182,19 @@ export default function SettingsPage() {
 
   const [members, setMembers] = useState<Member[]>([]);
   const [orgName, setOrgName] = useState("");
-  const [createdBy, setCreatedBy] = useState("");
+  const [ownerId, setOwnerId] = useState("");
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [workspace, setWorkspace] = useState<{ orgId?: string | null; isPersonal?: boolean; name?: string } | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [membersError, setMembersError] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
 
-  const isCreator = user?.id === createdBy;
+  const isOwner = user?.id === ownerId;
 
   // Use Clerk org as primary orgId source, fall back to DB
   const clerkOrgId = organization?.id;
@@ -234,10 +235,14 @@ export default function SettingsPage() {
         if (res.ok) {
           const data = await res.json();
           setMembers(data.members);
-          setCreatedBy(data.createdBy);
+          setOwnerId(data.ownerId);
           setOrgName(data.orgName);
+        } else {
+          setMembersError(true);
         }
-      } catch {}
+      } catch {
+        setMembersError(true);
+      }
       setLoading(false);
     })();
   }, [resolvedOrgId]);
@@ -305,7 +310,19 @@ export default function SettingsPage() {
         body: JSON.stringify({ orgId: resolvedOrgId }),
       });
       if (res.ok) {
-        router.push("/");
+        // Redirect to next available workspace instead of landing page
+        try {
+          const wsRes = await fetch("/api/workspaces");
+          if (wsRes.ok) {
+            const workspaces = await wsRes.json();
+            const next = workspaces.find((w: any) => w.id !== workspaceId);
+            if (next) {
+              router.push(`/${next.id}`);
+              return;
+            }
+          }
+        } catch {}
+        router.push("/onboarding");
       } else {
         const data = await res.json();
         alert(data.error || "Failed to leave group");
@@ -378,7 +395,7 @@ export default function SettingsPage() {
               <p className="text-sm font-medium text-black/60 dark:text-white/60">
                 {orgName || organization?.name || workspace?.name || "Loading..."}
               </p>
-              {isCreator && (
+              {isOwner && (
                 <button
                   onClick={() => { setNameInput(orgName); setEditingName(true); }}
                   className="text-[10px] font-medium text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
@@ -404,6 +421,10 @@ export default function SettingsPage() {
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-black/20 dark:text-white/20" />
             </div>
+          ) : membersError ? (
+            <div className="rounded-xl border border-red-200/50 dark:border-red-500/10 bg-red-50/50 dark:bg-red-500/5 px-4 py-3 text-xs text-red-500">
+              Failed to load members. Try refreshing the page.
+            </div>
           ) : (
             <div className="space-y-1">
               {members.map((m) => (
@@ -421,7 +442,7 @@ export default function SettingsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-black dark:text-white truncate">
                       {m.name}
-                      {m.userId === createdBy && (
+                      {m.userId === ownerId && (
                         <span className="ml-2 text-[9px] uppercase tracking-wider text-black/30 dark:text-white/30 bg-black/5 dark:bg-white/5 rounded px-1.5 py-0.5">
                           Owner
                         </span>
@@ -434,7 +455,7 @@ export default function SettingsPage() {
                     </p>
                     <p className="text-[11px] text-black/30 dark:text-white/30 truncate">{m.email}</p>
                   </div>
-                  {isCreator && m.userId !== user?.id && (
+                  {isOwner && m.userId !== user?.id && (
                     <button
                       onClick={() => handleRemoveMember(m.userId)}
                       className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-medium text-red-500/60 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
@@ -449,7 +470,7 @@ export default function SettingsPage() {
           )}
 
           {/* Leave group */}
-          {isCreator ? (
+          {isOwner ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-4 py-3">
               <Shield className="h-3.5 w-3.5 text-black/30 dark:text-white/30 shrink-0" />
               <p className="text-xs text-black/40 dark:text-white/40">
