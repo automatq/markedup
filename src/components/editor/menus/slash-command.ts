@@ -104,7 +104,10 @@ export const slashCommandItems: SlashCommandItem[] = [
     icon: "Quote",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
-      editor.chain().focus().toggleBlockquote().run();
+      editor.chain().focus().insertContent({
+        type: "blockquote",
+        content: [{ type: "paragraph" }],
+      }).run();
     },
   },
   {
