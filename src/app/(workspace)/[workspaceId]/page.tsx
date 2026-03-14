@@ -2,49 +2,40 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { WikiOverview } from "@/components/wiki/WikiOverview";
 
 export default function WorkspaceIndexPage() {
   const params = useParams<{ workspaceId: string }>();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const workspaceId = params?.workspaceId ?? "";
+  const [ready, setReady] = useState(false);
 
+  // Ensure workspace has at least one document (create if empty)
   useEffect(() => {
-    const workspaceId = params?.workspaceId;
     if (!workspaceId) return;
 
-    // Fetch documents — if any exist, redirect to the first one.
-    // If none exist, create one and redirect.
     (async () => {
       try {
         const res = await fetch(`/api/documents?workspaceId=${workspaceId}`);
         if (res.ok) {
           const docs = await res.json();
-          if (docs.length > 0) {
-            router.replace(`/${workspaceId}/${docs[0].id}`);
-            return;
+          if (docs.length === 0) {
+            // Create a starter document so the workspace isn't empty
+            await fetch("/api/documents", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ workspaceId, title: "Getting Started" }),
+            });
           }
         }
-
-        // No documents — create the first one
-        const createRes = await fetch("/api/documents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workspaceId, title: "Getting Started" }),
-        });
-
-        if (createRes.ok) {
-          const doc = await createRes.json();
-          router.replace(`/${workspaceId}/${doc.id}`);
-          return;
-        }
       } catch (err) {
-        console.error("Failed to load workspace:", err);
+        console.error("Failed to check workspace:", err);
       }
-      setLoading(false);
+      setReady(true);
     })();
-  }, [params?.workspaceId, router]);
+  }, [workspaceId]);
 
-  if (loading) {
+  if (!ready) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -58,10 +49,9 @@ export default function WorkspaceIndexPage() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
-      <p className="text-sm text-black/40 dark:text-white/40">
-        Select or create a document to get started.
-      </p>
-    </div>
+    <WikiOverview
+      workspaceId={workspaceId}
+      onNavigateToDocument={(docId) => router.push(`/${workspaceId}/${docId}`)}
+    />
   );
 }
