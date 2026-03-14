@@ -97,6 +97,22 @@ export default function WorkspaceLayoutPage({
     [router, workspaceId]
   );
 
+  const handleTrashDocument = useCallback(
+    async (docId: string) => {
+      try {
+        await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+        setDocuments((prev) => prev.filter((d) => d.id !== docId));
+        // If we're viewing the trashed doc, go back to workspace
+        if (params?.documentId === docId) {
+          router.push(`/${workspaceId}`);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [params?.documentId, router, workspaceId]
+  );
+
   // Build graph data from documents
   const graphNodes: GraphNode[] = documents.map((doc, i) => ({
     id: doc.id,
@@ -115,6 +131,7 @@ export default function WorkspaceLayoutPage({
         onSelectDocument={handleSelectDocument}
         onCreateDocument={handleCreateDocument}
         onOpenTrash={() => setTrashOpen(true)}
+        onTrashDocument={handleTrashDocument}
       >
         {children}
       </WorkspaceLayout>

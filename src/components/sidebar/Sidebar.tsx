@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -27,6 +27,7 @@ interface SidebarProps {
   onSelectDocument: (id: string) => void;
   onCreateDocument: () => void;
   onOpenTrash: () => void;
+  onTrashDocument: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -62,6 +63,7 @@ export function Sidebar({
   onSelectDocument,
   onCreateDocument,
   onOpenTrash,
+  onTrashDocument,
   collapsed,
   onToggleCollapse,
 }: SidebarProps) {
@@ -69,6 +71,40 @@ export function Sidebar({
   const { signOut, openUserProfile } = useClerk();
   const [search, setSearch] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [dragOverTrash, setDragOverTrash] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, docId: string) => {
+    e.dataTransfer.setData("text/plain", docId);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingId(docId);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+    setDragOverTrash(false);
+  }, []);
+
+  const handleTrashDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverTrash(true);
+  }, []);
+
+  const handleTrashDragLeave = useCallback(() => {
+    setDragOverTrash(false);
+  }, []);
+
+  const handleTrashDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const docId = e.dataTransfer.getData("text/plain");
+      if (docId) onTrashDocument(docId);
+      setDragOverTrash(false);
+      setDraggingId(null);
+    },
+    [onTrashDocument]
+  );
 
   const filtered = documents.filter((doc) =>
     (doc.title ?? "Untitled").toLowerCase().includes(search.toLowerCase())
@@ -164,10 +200,15 @@ export function Sidebar({
             <button
               key={doc.id}
               onClick={() => onSelectDocument(doc.id)}
-              className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 ${
-                doc.id === activeDocumentId
-                  ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
-                  : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+              draggable
+              onDragStart={(e) => handleDragStart(e, doc.id)}
+              onDragEnd={handleDragEnd}
+              className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 cursor-grab active:cursor-grabbing ${
+                draggingId === doc.id
+                  ? "opacity-40"
+                  : doc.id === activeDocumentId
+                    ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
+                    : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
               }`}
             >
               <FileText className="h-3.5 w-3.5 shrink-0" />
@@ -182,14 +223,21 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Trash */}
+      {/* Trash — drop target */}
       <div className="px-3 pb-2">
         <button
           onClick={onOpenTrash}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs text-black/40 dark:text-white/40 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
+          onDragOver={handleTrashDragOver}
+          onDragLeave={handleTrashDragLeave}
+          onDrop={handleTrashDrop}
+          className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all ${
+            dragOverTrash
+              ? "bg-red-500/10 text-red-500 dark:text-red-400 border border-dashed border-red-500/30 scale-[1.02]"
+              : "text-black/40 dark:text-white/40 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] border border-transparent"
+          }`}
         >
-          <Trash2 className="h-3.5 w-3.5" />
-          Trash
+          <Trash2 className={`h-3.5 w-3.5 ${dragOverTrash ? "animate-bounce" : ""}`} />
+          {dragOverTrash ? "Drop to trash" : "Trash"}
         </button>
       </div>
 
