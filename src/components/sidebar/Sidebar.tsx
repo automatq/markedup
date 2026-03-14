@@ -12,7 +12,7 @@ import {
   ChevronDown,
   Trash2,
 } from "lucide-react";
-import { useUser, useClerk, OrganizationSwitcher } from "@clerk/nextjs";
+import { useUser, useClerk, useOrganization, OrganizationSwitcher } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 
@@ -69,6 +69,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
+  const { organization } = useOrganization();
   const [search, setSearch] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [dragOverTrash, setDragOverTrash] = useState(false);
@@ -153,20 +154,31 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Organization switcher */}
+      {/* Workspace switcher */}
       <div className="px-3 pb-2">
-        <OrganizationSwitcher
-          hidePersonal={false}
-          createOrganizationMode="modal"
-          organizationProfileMode="modal"
-          appearance={{
-            elements: {
-              rootBox: "w-full",
-              organizationSwitcherTrigger:
-                "w-full rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white hover:border-black/20 dark:hover:border-white/25 transition-colors",
-            },
-          }}
-        />
+        {organization ? (
+          <OrganizationSwitcher
+            hidePersonal={false}
+            createOrganizationMode="modal"
+            organizationProfileMode="modal"
+            appearance={{
+              elements: {
+                rootBox: "w-full",
+                organizationSwitcherTrigger:
+                  "w-full rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white hover:border-black/20 dark:hover:border-white/25 transition-colors",
+              },
+            }}
+          />
+        ) : (
+          <div className="w-full rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white flex items-center gap-2">
+            {user?.imageUrl && (
+              <img src={user.imageUrl} alt="" className="h-5 w-5 rounded-full" />
+            )}
+            <span className="truncate font-medium">
+              {user?.fullName || user?.firstName || "My Workspace"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Search */}

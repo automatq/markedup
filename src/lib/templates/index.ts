@@ -17,7 +17,7 @@ const h1 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 1 
 const h2 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text }] });
 const h3 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text }] });
 const p = (text: string): JSONContent => ({ type: "paragraph", content: [{ type: "text", text }] });
-const pEmpty = (): JSONContent => ({ type: "paragraph", content: [] });
+const pEmpty = (): JSONContent => ({ type: "paragraph" });
 const bold = (label: string, value: string): JSONContent => ({
   type: "paragraph",
   content: [

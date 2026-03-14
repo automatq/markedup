@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { getAgent } from "@/lib/agents";
 
 export async function POST(request: NextRequest) {
@@ -10,9 +10,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY not configured" },
+        { error: "OPENAI_API_KEY not configured" },
         { status: 500 }
       );
     }
@@ -28,23 +28,23 @@ export async function POST(request: NextRequest) {
       ? `${agent.systemPrompt}\n\nHere is the current document content for context:\n\n${documentContent}`
       : agent.systemPrompt;
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-lite",
-      systemInstruction: systemPrompt,
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const messages: OpenAI.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...(history ?? []).map((h: { role: string; content: string }) => ({
+        role: h.role as "user" | "assistant",
+        content: h.content,
+      })),
+      { role: "user", content: message },
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "o4-mini",
+      messages,
     });
 
-    // Build chat history
-    const chatHistory = (history ?? []).map(
-      (h: { role: string; content: string }) => ({
-        role: h.role === "assistant" ? "model" : "user",
-        parts: [{ text: h.content }],
-      })
-    );
-
-    const chat = model.startChat({ history: chatHistory });
-    const result = await chat.sendMessage(message);
-    const text = result.response.text();
+    const text = response.choices[0]?.message?.content || "";
 
     return NextResponse.json({
       response: text,

@@ -63,6 +63,7 @@ export function MarkedUpEditor({
   const { threads } = useThreads();
   const syncStatus = useSyncStatus({ smooth: true });
   const contentApplied = useRef(false);
+  const syncedOnce = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -174,27 +175,44 @@ export function MarkedUpEditor({
     immediatelyRender: false,
   });
 
-  // After Liveblocks syncs, if editor is empty and we have template content, apply it
+  // After Liveblocks syncs, if editor is empty and we have template content, apply it.
+  // Liveblocks' initialContent only works for brand-new rooms with no Yjs state.
+  // As a robust fallback, we check emptiness after sync settles and inject manually.
   useEffect(() => {
-    if (
-      editor &&
-      initialContent &&
-      syncStatus === "synchronized" &&
-      !contentApplied.current
-    ) {
-      contentApplied.current = true;
-      // Check if editor is empty (only has a single empty paragraph)
+    if (!editor || !initialContent || contentApplied.current) return;
+    if (syncStatus !== "synchronized") return;
+    if (syncedOnce.current) return;
+    syncedOnce.current = true;
+
+    const isEditorEmpty = () => {
+      const text = editor.getText().trim();
+      if (text.length > 0) return false;
       const json = editor.getJSON();
-      const isEmpty =
-        !json.content ||
-        json.content.length === 0 ||
-        (json.content.length === 1 &&
-          json.content[0].type === "paragraph" &&
-          (!json.content[0].content || json.content[0].content.length === 0));
-      if (isEmpty) {
-        editor.commands.setContent(initialContent);
+      const nodes = json.content ?? [];
+      if (nodes.length === 0) return true;
+      // Single empty paragraph counts as empty
+      return (
+        nodes.length === 1 &&
+        nodes[0].type === "paragraph" &&
+        (!nodes[0].content || nodes[0].content.length === 0)
+      );
+    };
+
+    const applyContent = () => {
+      if (contentApplied.current) return;
+      if (isEditorEmpty()) {
+        contentApplied.current = true;
+        editor.chain().setContent(initialContent).run();
       }
-    }
+    };
+
+    // Try at two intervals to handle slow Yjs hydration
+    const t1 = setTimeout(applyContent, 100);
+    const t2 = setTimeout(applyContent, 500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [editor, initialContent, syncStatus]);
 
   useEffect(() => {
