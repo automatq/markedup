@@ -47,6 +47,7 @@ model Document {
   outgoingLinks Node[]      @relation("SourceDocument")
   incomingLinks Node[]      @relation("TargetDocument")
   shareLinks    ShareLink[]
+  breakouts     Breakout[]
 
   @@index([workspaceId])
 }
@@ -66,6 +67,26 @@ model Node {
   @@unique([sourceDocumentId, targetDocumentId, linkText])
   @@index([sourceDocumentId])
   @@index([targetDocumentId])
+}
+
+/// AI agent breakout files — role-specific action plans generated from a document
+model Breakout {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// Agent role ID (ceo, cro, cto)
+  agentId    String
+  /// Agent display name at time of generation
+  agentName  String
+  /// The generated markdown content
+  content    String
+  /// Clerk user ID of who generated it
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([documentId, agentId])
 }
 
 /// Public/private share links for documents

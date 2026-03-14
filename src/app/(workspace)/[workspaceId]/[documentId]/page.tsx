@@ -34,6 +34,7 @@ import { AnalyticsPanel } from "@/components/panels/AnalyticsPanel";
 import { ConnectionsPanel } from "@/components/panels/ConnectionsPanel";
 import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
 import { AgentsPanel } from "@/components/panels/AgentsPanel";
+import { BreakoutPanel } from "@/components/panels/BreakoutPanel";
 
 /**
  * Inner document content — rendered inside RoomProvider.
@@ -97,6 +98,7 @@ function DocumentInner({
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const [breakoutsOpen, setBreakoutsOpen] = useState(false);
 
   // Update lastEdited when sync completes
   useEffect(() => {
@@ -280,6 +282,10 @@ function DocumentInner({
           setAgentsOpen(true);
           break;
 
+        case "breakouts":
+          setBreakoutsOpen((p) => !p);
+          break;
+
         default:
           break;
       }
@@ -343,7 +349,7 @@ function DocumentInner({
         {/* Editor column */}
         <div className="flex-1 overflow-y-auto">
           <div
-            className={`mx-auto w-full ${agentsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10`}
+            className={`mx-auto w-full ${agentsOpen || breakoutsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10`}
           >
             {/* Icon + Title */}
             <div className="mb-6 px-4">
@@ -415,6 +421,17 @@ function DocumentInner({
               if (!editor) return;
               editor.chain().focus().insertContent(text).run();
             }}
+          />
+        )}
+
+        {/* Inline breakout files panel */}
+        {breakoutsOpen && (
+          <BreakoutPanel
+            open={breakoutsOpen}
+            onClose={() => setBreakoutsOpen(false)}
+            documentId={documentId}
+            documentTitle={title}
+            getDocumentContent={() => editorRef.current?.getText() ?? ""}
           />
         )}
       </div>

@@ -21,6 +21,7 @@ import {
   History,
   Plug,
   Sparkles,
+  FileStack,
 } from "lucide-react";
 
 interface PageActionsMenuProps {
@@ -58,6 +59,7 @@ const menuItems: MenuItem[] = [
   { icon: Bell, label: "Notify me", action: "notify" },
   { icon: Plug, label: "Connections", action: "connections", dividerAfter: true },
   { icon: Sparkles, label: "AI Agents", action: "agents" },
+  { icon: FileStack, label: "Breakout Files", action: "breakouts" },
 ];
 
 export function PageActionsMenu({ open, onClose, onAction }: PageActionsMenuProps) {
