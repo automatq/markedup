@@ -8,6 +8,13 @@ export interface AgentRole {
   systemPrompt: string;
 }
 
+export interface AgentAssignment {
+  agentId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+}
+
 export const AGENTS: AgentRole[] = [
   {
     id: "ceo",

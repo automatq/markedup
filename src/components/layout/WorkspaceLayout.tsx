@@ -37,9 +37,7 @@ export function WorkspaceLayout({
         onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
       />
       <main className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl">{children}</div>
-        </div>
+        {children}
       </main>
     </div>
   );

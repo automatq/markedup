@@ -85,7 +85,7 @@ function DocumentInner({
     coverUrl: "",
     icon: "",
     font: "geist-mono",
-    layout: "wide",
+    layout: "full",
   });
 
   // Dialog/panel open state
@@ -338,68 +338,85 @@ function DocumentInner({
         insideRoom={true}
       />
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto">
-        <div
-          className={`mx-auto w-full ${layoutClass(customization.layout)} py-10`}
-        >
-          {/* Icon + Title */}
-          <div className="mb-6 px-4">
-            {customization.icon && (
-              <div className="text-4xl mb-2">{customization.icon}</div>
-            )}
-            <h1
-              contentEditable={!locked}
-              suppressContentEditableWarning
-              onBlur={(e) => {
-                const newTitle = e.currentTarget.textContent || "Untitled";
-                setTitle(newTitle);
-                fetch(`/api/documents/${documentId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ title: newTitle }),
-                }).catch(() => {});
-              }}
-              className="text-2xl font-semibold text-black dark:text-white tracking-tight outline-none"
-              data-placeholder="Untitled"
-            >
-              {title}
-            </h1>
-            <div className="mt-2 flex items-center gap-3 text-[10px] uppercase tracking-widest text-black/30 dark:text-white/30">
-              <span className="flex items-center gap-1">
-                <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
-                  /
-                </kbd>
-                <span>commands</span>
-              </span>
-              <span className="text-black/15 dark:text-white/15">|</span>
-              <span className="flex items-center gap-1">
-                <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
-                  Cmd+K
-                </kbd>
-                <span>search</span>
-              </span>
-              <span className="text-black/15 dark:text-white/15">|</span>
-              <span className="flex items-center gap-1">
-                <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
-                  Cmd+G
-                </kbd>
-                <span>graph</span>
-              </span>
+      {/* Content area — editor + inline agents panel */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Editor column */}
+        <div className="flex-1 overflow-y-auto">
+          <div
+            className={`mx-auto w-full ${agentsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10`}
+          >
+            {/* Icon + Title */}
+            <div className="mb-6 px-4">
+              {customization.icon && (
+                <div className="text-4xl mb-2">{customization.icon}</div>
+              )}
+              <h1
+                contentEditable={!locked}
+                suppressContentEditableWarning
+                onBlur={(e) => {
+                  const newTitle = e.currentTarget.textContent || "Untitled";
+                  setTitle(newTitle);
+                  fetch(`/api/documents/${documentId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ title: newTitle }),
+                  }).catch(() => {});
+                }}
+                className="text-2xl font-semibold text-black dark:text-white tracking-tight outline-none"
+                data-placeholder="Untitled"
+              >
+                {title}
+              </h1>
+              <div className="mt-2 flex items-center gap-3 text-[10px] uppercase tracking-widest text-black/30 dark:text-white/30">
+                <span className="flex items-center gap-1">
+                  <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
+                    /
+                  </kbd>
+                  <span>commands</span>
+                </span>
+                <span className="text-black/15 dark:text-white/15">|</span>
+                <span className="flex items-center gap-1">
+                  <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
+                    Cmd+K
+                  </kbd>
+                  <span>search</span>
+                </span>
+                <span className="text-black/15 dark:text-white/15">|</span>
+                <span className="flex items-center gap-1">
+                  <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
+                    Cmd+G
+                  </kbd>
+                  <span>graph</span>
+                </span>
+              </div>
             </div>
+
+            {/* Divider */}
+            <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
+
+            {/* Editor with inline comments */}
+            <MarkedUpEditor
+              initialContent={initialContent}
+              className={smallText ? "text-sm" : ""}
+              editable={!locked}
+              onEditorReady={handleEditorReady}
+            />
           </div>
-
-          {/* Divider */}
-          <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
-
-          {/* Editor with inline comments */}
-          <MarkedUpEditor
-            initialContent={initialContent}
-            className={smallText ? "text-sm" : ""}
-            editable={!locked}
-            onEditorReady={handleEditorReady}
-          />
         </div>
+
+        {/* Inline agents panel — pushes editor left */}
+        {agentsOpen && (
+          <AgentsPanel
+            open={agentsOpen}
+            onClose={() => setAgentsOpen(false)}
+            getDocumentContent={() => editorRef.current?.getText() ?? ""}
+            onInsertSuggestion={(text) => {
+              const editor = editorRef.current;
+              if (!editor) return;
+              editor.chain().focus().insertContent(text).run();
+            }}
+          />
+        )}
       </div>
 
       {/* ── Dialogs ── */}
@@ -460,11 +477,6 @@ function DocumentInner({
         onClearAll={() => deleteAllNotifications()}
       />
 
-      <AgentsPanel
-        open={agentsOpen}
-        onClose={() => setAgentsOpen(false)}
-        getDocumentContent={() => editorRef.current?.getText() ?? ""}
-      />
     </div>
   );
 }
