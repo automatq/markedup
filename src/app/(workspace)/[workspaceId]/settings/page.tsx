@@ -192,6 +192,9 @@ export default function SettingsPage() {
 
   const isCreator = user?.id === createdBy;
 
+  // Use Clerk org as primary orgId source, fall back to DB
+  const clerkOrgId = organization?.id;
+
   // Fetch workspace info
   useEffect(() => {
     (async () => {
@@ -206,12 +209,18 @@ export default function SettingsPage() {
     })();
   }, [workspaceId]);
 
+  // Resolve orgId — prefer Clerk session, fall back to workspace DB field
+  const resolvedOrgId = clerkOrgId || workspace?.orgId;
+
   // Fetch members
   useEffect(() => {
-    if (!workspace?.orgId) return;
+    if (!resolvedOrgId) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
-        const res = await fetch(`/api/organizations/members?orgId=${workspace.orgId}`);
+        const res = await fetch(`/api/organizations/members?orgId=${resolvedOrgId}`);
         if (res.ok) {
           const data = await res.json();
           setMembers(data.members);
@@ -221,7 +230,7 @@ export default function SettingsPage() {
       } catch {}
       setLoading(false);
     })();
-  }, [workspace?.orgId]);
+  }, [resolvedOrgId]);
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -237,15 +246,15 @@ export default function SettingsPage() {
   }, [fetchAgents]);
 
   const handleRemoveMember = useCallback(async (targetUserId: string) => {
-    if (!workspace?.orgId) return;
+    if (!resolvedOrgId) return;
     if (!confirm("Remove this member from the group?")) return;
     try {
-      await fetch(`/api/organizations/members?orgId=${workspace.orgId}&userId=${targetUserId}`, {
+      await fetch(`/api/organizations/members?orgId=${resolvedOrgId}&userId=${targetUserId}`, {
         method: "DELETE",
       });
       setMembers((prev) => prev.filter((m) => m.userId !== targetUserId));
     } catch {}
-  }, [workspace?.orgId]);
+  }, [resolvedOrgId]);
 
   const handleDeleteAgent = useCallback(async (agentId: string) => {
     if (!confirm("Delete this agent?")) return;
@@ -256,14 +265,14 @@ export default function SettingsPage() {
   }, []);
 
   const handleLeaveGroup = useCallback(async () => {
-    if (!workspace?.orgId) return;
+    if (!resolvedOrgId) return;
     if (!confirm("Are you sure you want to leave this group? You will lose access to all shared documents.")) return;
     setLeaving(true);
     try {
       const res = await fetch("/api/organizations/leave", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: workspace.orgId }),
+        body: JSON.stringify({ orgId: resolvedOrgId }),
       });
       if (res.ok) {
         router.push("/");
@@ -273,7 +282,7 @@ export default function SettingsPage() {
       }
     } catch {}
     setLeaving(false);
-  }, [workspace?.orgId, router]);
+  }, [resolvedOrgId, router]);
 
   if (workspace?.isPersonal) {
     return (
@@ -367,7 +376,14 @@ export default function SettingsPage() {
           )}
 
           {/* Leave group */}
-          {!isCreator && (
+          {isCreator ? (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-4 py-3">
+              <Shield className="h-3.5 w-3.5 text-black/30 dark:text-white/30 shrink-0" />
+              <p className="text-xs text-black/40 dark:text-white/40">
+                You are the group owner. Owners cannot leave their own group.
+              </p>
+            </div>
+          ) : (
             <button
               onClick={handleLeaveGroup}
               disabled={leaving}
