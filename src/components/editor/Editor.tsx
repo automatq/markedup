@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -21,7 +21,7 @@ import {
   FloatingThreads,
   AnchoredThreads,
 } from "@liveblocks/react-tiptap";
-import { useThreads } from "@liveblocks/react/suspense";
+import { useThreads, useSyncStatus } from "@liveblocks/react/suspense";
 
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
@@ -61,6 +61,8 @@ export function MarkedUpEditor({
   });
 
   const { threads } = useThreads();
+  const syncStatus = useSyncStatus({ smooth: true });
+  const contentApplied = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -171,6 +173,29 @@ export function MarkedUpEditor({
     },
     immediatelyRender: false,
   });
+
+  // After Liveblocks syncs, if editor is empty and we have template content, apply it
+  useEffect(() => {
+    if (
+      editor &&
+      initialContent &&
+      syncStatus === "synchronized" &&
+      !contentApplied.current
+    ) {
+      contentApplied.current = true;
+      // Check if editor is empty (only has a single empty paragraph)
+      const json = editor.getJSON();
+      const isEmpty =
+        !json.content ||
+        json.content.length === 0 ||
+        (json.content.length === 1 &&
+          json.content[0].type === "paragraph" &&
+          (!json.content[0].content || json.content[0].content.length === 0));
+      if (isEmpty) {
+        editor.commands.setContent(initialContent);
+      }
+    }
+  }, [editor, initialContent, syncStatus]);
 
   useEffect(() => {
     if (editor) editor.setEditable(editable);
