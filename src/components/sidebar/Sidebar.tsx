@@ -18,6 +18,7 @@ import {
   Check,
   Loader2,
   Brain,
+  Phone,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, OrganizationSwitcher } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
@@ -366,6 +367,17 @@ export function Sidebar({
         >
           <Brain className="h-3.5 w-3.5 shrink-0" />
           Business Wiki
+        </button>
+      </div>
+
+      {/* Calls button */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={() => router.push(`/${params?.workspaceId}/calls`)}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+        >
+          <Phone className="h-3.5 w-3.5 shrink-0" />
+          Calls
         </button>
       </div>
 

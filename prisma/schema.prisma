@@ -24,6 +24,7 @@ model Workspace {
   updatedAt DateTime   @updatedAt
   documents Document[]
   invites   Invite[]
+  callLogs  CallLog[]
 
   @@index([slug])
   @@index([orgId])
@@ -116,6 +117,39 @@ model Invite {
 
   @@index([code])
   @@index([workspaceId])
+}
+
+/// Call logs with audio transcription and AI analysis
+model CallLog {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Call title / contact name
+  title         String
+  /// Raw transcript from Whisper
+  transcript    String
+  /// AI-generated call summary (markdown)
+  summary       String?
+  /// AI-extracted action items (markdown)
+  actionItems   String?
+  /// Call outcome: "positive" | "neutral" | "negative"
+  outcome       String?
+  /// Success score 0-100
+  score         Int?
+  /// Call duration in seconds
+  durationSecs  Int?
+  /// Who uploaded / recorded
+  createdBy     String
+  /// Optional: linked document ID where the call notes were saved
+  documentId    String?
+  /// Tags for filtering (comma-separated)
+  tags          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([workspaceId, createdAt])
+  @@index([createdBy])
 }
 
 /// Public/private share links for documents
