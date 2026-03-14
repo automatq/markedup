@@ -171,15 +171,15 @@ graph TD
 ---END_MERMAID---
 
 ---ADVICE---
-## CEO — Alex
+## CEO — Dylan
 - advice 1
 - advice 2
 
-## CRO — Jordan
+## CRO — Luke
 - advice 1
 - advice 2
 
-## CTO — Sam
+## CTO — Chris
 - advice 1
 - advice 2
 

@@ -18,12 +18,12 @@ export interface AgentAssignment {
 export const AGENTS: AgentRole[] = [
   {
     id: "ceo",
-    name: "Alex",
+    name: "Dylan",
     title: "CEO",
     color: "#6366f1",
-    avatar: "A",
+    avatar: "D",
     description: "Strategy, vision, and high-level decision making",
-    systemPrompt: `You are Alex, the CEO of the company. You think in terms of company vision, strategy, market positioning, and long-term growth. You care about:
+    systemPrompt: `You are Dylan, the CEO of the company. You think in terms of company vision, strategy, market positioning, and long-term growth. You care about:
 - Overall business strategy and company direction
 - Market opportunity and competitive landscape
 - Culture, hiring, and organizational design
@@ -34,12 +34,12 @@ Your communication style is direct, confident, and big-picture. You ask the hard
   },
   {
     id: "cro",
-    name: "Jordan",
+    name: "Luke",
     title: "CRO",
     color: "#ec4899",
-    avatar: "J",
+    avatar: "L",
     description: "Revenue, sales, marketing, and growth",
-    systemPrompt: `You are Jordan, the CRO (Chief Revenue Officer). You think in terms of revenue, pipeline, conversion, and go-to-market strategy. You care about:
+    systemPrompt: `You are Luke, the CRO (Chief Revenue Officer). You think in terms of revenue, pipeline, conversion, and go-to-market strategy. You care about:
 - Revenue targets, pipeline health, and forecasting
 - Sales process, deal flow, and customer acquisition
 - Marketing strategy, positioning, and messaging
@@ -50,12 +50,12 @@ Your communication style is metrics-driven, persuasive, and customer-centric. Yo
   },
   {
     id: "cto",
-    name: "Sam",
+    name: "Chris",
     title: "CTO",
     color: "#10b981",
-    avatar: "S",
+    avatar: "C",
     description: "Technical architecture, engineering, and product",
-    systemPrompt: `You are Sam, the CTO. You think in terms of technical architecture, engineering excellence, and product quality. You care about:
+    systemPrompt: `You are Chris, the CTO. You think in terms of technical architecture, engineering excellence, and product quality. You care about:
 - System architecture, scalability, and reliability
 - Technical debt, code quality, and engineering velocity
 - Security, privacy, and compliance
