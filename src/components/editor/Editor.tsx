@@ -57,7 +57,7 @@ export function MarkedUpEditor({
 }: EditorProps) {
   // Liveblocks extension handles Yjs sync, cursors, comments, mentions
   const liveblocks = useLiveblocksExtension({
-    initialContent: forceApplyContent ? undefined : initialContent,
+    initialContent,
     comments: true,
     mentions: true,
   });
@@ -176,32 +176,43 @@ export function MarkedUpEditor({
     immediatelyRender: false,
   });
 
-  // Template content injection.
-  // When forceApplyContent=true (document just created from template via sessionStorage),
-  // we skip all emptiness checks and inject content directly after Liveblocks sync.
-  // For returning visits, Liveblocks Yjs state has the content, so nothing needs to happen.
+  // Template content injection for newly created documents.
+  // Uses sessionStorage flag (forceApplyContent) to know this is a fresh template doc.
+  // Retries aggressively until content is visible in the editor.
   useEffect(() => {
-    if (!editor || !initialContent || contentApplied.current) return;
-    // Only force-apply for freshly created template documents
-    if (!forceApplyContent) return;
+    if (!editor || !initialContent || !forceApplyContent || contentApplied.current) return;
 
-    const apply = () => {
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    const tryApply = () => {
       if (contentApplied.current) return;
-      contentApplied.current = true;
-      editor.commands.setContent(initialContent);
+      attempts++;
+
+      // Try setting content
+      try {
+        editor.commands.setContent(initialContent);
+      } catch {
+        // Yjs might not be ready yet
+      }
+
+      // Verify it actually took by checking text content
+      const hasContent = editor.getText().trim().length > 5;
+      if (hasContent) {
+        contentApplied.current = true;
+        return; // Success
+      }
+
+      // Retry if not yet applied and haven't exceeded max attempts
+      if (attempts < maxAttempts) {
+        setTimeout(tryApply, 300);
+      }
     };
 
-    if (syncStatus === "synchronized") {
-      // Yjs is ready — apply after a brief settle delay
-      const timer = setTimeout(apply, 150);
-      return () => clearTimeout(timer);
-    }
-
-    // Not yet synced — wait for sync then apply.
-    // Also set a hard safety net in case sync takes too long.
-    const safetyTimer = setTimeout(apply, 3000);
-    return () => clearTimeout(safetyTimer);
-  }, [editor, initialContent, forceApplyContent, syncStatus]);
+    // Start after a brief delay to let Liveblocks initialize
+    const startTimer = setTimeout(tryApply, 500);
+    return () => clearTimeout(startTimer);
+  }, [editor, initialContent, forceApplyContent]);
 
   useEffect(() => {
     if (editor) editor.setEditable(editable);
