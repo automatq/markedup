@@ -52,10 +52,12 @@ export async function POST(request: NextRequest) {
       agentName: agent.name,
       agentTitle: agent.title,
     });
-  } catch (err) {
-    console.error("Agent API error:", err);
+  } catch (err: unknown) {
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown error";
+    console.error("Agent API error:", errorMessage, err);
     return NextResponse.json(
-      { error: "Failed to get agent response" },
+      { error: errorMessage },
       { status: 500 }
     );
   }
