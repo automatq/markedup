@@ -13,6 +13,10 @@ import {
   Trash2,
   Lock,
   Users,
+  UserPlus,
+  Copy,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, OrganizationSwitcher } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
@@ -66,6 +70,93 @@ interface WorkspaceEntry {
   slug: string;
   isPersonal?: boolean;
   orgId?: string | null;
+}
+
+function InviteTeamButton({ workspaceId }: { workspaceId: string }) {
+  const [open, setOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const fetchOrCreateCode = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Try to create a new invite (or the endpoint can return existing)
+      const res = await fetch("/api/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInviteCode(data.code);
+      }
+    } catch {}
+    setLoading(false);
+  }, [workspaceId]);
+
+  const handleCopy = useCallback(() => {
+    if (!inviteCode) return;
+    navigator.clipboard.writeText(inviteCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [inviteCode]);
+
+  return (
+    <div className="px-3 pb-2 relative">
+      <button
+        onClick={() => {
+          setOpen(!open);
+          if (!inviteCode && !loading) fetchOrCreateCode();
+        }}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-black/10 dark:border-white/10 px-3 py-1.5 text-[11px] font-medium text-black/40 dark:text-white/40 hover:border-black/20 dark:hover:border-white/20 hover:text-black/60 dark:hover:text-white/60 transition-colors"
+      >
+        <UserPlus className="h-3 w-3" />
+        Invite Team
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up p-3">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30 mb-2">
+              Invite Code
+            </p>
+            {loading ? (
+              <div className="flex justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-black/20 dark:text-white/20" />
+              </div>
+            ) : inviteCode ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-center text-sm font-mono font-bold tracking-widest text-black dark:text-white">
+                    {inviteCode}
+                  </code>
+                  <button
+                    onClick={handleCopy}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/8 dark:border-white/10 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-colors"
+                  >
+                    {copied ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-[10px] text-black/30 dark:text-white/30 mt-2 text-center">
+                  Share this code with your team members
+                </p>
+              </>
+            ) : (
+              <p className="text-[11px] text-black/40 dark:text-white/40 text-center py-2">
+                Could not generate invite code
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function Sidebar({
@@ -261,6 +352,11 @@ export function Sidebar({
           </>
         )}
       </div>
+
+      {/* Invite Team button (only for non-personal workspaces) */}
+      {currentWorkspace && !currentWorkspace.isPersonal && (
+        <InviteTeamButton workspaceId={currentWorkspace.id} />
+      )}
 
       {/* Search */}
       <div className="px-3 pb-2">

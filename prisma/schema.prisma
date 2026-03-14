@@ -23,6 +23,7 @@ model Workspace {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   documents Document[]
+  invites   Invite[]
 
   @@index([slug])
   @@index([orgId])
@@ -91,6 +92,30 @@ model Breakout {
 
   @@index([documentId])
   @@index([documentId, agentId])
+}
+
+/// Invite codes for joining a company workspace
+model Invite {
+  id          String    @id @default(cuid())
+  /// Short code users type to join (e.g. "acme-7x3k")
+  code        String    @unique
+  /// The workspace this invite grants access to
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Clerk org ID to add the user to
+  orgId       String
+  /// Who created the invite
+  createdBy   String
+  /// How many times this code can be used (null = unlimited)
+  maxUses     Int?
+  /// How many times it has been used
+  uses        Int       @default(0)
+  enabled     Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  @@index([code])
+  @@index([workspaceId])
 }
 
 /// Public/private share links for documents
