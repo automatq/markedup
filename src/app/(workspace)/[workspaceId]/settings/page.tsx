@@ -189,6 +189,9 @@ export default function SettingsPage() {
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [workspace, setWorkspace] = useState<{ orgId?: string | null; isPersonal?: boolean } | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
 
   const isCreator = user?.id === createdBy;
 
@@ -256,6 +259,26 @@ export default function SettingsPage() {
     } catch {}
   }, [resolvedOrgId]);
 
+  const handleRenameSave = useCallback(async () => {
+    if (!resolvedOrgId || !nameInput.trim()) return;
+    setSavingName(true);
+    try {
+      const res = await fetch("/api/organizations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: resolvedOrgId, name: nameInput.trim() }),
+      });
+      if (res.ok) {
+        setOrgName(nameInput.trim());
+        setEditingName(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to rename");
+      }
+    } catch {}
+    setSavingName(false);
+  }, [resolvedOrgId, nameInput]);
+
   const handleDeleteAgent = useCallback(async (agentId: string) => {
     if (!confirm("Delete this agent?")) return;
     try {
@@ -313,9 +336,52 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-black dark:text-white tracking-tight mb-1">
           Group Settings
         </h1>
-        <p className="text-sm text-black/40 dark:text-white/40 mb-8">
-          {orgName || "Manage your team and AI agents"}
-        </p>
+
+        {/* Group Name */}
+        <div className="mb-8">
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRenameSave();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                className="rounded-lg border border-black/15 dark:border-white/15 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-1.5 text-sm font-medium text-black dark:text-white outline-none focus:border-black/25 dark:focus:border-white/25"
+              />
+              <button
+                onClick={handleRenameSave}
+                disabled={savingName}
+                className="flex items-center gap-1 rounded-lg bg-black dark:bg-white px-3 py-1.5 text-xs font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50"
+              >
+                {savingName ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                Save
+              </button>
+              <button
+                onClick={() => setEditingName(false)}
+                className="flex items-center justify-center h-7 w-7 rounded-lg text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-black/60 dark:text-white/60">
+                {orgName || "Unnamed Group"}
+              </p>
+              {isCreator && (
+                <button
+                  onClick={() => { setNameInput(orgName); setEditingName(true); }}
+                  className="text-[10px] font-medium text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
+                >
+                  Rename
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Members Section */}
         <section className="mb-10">

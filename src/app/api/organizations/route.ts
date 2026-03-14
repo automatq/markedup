@@ -96,3 +96,52 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+/**
+ * PATCH /api/organizations
+ * Update organization name (creator only).
+ * Body: { orgId, name }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { orgId, name } = await request.json();
+    if (!orgId || !name?.trim()) {
+      return NextResponse.json({ error: "orgId and name required" }, { status: 400 });
+    }
+
+    const clerk = await clerkClient();
+
+    // Only creator can rename
+    const org = await clerk.organizations.getOrganization({ organizationId: orgId });
+    if (org.createdBy !== userId) {
+      return NextResponse.json({ error: "Only the group creator can rename" }, { status: 403 });
+    }
+
+    // Update Clerk org name
+    await clerk.organizations.updateOrganization(orgId, { name: name.trim() });
+
+    // Update workspace name in DB
+    const workspace = await db.workspace.findFirst({
+      where: { orgId, isPersonal: false },
+    });
+    if (workspace) {
+      await db.workspace.update({
+        where: { id: workspace.id },
+        data: { name: name.trim() },
+      });
+    }
+
+    return NextResponse.json({ ok: true, name: name.trim() });
+  } catch (err: any) {
+    console.error("PATCH /api/organizations error:", err);
+    return NextResponse.json(
+      { error: "Failed to update organization", detail: err?.message },
+      { status: 500 }
+    );
+  }
+}

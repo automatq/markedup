@@ -19,12 +19,17 @@ export async function GET(request: NextRequest) {
 
     const clerk = await clerkClient();
 
-    const memberships = await clerk.organizations.getOrganizationMembershipList({
+    const membershipsResponse = await clerk.organizations.getOrganizationMembershipList({
       organizationId: orgId,
       limit: 100,
     });
 
-    const members = memberships.data.map((m) => ({
+    // Clerk v7 may return { data: [...] } or the array directly
+    const membershipList = Array.isArray(membershipsResponse)
+      ? membershipsResponse
+      : membershipsResponse.data ?? [];
+
+    const members = membershipList.map((m: any) => ({
       userId: m.publicUserData?.userId,
       name: [m.publicUserData?.firstName, m.publicUserData?.lastName]
         .filter(Boolean)
