@@ -33,6 +33,7 @@ import { CommentsPanel } from "@/components/panels/CommentsPanel";
 import { AnalyticsPanel } from "@/components/panels/AnalyticsPanel";
 import { ConnectionsPanel } from "@/components/panels/ConnectionsPanel";
 import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
+import { AgentsPanel } from "@/components/panels/AgentsPanel";
 
 /**
  * Inner document content — rendered inside RoomProvider.
@@ -95,6 +96,7 @@ function DocumentInner({
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
 
   // Update lastEdited when sync completes
   useEffect(() => {
@@ -272,6 +274,10 @@ function DocumentInner({
 
         case "comments":
           setCommentsOpen(true);
+          break;
+
+        case "agents":
+          setAgentsOpen(true);
           break;
 
         default:
@@ -452,6 +458,12 @@ function DocumentInner({
         onMarkRead={(id) => markNotificationRead(id)}
         onMarkAllRead={() => markAllRead()}
         onClearAll={() => deleteAllNotifications()}
+      />
+
+      <AgentsPanel
+        open={agentsOpen}
+        onClose={() => setAgentsOpen(false)}
+        getDocumentContent={() => editorRef.current?.getText() ?? ""}
       />
     </div>
   );

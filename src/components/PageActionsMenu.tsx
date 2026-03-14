@@ -20,6 +20,7 @@ import {
   BarChart3,
   History,
   Plug,
+  Sparkles,
 } from "lucide-react";
 
 interface PageActionsMenuProps {
@@ -55,7 +56,8 @@ const menuItems: MenuItem[] = [
   { icon: BarChart3, label: "Updates & analytics", action: "analytics" },
   { icon: History, label: "Version history", action: "version-history" },
   { icon: Bell, label: "Notify me", action: "notify" },
-  { icon: Plug, label: "Connections", action: "connections" },
+  { icon: Plug, label: "Connections", action: "connections", dividerAfter: true },
+  { icon: Sparkles, label: "AI Agents", action: "agents" },
 ];
 
 export function PageActionsMenu({ open, onClose, onAction }: PageActionsMenuProps) {
