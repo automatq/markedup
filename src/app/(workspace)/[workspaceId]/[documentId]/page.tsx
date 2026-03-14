@@ -17,7 +17,6 @@ import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
 import { toMarkdown } from "@/lib/export/to-markdown";
-import { consumePendingTemplate } from "@/lib/template-pending";
 
 // Dialogs
 import { MoveToDialog } from "@/components/dialogs/MoveToDialog";
@@ -47,7 +46,6 @@ function DocumentInner({
   initialLastEdited,
   initialCreatedAt,
   initialContent,
-  forceApplyContent,
 }: {
   documentId: string;
   workspaceId: string;
@@ -55,7 +53,6 @@ function DocumentInner({
   initialLastEdited?: Date;
   initialCreatedAt?: Date;
   initialContent?: any;
-  forceApplyContent?: boolean;
 }) {
   const router = useRouter();
   const { user } = useUser();
@@ -398,8 +395,6 @@ function DocumentInner({
           {/* Editor with inline comments */}
           <MarkedUpEditor
             initialContent={initialContent}
-            forceApplyContent={forceApplyContent}
-            synced={synced}
             className={smallText ? "text-sm" : ""}
             editable={!locked}
             onEditorReady={handleEditorReady}
@@ -486,21 +481,16 @@ export default function DocumentPage() {
   const [initialLastEdited, setInitialLastEdited] = useState<Date | undefined>(undefined);
   const [initialCreatedAt, setInitialCreatedAt] = useState<Date | undefined>(undefined);
   const [initialContent, setInitialContent] = useState<any>(undefined);
-  const [forceApplyContent, setForceApplyContent] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
 
-  // Load document metadata + content — reset state when documentId changes
+  // Load document metadata — reset state when documentId changes
   useEffect(() => {
     if (!documentId) return;
     setContentLoaded(false);
     setInitialContent(undefined);
-    setForceApplyContent(false);
     setInitialTitle("Untitled");
     setInitialLastEdited(undefined);
     setInitialCreatedAt(undefined);
-
-    // Check if template content was set in memory by the layout
-    const templateContent = consumePendingTemplate();
 
     (async () => {
       try {
@@ -511,10 +501,10 @@ export default function DocumentPage() {
           if (doc.updatedAt) setInitialLastEdited(new Date(doc.updatedAt));
           if (doc.createdAt) setInitialCreatedAt(new Date(doc.createdAt));
 
-          if (templateContent) {
-            setInitialContent(templateContent);
-            setForceApplyContent(true);
-          } else if (doc.content) {
+          // Pass DB content as initialContent — this is a fallback for
+          // useLiveblocksExtension. The primary content delivery is
+          // server-side Yjs pre-seeding done in POST /api/documents.
+          if (doc.content) {
             setInitialContent(doc.content);
           }
         }
@@ -543,7 +533,6 @@ export default function DocumentPage() {
         initialLastEdited={initialLastEdited}
         initialCreatedAt={initialCreatedAt}
         initialContent={initialContent}
-        forceApplyContent={forceApplyContent}
       />
     </Room>
   );

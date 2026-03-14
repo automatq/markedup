@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { Liveblocks } from "@liveblocks/node";
+import { tiptapJsonToYjsUpdate } from "@/lib/yjs-init";
+
+function getLiveblocks() {
+  const secret = process.env.LIVEBLOCKS_SECRET_KEY;
+  if (!secret) throw new Error("LIVEBLOCKS_SECRET_KEY not set");
+  return new Liveblocks({ secret });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,6 +85,30 @@ export async function POST(request: NextRequest) {
         content: content ?? undefined,
       },
     });
+
+    // Pre-seed the Liveblocks room with template content so the Yjs document
+    // already has content before any client connects — no client-side injection needed.
+    if (content && content.type === "doc" && content.content?.length > 0) {
+      try {
+        const liveblocks = getLiveblocks();
+        const roomId = `document:${document.id}`;
+
+        // Ensure the room exists (Liveblocks creates it lazily on first connect,
+        // but we need it now to send the Yjs update)
+        try {
+          await liveblocks.createRoom(roomId, { defaultAccesses: [] });
+        } catch {
+          // Room may already exist — that's fine
+        }
+
+        const update = tiptapJsonToYjsUpdate(content);
+        await liveblocks.sendYjsBinaryUpdate(roomId, update);
+      } catch (err) {
+        // Non-fatal — the document is created, content just won't be pre-seeded.
+        // The client-side fallback (initialContent on useLiveblocksExtension) may still work.
+        console.error("Failed to pre-seed Liveblocks room:", err);
+      }
+    }
 
     return NextResponse.json(document, { status: 201 });
   } catch (err) {

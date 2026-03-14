@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -21,7 +21,7 @@ import {
   FloatingThreads,
   AnchoredThreads,
 } from "@liveblocks/react-tiptap";
-import { useThreads, useSyncStatus } from "@liveblocks/react/suspense";
+import { useThreads } from "@liveblocks/react/suspense";
 
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
@@ -42,8 +42,6 @@ const lowlight = createLowlight(common);
 
 interface EditorProps {
   initialContent?: any;
-  forceApplyContent?: boolean;
-  synced?: boolean;
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
@@ -51,13 +49,13 @@ interface EditorProps {
 
 export function MarkedUpEditor({
   initialContent,
-  forceApplyContent = false,
-  synced = false,
   className,
   editable = true,
   onEditorReady,
 }: EditorProps) {
-  // Liveblocks extension handles Yjs sync, cursors, comments, mentions
+  // Liveblocks extension handles Yjs sync, cursors, comments, mentions.
+  // initialContent is a belt-and-suspenders fallback — the primary mechanism
+  // is server-side room pre-seeding via the POST /api/documents endpoint.
   const liveblocks = useLiveblocksExtension({
     initialContent,
     comments: true,
@@ -65,8 +63,6 @@ export function MarkedUpEditor({
   });
 
   const { threads } = useThreads();
-  const syncStatus = useSyncStatus({ smooth: true });
-  const contentApplied = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -177,46 +173,6 @@ export function MarkedUpEditor({
     },
     immediatelyRender: false,
   });
-
-  // Template content injection for newly created documents.
-  // CRITICAL: We must wait for Liveblocks Yjs sync to complete before calling
-  // setContent, otherwise Yjs will overwrite our changes when it syncs.
-  useEffect(() => {
-    if (!editor || !initialContent || !forceApplyContent || !synced || contentApplied.current) return;
-
-    // Yjs is synced — safe to inject content now.
-    // Small delay to let the editor fully stabilize after sync.
-    const timer = setTimeout(() => {
-      if (contentApplied.current) return;
-
-      try {
-        editor.commands.setContent(initialContent);
-        const textLen = editor.state.doc.textContent.length;
-        if (textLen > 3) {
-          contentApplied.current = true;
-          return;
-        }
-      } catch {
-        // ignore
-      }
-
-      // Fallback: insert nodes individually
-      try {
-        const nodes = initialContent.type === "doc"
-          ? initialContent.content
-          : [initialContent];
-        if (Array.isArray(nodes)) {
-          editor.chain().clearContent().run();
-          editor.chain().insertContentAt(0, nodes).run();
-          contentApplied.current = true;
-        }
-      } catch {
-        // ignore
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [editor, initialContent, forceApplyContent, synced]);
 
   useEffect(() => {
     if (editor) editor.setEditable(editable);

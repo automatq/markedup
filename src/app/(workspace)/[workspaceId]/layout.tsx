@@ -88,12 +88,7 @@ export default function WorkspaceLayoutPage({
         if (res.ok) {
           const doc = await res.json();
           setDocuments((prev) => [doc, ...prev]);
-          // Pass template ID as query param so the document page can
-          // force-apply template content on first load
-          const url = template.id && template.id !== "blank"
-            ? `/${workspaceId}/${doc.id}?tid=${template.id}`
-            : `/${workspaceId}/${doc.id}`;
-          router.push(url);
+          router.push(`/${workspaceId}/${doc.id}`);
         }
       } catch (err) {
         console.error("Failed to create document:", err);
