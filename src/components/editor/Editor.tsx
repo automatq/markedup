@@ -63,7 +63,6 @@ export function MarkedUpEditor({
   const { threads } = useThreads();
   const syncStatus = useSyncStatus({ smooth: true });
   const contentApplied = useRef(false);
-  const syncedOnce = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -176,43 +175,31 @@ export function MarkedUpEditor({
   });
 
   // After Liveblocks syncs, if editor is empty and we have template content, apply it.
-  // Liveblocks' initialContent only works for brand-new rooms with no Yjs state.
-  // As a robust fallback, we check emptiness after sync settles and inject manually.
+  // Liveblocks' initialContent only seeds brand-new rooms; for rooms that already have
+  // Yjs state (even empty), we must inject manually after sync settles.
   useEffect(() => {
     if (!editor || !initialContent || contentApplied.current) return;
-    if (syncStatus !== "synchronized") return;
-    if (syncedOnce.current) return;
-    syncedOnce.current = true;
 
-    const isEditorEmpty = () => {
-      const text = editor.getText().trim();
-      if (text.length > 0) return false;
-      const json = editor.getJSON();
-      const nodes = json.content ?? [];
-      if (nodes.length === 0) return true;
-      // Single empty paragraph counts as empty
-      return (
-        nodes.length === 1 &&
-        nodes[0].type === "paragraph" &&
-        (!nodes[0].content || nodes[0].content.length === 0)
-      );
-    };
-
-    const applyContent = () => {
+    const tryApply = () => {
       if (contentApplied.current) return;
-      if (isEditorEmpty()) {
+      // Use TipTap's built-in isEmpty plus text length check
+      const empty = editor.isEmpty || editor.getText().trim().length === 0;
+      if (empty) {
         contentApplied.current = true;
-        editor.chain().setContent(initialContent).run();
+        editor.commands.setContent(initialContent);
       }
     };
 
-    // Try at two intervals to handle slow Yjs hydration
-    const t1 = setTimeout(applyContent, 100);
-    const t2 = setTimeout(applyContent, 500);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    // If already synced, start trying immediately
+    if (syncStatus === "synchronized") {
+      const timers = [0, 100, 300, 800].map((ms) => setTimeout(tryApply, ms));
+      return () => timers.forEach(clearTimeout);
+    }
+
+    // If not yet synced, set up a safety-net timer that fires regardless
+    // (handles cases where syncStatus never reaches "synchronized" quickly)
+    const safetyTimer = setTimeout(tryApply, 2000);
+    return () => clearTimeout(safetyTimer);
   }, [editor, initialContent, syncStatus]);
 
   useEffect(() => {

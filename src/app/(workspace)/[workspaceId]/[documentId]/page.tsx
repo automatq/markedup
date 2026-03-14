@@ -483,9 +483,14 @@ export default function DocumentPage() {
   const [initialContent, setInitialContent] = useState<any>(undefined);
   const [contentLoaded, setContentLoaded] = useState(false);
 
-  // Load document metadata + content
+  // Load document metadata + content — reset state when documentId changes
   useEffect(() => {
     if (!documentId) return;
+    setContentLoaded(false);
+    setInitialContent(undefined);
+    setInitialTitle("Untitled");
+    setInitialLastEdited(undefined);
+    setInitialCreatedAt(undefined);
     (async () => {
       try {
         const res = await fetch(`/api/documents/${documentId}`);
@@ -511,8 +516,9 @@ export default function DocumentPage() {
     );
   }
 
+  // key={documentId} forces full remount of Room + Editor when switching documents
   return (
-    <Room roomId={`document:${documentId}`}>
+    <Room key={documentId} roomId={`document:${documentId}`}>
       <DocumentInner
         documentId={documentId}
         workspaceId={workspaceId}
