@@ -1,4 +1,6 @@
 import { Node, mergeAttributes } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import { ToggleView } from "./ToggleView";
 
 export interface ToggleOptions {
   HTMLAttributes: Record<string, string>;
@@ -25,11 +27,24 @@ export const Toggle = Node.create<ToggleOptions>({
   addAttributes() {
     return {
       open: { default: true },
+      summary: { default: "Toggle heading" },
     };
   },
 
   parseHTML() {
-    return [{ tag: "details" }];
+    return [
+      {
+        tag: "details",
+        getAttrs: (dom) => {
+          const el = dom as HTMLElement;
+          const summary = el.querySelector("summary");
+          return {
+            open: el.hasAttribute("open"),
+            summary: summary?.textContent || "Toggle heading",
+          };
+        },
+      },
+    ];
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -37,16 +52,14 @@ export const Toggle = Node.create<ToggleOptions>({
       "details",
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         open: node.attrs.open ? "true" : undefined,
-        class:
-          "group rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] my-2 [&>summary]:cursor-pointer [&>summary]:px-4 [&>summary]:py-2.5 [&>summary]:text-sm [&>summary]:font-medium [&>summary]:text-black dark:[&>summary]:text-white [&>summary]:select-none [&>summary]:list-none [&>summary::-webkit-details-marker]:hidden",
       }),
-      [
-        "summary",
-        {},
-        "Toggle heading",
-      ],
-      ["div", { class: "px-4 pb-3 pt-0" }, 0],
+      ["summary", {}, node.attrs.summary || "Toggle heading"],
+      ["div", {}, 0],
     ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ToggleView);
   },
 
   addCommands() {
@@ -57,7 +70,7 @@ export const Toggle = Node.create<ToggleOptions>({
           chain()
             .insertContent({
               type: this.name,
-              attrs: { open: true },
+              attrs: { open: true, summary: "Toggle heading" },
               content: [{ type: "paragraph" }],
             })
             .run(),
