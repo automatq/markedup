@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -15,17 +15,27 @@ import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import Color from "@tiptap/extension-color";
 import tippy, { Instance as TippyInstance } from "tippy.js";
-import { useLiveblocksExtension } from "@liveblocks/react-tiptap";
+import {
+  useLiveblocksExtension,
+  FloatingComposer,
+  FloatingThreads,
+  AnchoredThreads,
+} from "@liveblocks/react-tiptap";
+import { useThreads } from "@liveblocks/react/suspense";
 
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
 import { Toggle } from "./extensions/toggle";
-import { Comment } from "./extensions/comment";
 import { SlashCommandExtension } from "./extensions/slash-command-extension";
 import {
   SlashCommandMenu,
   SlashCommandMenuRef,
 } from "./menus/SlashCommandMenu";
+import {
+  SlashCommandItem,
+  filterSlashCommands,
+} from "./menus/slash-command";
+import { BlockToolbar } from "./menus/BlockToolbar";
 import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
@@ -43,10 +53,14 @@ export function MarkedUpEditor({
   editable = true,
   onEditorReady,
 }: EditorProps) {
-  // Liveblocks extension handles Yjs sync, cursors, and persistence
+  // Liveblocks extension handles Yjs sync, cursors, comments, mentions
   const liveblocks = useLiveblocksExtension({
     initialContent,
+    comments: true,
+    mentions: true,
   });
+
+  const { threads } = useThreads();
 
   const editor = useEditor({
     extensions: [
@@ -84,11 +98,25 @@ export function MarkedUpEditor({
       Callout,
       Backlink,
       Toggle,
-      Comment,
 
       // Slash commands
       SlashCommandExtension.configure({
         suggestion: {
+          char: "/",
+          startOfLine: false,
+          command: ({
+            editor: cmdEditor,
+            range,
+            props: item,
+          }: {
+            editor: any;
+            range: any;
+            props: SlashCommandItem;
+          }) => {
+            item.command({ editor: cmdEditor, range });
+          },
+          items: ({ query }: { query: string }) =>
+            filterSlashCommands(query),
           render: () => {
             let component: ReactRenderer<SlashCommandMenuRef> | null = null;
             let popup: TippyInstance[] | null = null;
@@ -155,6 +183,10 @@ export function MarkedUpEditor({
   return (
     <div className="relative w-full">
       <EditorContent editor={editor} />
+      {editor && <BlockToolbar editor={editor} />}
+      <FloatingComposer editor={editor} />
+      <FloatingThreads editor={editor} threads={threads} />
+      <AnchoredThreads editor={editor} threads={threads} />
     </div>
   );
 }

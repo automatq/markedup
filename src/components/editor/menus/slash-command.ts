@@ -14,7 +14,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Large section heading",
     icon: "Heading1",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHeading({ level: 1 }).run();
+      editor.chain().focus().deleteRange(range).setNode("heading", { level: 1 }).run();
     },
   },
   {
@@ -22,7 +22,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Medium section heading",
     icon: "Heading2",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHeading({ level: 2 }).run();
+      editor.chain().focus().deleteRange(range).setNode("heading", { level: 2 }).run();
     },
   },
   {
@@ -30,7 +30,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Small section heading",
     icon: "Heading3",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHeading({ level: 3 }).run();
+      editor.chain().focus().deleteRange(range).setNode("heading", { level: 3 }).run();
     },
   },
 
@@ -40,7 +40,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Create a simple bullet list",
     icon: "List",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleBulletList().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().toggleBulletList().run();
     },
   },
   {
@@ -48,7 +49,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Create a numbered list",
     icon: "ListOrdered",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleOrderedList().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().toggleOrderedList().run();
     },
   },
   {
@@ -56,7 +58,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Track tasks with checkboxes",
     icon: "CheckSquare",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleTaskList().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().toggleTaskList().run();
     },
   },
 
@@ -66,7 +69,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Insert a table with rows and columns",
     icon: "Table",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
     },
   },
   {
@@ -74,7 +78,12 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Collapsible section",
     icon: "ChevronRight",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setToggle().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().insertContent({
+        type: "toggle",
+        attrs: { open: true },
+        content: [{ type: "paragraph" }],
+      }).run();
     },
   },
   {
@@ -82,7 +91,11 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Highlighted information block",
     icon: "Info",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setCallout().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().insertContent({
+        type: "callout",
+        content: [{ type: "paragraph" }],
+      }).run();
     },
   },
   {
@@ -90,7 +103,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Add a quote block",
     icon: "Quote",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleBlockquote().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().toggleBlockquote().run();
     },
   },
   {
@@ -98,7 +112,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Add a code snippet with syntax highlighting",
     icon: "Code",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleCodeBlock().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().toggleCodeBlock().run();
     },
   },
 
@@ -110,7 +125,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     command: ({ editor, range }) => {
       const url = window.prompt("Image URL:");
       if (url) {
-        editor.chain().focus().deleteRange(range).setImage({ src: url }).run();
+        editor.chain().focus().deleteRange(range).run();
+        editor.chain().focus().setImage({ src: url }).run();
       }
     },
   },
@@ -121,7 +137,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     description: "Insert a horizontal rule",
     icon: "Minus",
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHorizontalRule().run();
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().setHorizontalRule().run();
     },
   },
   {

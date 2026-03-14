@@ -4,7 +4,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
-import { useSyncStatus, useThreads } from "@liveblocks/react/suspense";
+import {
+  useSyncStatus,
+  useThreads,
+  useInboxNotifications,
+  useMarkAllInboxNotificationsAsRead,
+  useDeleteAllInboxNotifications,
+  useMarkInboxNotificationAsRead,
+} from "@liveblocks/react/suspense";
 import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
@@ -15,6 +22,8 @@ import { MoveToDialog } from "@/components/dialogs/MoveToDialog";
 import {
   CustomizePageDialog,
   PageCustomization,
+  fontClass,
+  layoutClass,
 } from "@/components/dialogs/CustomizePageDialog";
 
 // Panels
@@ -24,103 +33,42 @@ import { AnalyticsPanel } from "@/components/panels/AnalyticsPanel";
 import { ConnectionsPanel } from "@/components/panels/ConnectionsPanel";
 import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
 
-// Notifications
-import { useEditNotifications } from "@/lib/notifications/useEditNotifications";
-
 /**
- * Bridge component — must be rendered inside a RoomProvider.
- * Reports live sync status and comment count up to the parent.
+ * Inner document content — rendered inside RoomProvider.
+ * Has access to all Liveblocks hooks.
  */
-function LiveRoomStatus({
-  onSyncChange,
-  onCommentCountChange,
+function DocumentInner({
+  documentId,
+  workspaceId,
+  initialTitle,
+  initialLastEdited,
+  initialContent,
 }: {
-  onSyncChange: (synced: boolean) => void;
-  onCommentCountChange: (count: number) => void;
+  documentId: string;
+  workspaceId: string;
+  initialTitle: string;
+  initialLastEdited?: Date;
+  initialContent?: any;
 }) {
-  const syncStatus = useSyncStatus({ smooth: true });
-  const { threads } = useThreads();
-
-  useEffect(() => {
-    onSyncChange(syncStatus === "synchronized");
-  }, [syncStatus, onSyncChange]);
-
-  useEffect(() => {
-    const openCount = threads?.filter((t) => !t.resolved).length ?? 0;
-    onCommentCountChange(openCount);
-  }, [threads, onCommentCountChange]);
-
-  return null; // Invisible — just reports data up
-}
-
-export default function DocumentPage() {
-  const params = useParams<{ workspaceId: string; documentId: string }>();
   const router = useRouter();
-  const documentId = params?.documentId ?? "";
-  const workspaceId = params?.workspaceId ?? "";
   const { user } = useUser();
   const editorRef = useRef<Editor | null>(null);
-  const [initialContent, setInitialContent] = useState<any>(undefined);
-  const [contentLoaded, setContentLoaded] = useState(false);
-  const [lastEdited, setLastEdited] = useState<Date | undefined>(undefined);
-  const [synced, setSynced] = useState(true);
-  const [commentCount, setCommentCount] = useState(0);
 
-  // Load document metadata (title + initial content for new docs)
-  useEffect(() => {
-    if (!documentId) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/documents/${documentId}`);
-        if (res.ok) {
-          const doc = await res.json();
-          if (doc.content) setInitialContent(doc.content);
-          if (doc.title) setTitle(doc.title);
-          if (doc.updatedAt) setLastEdited(new Date(doc.updatedAt));
-        }
-      } catch (err) {
-        console.error("Failed to load document:", err);
-      }
-      setContentLoaded(true);
-    })();
-  }, [documentId]);
+  // Liveblocks hooks (must be inside RoomProvider)
+  const syncStatus = useSyncStatus({ smooth: true });
+  const { threads } = useThreads();
+  const { inboxNotifications } = useInboxNotifications();
+  const markAllRead = useMarkAllInboxNotificationsAsRead();
+  const deleteAllNotifications = useDeleteAllInboxNotifications();
+  const markNotificationRead = useMarkInboxNotificationAsRead();
 
-  // Update lastEdited when user makes edits (track via sync status changes)
-  const handleSyncChange = useCallback((isSynced: boolean) => {
-    setSynced(isSynced);
-    if (isSynced) {
-      setLastEdited(new Date());
-    }
-  }, []);
-
-  const handleCommentCountChange = useCallback((count: number) => {
-    setCommentCount(count);
-  }, []);
-
-  const userName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "You" : "You";
-  const userColor = (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
-  const userAvatar = user?.imageUrl;
-
-  const currentPresenceUser = useMemo(() => ({
-    name: userName,
-    color: userColor,
-    avatar: userAvatar,
-    isCurrentUser: true,
-  }), [userName, userColor, userAvatar]);
-
-  // Notifications
-  const {
-    notifications,
-    unreadCount,
-    markRead,
-    markAllRead,
-    clearAll,
-  } = useEditNotifications();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const synced = syncStatus === "synchronized";
+  const commentCount = threads?.filter((t) => !t.resolved).length ?? 0;
+  const unreadNotifCount = inboxNotifications?.filter((n) => n.readAt === null).length ?? 0;
 
   // Page state
-  const [title, setTitle] = useState("Untitled");
-  const [fullWidth, setFullWidth] = useState(false);
+  const [title, setTitle] = useState(initialTitle);
+  const [lastEdited, setLastEdited] = useState<Date | undefined>(initialLastEdited);
   const [smallText, setSmallText] = useState(false);
   const [locked, setLocked] = useState(false);
   const [suggestEdits, setSuggestEdits] = useState(false);
@@ -129,7 +77,8 @@ export default function DocumentPage() {
   const [customization, setCustomization] = useState<PageCustomization>({
     coverUrl: "",
     icon: "",
-    font: "sans",
+    font: "geist-mono",
+    layout: "wide",
   });
 
   // Dialog/panel open state
@@ -139,6 +88,14 @@ export default function DocumentPage() {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  // Update lastEdited when sync completes
+  useEffect(() => {
+    if (synced) {
+      setLastEdited(new Date());
+    }
+  }, [synced]);
 
   const handleEditorReady = useCallback((editor: Editor | null) => {
     editorRef.current = editor;
@@ -154,8 +111,6 @@ export default function DocumentPage() {
       const text = await file.text();
       const editor = editorRef.current;
       if (editor) {
-        // Convert markdown lines into basic content
-        // For a real app you'd use a markdown-to-prosemirror parser
         editor.commands.setContent(`<p>${text.replace(/\n/g, "</p><p>")}</p>`);
       }
     };
@@ -209,7 +164,6 @@ export default function DocumentPage() {
         }
 
         case "duplicate": {
-          // Create a copy via API and navigate to it
           try {
             const editor = editorRef.current;
             const body = {
@@ -227,7 +181,7 @@ export default function DocumentPage() {
               router.push(`/${workspaceId}/${doc.id}`);
             }
           } catch {
-            // Silently handle – in production you'd show a toast
+            // Silently handle
           }
           break;
         }
@@ -257,7 +211,13 @@ export default function DocumentPage() {
           break;
 
         case "full-width":
-          setFullWidth((p) => !p);
+          // Cycle through layouts: wide → full → narrow → zen → wide
+          setCustomization((prev) => {
+            const order = ["wide", "full", "narrow", "zen"] as const;
+            const idx = order.indexOf(prev.layout);
+            const next = order[(idx + 1) % order.length];
+            return { ...prev, layout: next };
+          });
           break;
 
         case "customize":
@@ -315,15 +275,10 @@ export default function DocumentPage() {
     [title, workspaceId, documentId, router, handleImport, handleExport]
   );
 
-  const fontClass =
-    customization.font === "mono"
-      ? "font-mono"
-      : customization.font === "serif"
-        ? "font-serif"
-        : "font-sans";
+  const activeFontClass = fontClass(customization.font);
 
   return (
-    <div className={`flex flex-col h-full animate-fade-in-up ${fontClass}`}>
+    <div className={`flex flex-col h-full animate-fade-in-up ${activeFontClass}`}>
       {/* Cover image */}
       {customization.coverUrl && (
         <div
@@ -358,23 +313,23 @@ export default function DocumentPage() {
         </div>
       )}
 
-      {/* Header bar */}
+      {/* Header bar — inside Room so it has access to live presence */}
       <DocumentHeader
         documentId={documentId}
         documentTitle={title}
         synced={synced}
         lastEdited={lastEdited}
         onAction={handleAction}
-        notificationCount={unreadCount}
+        notificationCount={unreadNotifCount}
         onNotificationsClick={() => setNotificationsOpen(true)}
-        currentUser={currentPresenceUser}
         commentCount={commentCount}
+        insideRoom={true}
       />
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
         <div
-          className={`mx-auto w-full ${fullWidth ? "max-w-full px-8" : "max-w-3xl"} py-10`}
+          className={`mx-auto w-full ${layoutClass(customization.layout)} py-10`}
         >
           {/* Icon + Title */}
           <div className="mb-6 px-4">
@@ -425,25 +380,13 @@ export default function DocumentPage() {
           {/* Divider */}
           <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
 
-          {/* Editor — wrapped in Liveblocks Room for real-time collaboration */}
-          {contentLoaded ? (
-            <Room roomId={`document:${documentId}`}>
-              <LiveRoomStatus
-                onSyncChange={handleSyncChange}
-                onCommentCountChange={handleCommentCountChange}
-              />
-              <MarkedUpEditor
-                initialContent={initialContent}
-                className={smallText ? "text-sm" : ""}
-                editable={!locked}
-                onEditorReady={handleEditorReady}
-              />
-            </Room>
-          ) : (
-            <div className="flex items-center justify-center py-20">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black/60 dark:border-white/20 dark:border-t-white/60" />
-            </div>
-          )}
+          {/* Editor with inline comments */}
+          <MarkedUpEditor
+            initialContent={initialContent}
+            className={smallText ? "text-sm" : ""}
+            editable={!locked}
+            onEditorReady={handleEditorReady}
+          />
         </div>
       </div>
 
@@ -453,7 +396,6 @@ export default function DocumentPage() {
         onClose={() => setMoveToOpen(false)}
         documentTitle={title}
         onMove={(destId, destName) => {
-          // In production: API call to move document, then navigate
           router.push(`/${workspaceId}`);
         }}
       />
@@ -469,12 +411,12 @@ export default function DocumentPage() {
       <VersionHistoryPanel
         open={versionHistoryOpen}
         onClose={() => setVersionHistoryOpen(false)}
+        documentId={documentId}
         onRestore={(versionId) => {
-          // In production: fetch version content and set editor content
           setVersionHistoryOpen(false);
         }}
         onPreview={(versionId) => {
-          // In production: show diff view
+          // Preview handled inside panel
         }}
       />
 
@@ -497,11 +439,63 @@ export default function DocumentPage() {
       <NotificationsPanel
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
-        notifications={notifications}
-        onMarkRead={markRead}
-        onMarkAllRead={markAllRead}
-        onClearAll={clearAll}
+        onMarkRead={(id) => markNotificationRead(id)}
+        onMarkAllRead={() => markAllRead()}
+        onClearAll={() => deleteAllNotifications()}
       />
     </div>
+  );
+}
+
+/**
+ * Document page — loads metadata then renders the Room.
+ */
+export default function DocumentPage() {
+  const params = useParams<{ workspaceId: string; documentId: string }>();
+  const documentId = params?.documentId ?? "";
+  const workspaceId = params?.workspaceId ?? "";
+
+  const [initialTitle, setInitialTitle] = useState("Untitled");
+  const [initialLastEdited, setInitialLastEdited] = useState<Date | undefined>(undefined);
+  const [initialContent, setInitialContent] = useState<any>(undefined);
+  const [contentLoaded, setContentLoaded] = useState(false);
+
+  // Load document metadata + content
+  useEffect(() => {
+    if (!documentId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/documents/${documentId}`);
+        if (res.ok) {
+          const doc = await res.json();
+          if (doc.title) setInitialTitle(doc.title);
+          if (doc.updatedAt) setInitialLastEdited(new Date(doc.updatedAt));
+          if (doc.content) setInitialContent(doc.content);
+        }
+      } catch (err) {
+        console.error("Failed to load document:", err);
+      }
+      setContentLoaded(true);
+    })();
+  }, [documentId]);
+
+  if (!contentLoaded) {
+    return (
+      <div className="flex items-center justify-center py-20 h-full">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black/60 dark:border-white/20 dark:border-t-white/60" />
+      </div>
+    );
+  }
+
+  return (
+    <Room roomId={`document:${documentId}`}>
+      <DocumentInner
+        documentId={documentId}
+        workspaceId={workspaceId}
+        initialTitle={initialTitle}
+        initialLastEdited={initialLastEdited}
+        initialContent={initialContent}
+      />
+    </Room>
   );
 }

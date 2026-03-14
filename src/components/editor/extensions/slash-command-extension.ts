@@ -9,6 +9,7 @@ export const SlashCommandExtension = Extension.create({
     return {
       suggestion: {
         char: "/",
+        startOfLine: false,
         command: ({
           editor,
           range,
@@ -21,6 +22,7 @@ export const SlashCommandExtension = Extension.create({
           props.command({ editor, range });
         },
         items: ({ query }: { query: string }) => filterSlashCommands(query),
+        render: () => ({}),
       } as Partial<SuggestionOptions>,
     };
   },

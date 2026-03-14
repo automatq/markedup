@@ -43,8 +43,13 @@ export const Callout = Node.create<CalloutOptions>({
     return {
       setCallout:
         () =>
-        ({ commands }) =>
-          commands.wrapIn(this.name),
+        ({ chain }) =>
+          chain()
+            .insertContent({
+              type: this.name,
+              content: [{ type: "paragraph" }],
+            })
+            .run(),
       toggleCallout:
         () =>
         ({ commands }) =>

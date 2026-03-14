@@ -2,23 +2,11 @@
 
 import React, { useState } from "react";
 import { X, RotateCcw, Eye, Clock } from "lucide-react";
-
-export interface VersionEntry {
-  id: string;
-  timestamp: Date;
-  author: string;
-  authorColor: string;
-  summary: string;
-  isCurrent?: boolean;
-}
-
-const MOCK_VERSIONS: VersionEntry[] = [
-  { id: "v-1", timestamp: new Date(Date.now() - 1000 * 60 * 5), author: "You", authorColor: "#6366f1", summary: "Updated project timeline table", isCurrent: true },
-  { id: "v-2", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), author: "Sarah K", authorColor: "#ec4899", summary: "Added action items section" },
-  { id: "v-3", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5), author: "You", authorColor: "#6366f1", summary: "Reorganized headings" },
-  { id: "v-4", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), author: "James L", authorColor: "#10b981", summary: "Initial draft" },
-  { id: "v-5", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), author: "You", authorColor: "#6366f1", summary: "Created page from template" },
-];
+import { useHistoryVersions } from "@liveblocks/react/suspense";
+import {
+  HistoryVersionSummaryList,
+  HistoryVersionSummary,
+} from "@liveblocks/react-ui";
 
 function formatTime(date: Date): string {
   const now = new Date();
@@ -35,11 +23,13 @@ function formatTime(date: Date): string {
 interface VersionHistoryPanelProps {
   open: boolean;
   onClose: () => void;
+  documentId: string;
   onRestore: (versionId: string) => void;
   onPreview: (versionId: string) => void;
 }
 
-export function VersionHistoryPanel({ open, onClose, onRestore, onPreview }: VersionHistoryPanelProps) {
+export function VersionHistoryPanel({ open, onClose, documentId, onRestore, onPreview }: VersionHistoryPanelProps) {
+  const { versions } = useHistoryVersions();
   const [selected, setSelected] = useState<string | null>(null);
 
   if (!open) return null;
@@ -59,69 +49,28 @@ export function VersionHistoryPanel({ open, onClose, onRestore, onPreview }: Ver
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="py-2">
-            {MOCK_VERSIONS.map((version) => (
-              <button
-                key={version.id}
-                onClick={() => setSelected(version.id === selected ? null : version.id)}
-                className={`w-full text-left px-4 py-3 transition-colors ${
-                  selected === version.id
-                    ? "bg-black/[0.04] dark:bg-white/[0.04]"
-                    : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5">
-                    <div
-                      className="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-semibold text-white"
-                      style={{ backgroundColor: version.authorColor }}
-                    >
-                      {version.author[0]}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-black dark:text-white truncate">
-                        {version.author}
-                      </span>
-                      {version.isCurrent && (
-                        <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                          Current
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-black/50 dark:text-white/50 mt-0.5 truncate">
-                      {version.summary}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-black/30 dark:text-white/30">
-                      <Clock className="h-2.5 w-2.5" />
-                      {formatTime(version.timestamp)}
-                    </div>
-
-                    {/* Actions when selected */}
-                    {selected === version.id && !version.isCurrent && (
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onPreview(version.id); }}
-                          className="flex items-center gap-1.5 rounded-md border border-black/8 dark:border-white/10 px-2.5 py-1 text-[10px] font-medium text-black/50 dark:text-white/50 hover:border-black/20 dark:hover:border-white/25 transition-colors"
-                        >
-                          <Eye className="h-3 w-3" />
-                          Preview
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onRestore(version.id); }}
-                          className="flex items-center gap-1.5 rounded-md bg-black dark:bg-white px-2.5 py-1 text-[10px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          Restore
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+          {versions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-black/20 dark:text-white/20">
+              <History className="h-8 w-8 mb-2" />
+              <p className="text-xs">No version history yet</p>
+              <p className="text-[10px] mt-1 text-black/15 dark:text-white/15">
+                Versions are saved automatically as you edit
+              </p>
+            </div>
+          ) : (
+            <HistoryVersionSummaryList>
+              {versions.map((version) => (
+                <HistoryVersionSummary
+                  key={version.createdAt.toISOString()}
+                  version={version}
+                  onClick={() => {
+                    const id = version.createdAt.toISOString();
+                    setSelected(id === selected ? null : id);
+                  }}
+                />
+              ))}
+            </HistoryVersionSummaryList>
+          )}
         </div>
       </div>
     </div>

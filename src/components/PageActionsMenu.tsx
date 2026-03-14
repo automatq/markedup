@@ -45,7 +45,7 @@ const menuItems: MenuItem[] = [
   { icon: Trash2, label: "Move to trash", action: "trash", danger: true, dividerAfter: true },
   { icon: Presentation, label: "Present", action: "present" },
   { icon: Type, label: "Small text", action: "small-text" },
-  { icon: Maximize2, label: "Full width", action: "full-width" },
+  { icon: Maximize2, label: "Change layout", action: "full-width" },
   { icon: Palette, label: "Customize page", action: "customize", dividerAfter: true },
   { icon: Lock, label: "Lock page", action: "lock" },
   { icon: MessageSquareDiff, label: "Suggest edits", action: "suggest-edits", dividerAfter: true },

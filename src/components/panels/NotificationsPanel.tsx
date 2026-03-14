@@ -1,104 +1,38 @@
 "use client";
 
 import React, { useState } from "react";
+import { X, Bell, CheckCheck, Trash2 } from "lucide-react";
 import {
-  X,
-  Bell,
-  CheckCheck,
-  Trash2,
-  Edit3,
-  Plus,
-  Minus,
-  Type,
-  ArrowRight,
-  MessageSquare,
-} from "lucide-react";
-import {
-  EditNotification,
-  describeNotification,
-} from "@/lib/notifications/types";
+  InboxNotification,
+  InboxNotificationList,
+} from "@liveblocks/react-ui";
+import { useInboxNotifications } from "@liveblocks/react/suspense";
 
 interface NotificationsPanelProps {
   open: boolean;
   onClose: () => void;
-  notifications: EditNotification[];
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onClearAll: () => void;
 }
 
-function formatTime(date: Date): string {
-  const diff = Date.now() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(mins / 60);
-  const days = Math.floor(hours / 24);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function ActionIcon({ action }: { action: EditNotification["action"] }) {
-  const className = "h-3 w-3";
-  switch (action) {
-    case "edited":
-      return <Edit3 className={className} />;
-    case "added":
-      return <Plus className={className} />;
-    case "deleted":
-      return <Minus className={className} />;
-    case "formatted":
-      return <Type className={className} />;
-    case "moved":
-      return <ArrowRight className={className} />;
-    case "commented":
-      return <MessageSquare className={className} />;
-    default:
-      return <Edit3 className={className} />;
-  }
-}
-
-function actionColor(action: EditNotification["action"]): string {
-  switch (action) {
-    case "added":
-      return "text-emerald-500 bg-emerald-500/10";
-    case "deleted":
-      return "text-red-400 bg-red-400/10";
-    case "commented":
-      return "text-amber-500 bg-amber-500/10";
-    case "formatted":
-      return "text-blue-400 bg-blue-400/10";
-    case "moved":
-      return "text-purple-400 bg-purple-400/10";
-    default:
-      return "text-black/40 dark:text-white/40 bg-black/5 dark:bg-white/5";
-  }
-}
-
 export function NotificationsPanel({
   open,
   onClose,
-  notifications,
   onMarkRead,
   onMarkAllRead,
   onClearAll,
 }: NotificationsPanelProps) {
+  const { inboxNotifications } = useInboxNotifications();
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   if (!open) return null;
 
+  const unreadCount = inboxNotifications?.filter((n) => n.readAt === null).length ?? 0;
   const filtered =
-    filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  // Group notifications by relative time bucket
-  const groups = groupByTime(filtered);
+    filter === "unread"
+      ? inboxNotifications?.filter((n) => n.readAt === null) ?? []
+      : inboxNotifications ?? [];
 
   return (
     <div className="fixed right-0 top-0 bottom-0 z-50 flex">
@@ -130,7 +64,7 @@ export function NotificationsPanel({
                 <CheckCheck className="h-3.5 w-3.5" />
               </button>
             )}
-            {notifications.length > 0 && (
+            {(inboxNotifications?.length ?? 0) > 0 && (
               <button
                 onClick={onClearAll}
                 title="Clear all"
@@ -178,96 +112,23 @@ export function NotificationsPanel({
                   ? "All caught up!"
                   : "No notifications yet"}
               </p>
+              <p className="text-[10px] mt-1 text-black/15 dark:text-white/15">
+                You{"'"}ll be notified when someone mentions you or replies to a thread
+              </p>
             </div>
           ) : (
-            groups.map((group) => (
-              <div key={group.label}>
-                <div className="sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur-sm px-4 py-1.5 border-b border-black/4 dark:border-white/4">
-                  <p className="text-[9px] uppercase tracking-widest text-black/25 dark:text-white/25 font-medium">
-                    {group.label}
-                  </p>
-                </div>
-                {group.items.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => onMarkRead(n.id)}
-                    className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03] ${
-                      !n.read
-                        ? "bg-black/[0.02] dark:bg-white/[0.02]"
-                        : ""
-                    }`}
-                  >
-                    {/* User avatar */}
-                    <div className="relative mt-0.5">
-                      <div
-                        className="h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-[9px] font-semibold text-white"
-                        style={{ backgroundColor: n.userColor }}
-                      >
-                        {n.userName[0]}
-                      </div>
-                      {/* Action badge */}
-                      <div
-                        className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white dark:border-black ${actionColor(n.action)}`}
-                      >
-                        <ActionIcon action={n.action} />
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] text-black/70 dark:text-white/70 leading-relaxed">
-                        <span className="font-semibold text-black/90 dark:text-white/90">
-                          {n.userName}
-                        </span>{" "}
-                        {describeNotification(n)}
-                      </p>
-                      <span className="text-[10px] text-black/25 dark:text-white/25 mt-0.5 block">
-                        {formatTime(n.timestamp)}
-                      </span>
-                    </div>
-
-                    {/* Unread dot */}
-                    {!n.read && (
-                      <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            ))
+            <InboxNotificationList>
+              {filtered.map((notification) => (
+                <InboxNotification
+                  key={notification.id}
+                  inboxNotification={notification}
+                  onClick={() => onMarkRead(notification.id)}
+                />
+              ))}
+            </InboxNotificationList>
           )}
         </div>
       </div>
     </div>
   );
-}
-
-// ── Helpers ──
-
-interface TimeGroup {
-  label: string;
-  items: EditNotification[];
-}
-
-function groupByTime(items: EditNotification[]): TimeGroup[] {
-  const now = Date.now();
-  const groups: Record<string, EditNotification[]> = {};
-
-  for (const item of items) {
-    const diff = now - item.timestamp.getTime();
-    const mins = diff / 60000;
-    let label: string;
-    if (mins < 60) label = "Just now";
-    else if (mins < 60 * 24) label = "Today";
-    else if (mins < 60 * 48) label = "Yesterday";
-    else label = "Earlier";
-
-    if (!groups[label]) groups[label] = [];
-    groups[label].push(item);
-  }
-
-  // Maintain order: Just now → Today → Yesterday → Earlier
-  const order = ["Just now", "Today", "Yesterday", "Earlier"];
-  return order
-    .filter((label) => groups[label]?.length)
-    .map((label) => ({ label, items: groups[label] }));
 }

@@ -1,16 +1,13 @@
 "use client";
 
 import React from "react";
+import { useOthers, useSelf } from "@liveblocks/react/suspense";
 
 export interface PresenceUser {
   name: string;
   color: string;
   avatar?: string;
   isCurrentUser?: boolean;
-}
-
-interface PresenceAvatarsProps {
-  currentUser?: PresenceUser;
 }
 
 function getInitials(name: string) {
@@ -22,10 +19,39 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-export function PresenceAvatars({ currentUser }: PresenceAvatarsProps) {
-  // Liveblocks handles presence via its own UI — this shows the current user fallback
-  const displayUsers: PresenceUser[] = currentUser ? [currentUser] : [];
-  const maxVisible = 4;
+/**
+ * Live presence avatars powered by Liveblocks.
+ * Must be rendered inside a RoomProvider.
+ */
+export function PresenceAvatars() {
+  const self = useSelf();
+  const others = useOthers();
+
+  const displayUsers: PresenceUser[] = [];
+
+  // Add other users first
+  for (const other of others) {
+    if (other.info) {
+      displayUsers.push({
+        name: other.info.name,
+        color: other.info.color,
+        avatar: other.info.avatar,
+        isCurrentUser: false,
+      });
+    }
+  }
+
+  // Add current user last
+  if (self?.info) {
+    displayUsers.push({
+      name: self.info.name,
+      color: self.info.color,
+      avatar: self.info.avatar,
+      isCurrentUser: true,
+    });
+  }
+
+  const maxVisible = 5;
   const visible = displayUsers.slice(0, maxVisible);
   const overflow = displayUsers.length - maxVisible;
 
@@ -62,6 +88,41 @@ export function PresenceAvatars({ currentUser }: PresenceAvatarsProps) {
             +{overflow}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Fallback presence component for use outside a RoomProvider.
+ * Shows only the current user.
+ */
+export function PresenceAvatarsFallback({ currentUser }: { currentUser?: PresenceUser }) {
+  if (!currentUser) return null;
+
+  return (
+    <div className="flex items-center">
+      <div className="flex -space-x-2">
+        <div
+          title={`${currentUser.name} (you)`}
+          className="relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-white dark:border-black text-[10px] font-semibold overflow-hidden"
+          style={{
+            backgroundColor: currentUser.avatar ? undefined : currentUser.color,
+          }}
+        >
+          {currentUser.avatar ? (
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="text-white mix-blend-luminosity">
+              {getInitials(currentUser.name)}
+            </span>
+          )}
+          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-black bg-emerald-500" />
+        </div>
       </div>
     </div>
   );

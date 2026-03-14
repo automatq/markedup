@@ -31,16 +31,18 @@ export async function POST() {
     const color =
       (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
 
-    const { status, body } = await liveblocks.identifyUser(
-      { userId, groupIds: [] },
-      {
-        userInfo: {
-          name,
-          avatar,
-          color,
-        },
-      }
-    );
+    const session = liveblocks.prepareSession(userId, {
+      userInfo: {
+        name,
+        avatar,
+        color,
+      },
+    });
+
+    // Grant full access to all document rooms
+    session.allow("document:*", session.FULL_ACCESS);
+
+    const { status, body } = await session.authorize();
 
     return new Response(body, { status });
   } catch (err) {

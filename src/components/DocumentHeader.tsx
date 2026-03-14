@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { MoreHorizontal, Share2, MessageSquare, Clock, Bell } from "lucide-react";
-import { PresenceAvatars, PresenceUser } from "./presence/PresenceAvatars";
+import { PresenceAvatars, PresenceAvatarsFallback, PresenceUser } from "./presence/PresenceAvatars";
 import { ShareDialog } from "./ShareDialog";
 import { PageActionsMenu } from "./PageActionsMenu";
 
@@ -14,8 +14,11 @@ interface DocumentHeaderProps {
   onAction: (action: string) => void;
   notificationCount?: number;
   onNotificationsClick?: () => void;
-  currentUser?: PresenceUser;
   commentCount?: number;
+  /** Whether this header is rendered inside a RoomProvider (enables live presence) */
+  insideRoom?: boolean;
+  /** Fallback user to show when not inside a Room */
+  currentUser?: PresenceUser;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -41,8 +44,9 @@ export function DocumentHeader({
   onAction,
   notificationCount = 0,
   onNotificationsClick,
-  currentUser,
   commentCount = 0,
+  insideRoom = false,
+  currentUser,
 }: DocumentHeaderProps) {
   const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,8 +81,12 @@ export function DocumentHeader({
             </div>
           )}
 
-          {/* Presence avatars */}
-          <PresenceAvatars currentUser={currentUser} />
+          {/* Presence avatars — live when inside Room, fallback otherwise */}
+          {insideRoom ? (
+            <PresenceAvatars />
+          ) : (
+            <PresenceAvatarsFallback currentUser={currentUser} />
+          )}
 
           {/* Notifications bell */}
           <button

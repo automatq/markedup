@@ -53,8 +53,14 @@ export const Toggle = Node.create<ToggleOptions>({
     return {
       setToggle:
         () =>
-        ({ commands }) =>
-          commands.wrapIn(this.name),
+        ({ chain }) =>
+          chain()
+            .insertContent({
+              type: this.name,
+              attrs: { open: true },
+              content: [{ type: "paragraph" }],
+            })
+            .run(),
     };
   },
 });

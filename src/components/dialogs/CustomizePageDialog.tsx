@@ -1,12 +1,68 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, ImagePlus, Smile, Type } from "lucide-react";
+import { X, ImagePlus, Smile, Type, Maximize } from "lucide-react";
+
+export type FontOption =
+  | "geist"
+  | "geist-mono"
+  | "inter"
+  | "dm-sans"
+  | "space-grotesk"
+  | "jetbrains-mono"
+  | "lora"
+  | "source-serif"
+  | "ibm-plex-sans"
+  | "ibm-plex-mono"
+  | "system-sans"
+  | "system-serif"
+  | "system-mono";
+
+export type LayoutMode = "wide" | "full" | "narrow" | "zen";
 
 export interface PageCustomization {
   coverUrl: string;
   icon: string;
-  font: "mono" | "sans" | "serif";
+  font: FontOption;
+  layout: LayoutMode;
+}
+
+/** CSS classes for each layout mode */
+export function layoutClass(layout: LayoutMode): string {
+  const map: Record<LayoutMode, string> = {
+    wide: "max-w-5xl",
+    full: "max-w-full px-12",
+    narrow: "max-w-2xl",
+    zen: "max-w-xl",
+  };
+  return map[layout] ?? "max-w-5xl";
+}
+
+interface LayoutEntry {
+  key: LayoutMode;
+  label: string;
+  description: string;
+  widthPreview: string; // tailwind width class for the visual indicator
+}
+
+/** Maps font option to the CSS class that applies it */
+export function fontClass(font: FontOption): string {
+  const map: Record<FontOption, string> = {
+    "geist": "font-[family-name:var(--font-geist-sans)]",
+    "geist-mono": "font-[family-name:var(--font-geist-mono)]",
+    "inter": "font-[family-name:var(--font-inter)]",
+    "dm-sans": "font-[family-name:var(--font-dm-sans)]",
+    "space-grotesk": "font-[family-name:var(--font-space-grotesk)]",
+    "jetbrains-mono": "font-[family-name:var(--font-jetbrains-mono)]",
+    "lora": "font-[family-name:var(--font-lora)]",
+    "source-serif": "font-[family-name:var(--font-source-serif)]",
+    "ibm-plex-sans": "font-[family-name:var(--font-ibm-plex-sans)]",
+    "ibm-plex-mono": "font-[family-name:var(--font-ibm-plex-mono)]",
+    "system-sans": "font-sans",
+    "system-serif": "font-serif",
+    "system-mono": "font-mono",
+  };
+  return map[font] ?? "font-sans";
 }
 
 interface CustomizePageDialogProps {
@@ -29,24 +85,54 @@ const COVER_PRESETS = [
 
 const ICON_PRESETS = ["", "📄", "📝", "📋", "🎯", "🚀", "💡", "🔧", "📊", "🏗️", "🎨", "📚", "⚡", "🔥", "✨", "🌟"];
 
-const FONTS: Array<{ key: PageCustomization["font"]; label: string; preview: string }> = [
-  { key: "mono", label: "Mono", preview: "font-mono" },
-  { key: "sans", label: "Sans", preview: "font-sans" },
-  { key: "serif", label: "Serif", preview: "font-serif" },
+const LAYOUTS: LayoutEntry[] = [
+  { key: "zen", label: "Zen", description: "Focused, narrow column", widthPreview: "w-5" },
+  { key: "narrow", label: "Narrow", description: "Compact reading width", widthPreview: "w-8" },
+  { key: "wide", label: "Wide", description: "Comfortable working width", widthPreview: "w-12" },
+  { key: "full", label: "Full", description: "Edge-to-edge content", widthPreview: "w-full" },
+];
+
+interface FontEntry {
+  key: FontOption;
+  label: string;
+  category: "sans" | "serif" | "mono";
+}
+
+const FONTS: FontEntry[] = [
+  { key: "geist", label: "Geist", category: "sans" },
+  { key: "inter", label: "Inter", category: "sans" },
+  { key: "dm-sans", label: "DM Sans", category: "sans" },
+  { key: "space-grotesk", label: "Space Grotesk", category: "sans" },
+  { key: "ibm-plex-sans", label: "IBM Plex Sans", category: "sans" },
+  { key: "system-sans", label: "System Sans", category: "sans" },
+  { key: "lora", label: "Lora", category: "serif" },
+  { key: "source-serif", label: "Source Serif", category: "serif" },
+  { key: "system-serif", label: "System Serif", category: "serif" },
+  { key: "geist-mono", label: "Geist Mono", category: "mono" },
+  { key: "jetbrains-mono", label: "JetBrains Mono", category: "mono" },
+  { key: "ibm-plex-mono", label: "IBM Plex Mono", category: "mono" },
+  { key: "system-mono", label: "System Mono", category: "mono" },
 ];
 
 export function CustomizePageDialog({ open, onClose, current, onSave }: CustomizePageDialogProps) {
   const [cover, setCover] = useState(current.coverUrl);
   const [icon, setIcon] = useState(current.icon);
-  const [font, setFont] = useState(current.font);
+  const [font, setFont] = useState<FontOption>(current.font);
+  const [layout, setLayout] = useState<LayoutMode>(current.layout);
   const [coverInput, setCoverInput] = useState("");
 
   if (!open) return null;
 
+  const fontsByCategory = {
+    sans: FONTS.filter((f) => f.category === "sans"),
+    serif: FONTS.filter((f) => f.category === "serif"),
+    mono: FONTS.filter((f) => f.category === "mono"),
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md mx-4 rounded-2xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-2xl animate-fade-in-up">
+      <div className="relative w-full max-w-md mx-4 max-h-[85vh] rounded-2xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-2xl animate-fade-in-up flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-base font-semibold text-black dark:text-white">Customize page</h2>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -54,19 +140,16 @@ export function CustomizePageDialog({ open, onClose, current, onSave }: Customiz
           </button>
         </div>
 
-        <div className="px-5 pb-4 space-y-5">
+        <div className="px-5 pb-4 space-y-5 overflow-y-auto flex-1">
           {/* Cover */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <ImagePlus className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
               <span className="text-xs font-medium text-black/60 dark:text-white/60">Cover</span>
             </div>
-            {/* Preview */}
             <div
               className="h-20 w-full rounded-lg border border-black/8 dark:border-white/10 mb-2 overflow-hidden"
-              style={{
-                background: cover || "rgba(0,0,0,0.03)",
-              }}
+              style={{ background: cover || "rgba(0,0,0,0.03)" }}
             >
               {!cover && (
                 <div className="flex h-full items-center justify-center text-xs text-black/20 dark:text-white/20">
@@ -74,7 +157,6 @@ export function CustomizePageDialog({ open, onClose, current, onSave }: Customiz
                 </div>
               )}
             </div>
-            {/* Presets */}
             <div className="flex gap-1.5 flex-wrap">
               {COVER_PRESETS.map((preset, i) => (
                 <button
@@ -91,7 +173,6 @@ export function CustomizePageDialog({ open, onClose, current, onSave }: Customiz
                 </button>
               ))}
             </div>
-            {/* URL input */}
             <div className="mt-2 flex gap-2">
               <input
                 placeholder="Or paste image URL…"
@@ -133,35 +214,77 @@ export function CustomizePageDialog({ open, onClose, current, onSave }: Customiz
 
           {/* Font */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-3">
               <Type className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
               <span className="text-xs font-medium text-black/60 dark:text-white/60">Font</span>
             </div>
-            <div className="flex gap-2">
-              {FONTS.map((f) => (
+
+            {(["sans", "serif", "mono"] as const).map((category) => (
+              <div key={category} className="mb-3">
+                <p className="text-[9px] uppercase tracking-widest text-black/25 dark:text-white/25 font-medium mb-1.5">
+                  {category}
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {fontsByCategory[category].map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setFont(f.key)}
+                      className={`rounded-lg border px-3 py-2 text-left transition-all ${
+                        font === f.key
+                          ? "border-black dark:border-white bg-black/[0.04] dark:bg-white/[0.04]"
+                          : "border-black/8 dark:border-white/10 hover:border-black/20 dark:hover:border-white/25"
+                      }`}
+                    >
+                      <span className={`text-sm text-black dark:text-white ${fontClass(f.key)}`}>
+                        Aa
+                      </span>
+                      <p className="text-[10px] text-black/40 dark:text-white/40 mt-0.5">{f.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Layout */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Maximize className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
+              <span className="text-xs font-medium text-black/60 dark:text-white/60">Layout</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {LAYOUTS.map((l) => (
                 <button
-                  key={f.key}
-                  onClick={() => setFont(f.key)}
-                  className={`flex-1 rounded-lg border px-3 py-2.5 text-center transition-all ${
-                    font === f.key
+                  key={l.key}
+                  onClick={() => setLayout(l.key)}
+                  className={`rounded-lg border px-2 py-2.5 text-center transition-all ${
+                    layout === l.key
                       ? "border-black dark:border-white bg-black/[0.04] dark:bg-white/[0.04]"
                       : "border-black/8 dark:border-white/10 hover:border-black/20 dark:hover:border-white/25"
                   }`}
                 >
-                  <span className={`text-sm ${f.preview} text-black dark:text-white`}>Aa</span>
-                  <p className="text-[10px] text-black/40 dark:text-white/40 mt-0.5">{f.label}</p>
+                  {/* Visual width indicator */}
+                  <div className="flex justify-center mb-1.5">
+                    <div className="h-6 flex flex-col justify-center gap-[3px] w-full px-1">
+                      <div className={`h-[2px] rounded-full mx-auto bg-black/20 dark:bg-white/20 ${l.widthPreview}`} />
+                      <div className={`h-[2px] rounded-full mx-auto bg-black/10 dark:bg-white/10 ${l.widthPreview}`} />
+                      <div className={`h-[2px] rounded-full mx-auto bg-black/10 dark:bg-white/10 ${l.widthPreview === "w-full" ? "w-3/4" : l.widthPreview}`} />
+                    </div>
+                  </div>
+                  <p className="text-[10px] font-medium text-black/70 dark:text-white/70">{l.label}</p>
+                  <p className="text-[8px] text-black/30 dark:text-white/30 mt-0.5 leading-tight">{l.description}</p>
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="border-t border-black/8 dark:border-white/10 px-5 py-3 flex justify-end gap-2">
+        <div className="border-t border-black/8 dark:border-white/10 px-5 py-3 flex justify-end gap-2 shrink-0">
           <button onClick={onClose} className="rounded-lg border border-black/8 dark:border-white/10 px-4 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 dark:hover:border-white/25 transition-colors">
             Cancel
           </button>
           <button
-            onClick={() => { onSave({ coverUrl: cover, icon, font }); onClose(); }}
+            onClick={() => { onSave({ coverUrl: cover, icon, font, layout }); onClose(); }}
             className="rounded-lg bg-black dark:bg-white px-4 py-2 text-xs font-medium text-white dark:text-black hover:opacity-80 transition-opacity"
           >
             Save

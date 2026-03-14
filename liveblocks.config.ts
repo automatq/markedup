@@ -8,6 +8,11 @@ declare global {
         color: string;
       };
     };
+    RoomEvent: {
+      type: "REACTION";
+      emoji: string;
+      userId: string;
+    };
   }
 }
 
