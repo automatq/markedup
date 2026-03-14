@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { ChevronRight } from "lucide-react";
 
 export function ToggleView({ node, updateAttributes }: any) {
   const [open, setOpen] = useState<boolean>(node.attrs.open ?? true);
   const [editing, setEditing] = useState(false);
-  const summary: string = node.attrs.summary || "Toggle heading";
+  const summaryRef = useRef<HTMLSpanElement>(null);
 
   const handleToggle = useCallback(() => {
     const next = !open;
@@ -52,6 +52,7 @@ export function ToggleView({ node, updateAttributes }: any) {
           }`}
         />
         <span
+          ref={summaryRef}
           contentEditable
           suppressContentEditableWarning
           onClick={(e) => {
@@ -61,10 +62,9 @@ export function ToggleView({ node, updateAttributes }: any) {
           onFocus={() => setEditing(true)}
           onBlur={handleSummaryBlur}
           onKeyDown={handleSummaryKeyDown}
-          className="flex-1 text-sm font-medium text-black dark:text-white/90 outline-none"
-        >
-          {summary}
-        </span>
+          className="flex-1 text-sm font-medium text-black dark:text-white/90 outline-none cursor-text"
+          dangerouslySetInnerHTML={{ __html: node.attrs.summary || "Toggle heading" }}
+        />
       </div>
 
       {/* Collapsible content */}
