@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
 import {
@@ -17,6 +17,7 @@ import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
 import { toMarkdown } from "@/lib/export/to-markdown";
+import { getTemplateById } from "@/lib/templates";
 
 // Dialogs
 import { MoveToDialog } from "@/components/dialogs/MoveToDialog";
@@ -477,8 +478,13 @@ function DocumentInner({
  */
 export default function DocumentPage() {
   const params = useParams<{ workspaceId: string; documentId: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const documentId = params?.documentId ?? "";
   const workspaceId = params?.workspaceId ?? "";
+
+  // Check URL for template ID (set when creating a doc from a template)
+  const templateId = searchParams?.get("tid") ?? null;
 
   const [initialTitle, setInitialTitle] = useState("Untitled");
   const [initialLastEdited, setInitialLastEdited] = useState<Date | undefined>(undefined);
@@ -497,16 +503,15 @@ export default function DocumentPage() {
     setInitialLastEdited(undefined);
     setInitialCreatedAt(undefined);
 
-    // Check if this document was just created from a template
+    // If we came from template creation, look up the template content directly
     let templateContent: any = null;
-    try {
-      const stored = sessionStorage.getItem(`template:${documentId}`);
-      if (stored) {
-        templateContent = JSON.parse(stored);
-        sessionStorage.removeItem(`template:${documentId}`);
+    if (templateId) {
+      const tpl = getTemplateById(templateId);
+      if (tpl) {
+        templateContent = tpl.content;
       }
-    } catch {
-      // sessionStorage unavailable
+      // Clean the URL so refreshing doesn't re-apply
+      router.replace(`/${workspaceId}/${documentId}`, { scroll: false });
     }
 
     (async () => {
@@ -518,7 +523,6 @@ export default function DocumentPage() {
           if (doc.updatedAt) setInitialLastEdited(new Date(doc.updatedAt));
           if (doc.createdAt) setInitialCreatedAt(new Date(doc.createdAt));
 
-          // If we have template content from sessionStorage, use it with force-apply
           if (templateContent) {
             setInitialContent(templateContent);
             setForceApplyContent(true);
@@ -531,7 +535,7 @@ export default function DocumentPage() {
       }
       setContentLoaded(true);
     })();
-  }, [documentId]);
+  }, [documentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!contentLoaded) {
     return (

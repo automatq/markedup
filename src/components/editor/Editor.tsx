@@ -177,41 +177,64 @@ export function MarkedUpEditor({
   });
 
   // Template content injection for newly created documents.
-  // Uses sessionStorage flag (forceApplyContent) to know this is a fresh template doc.
-  // Retries aggressively until content is visible in the editor.
+  // When forceApplyContent is true (doc just created from template via ?tid= param),
+  // we aggressively inject template content, retrying with multiple strategies.
   useEffect(() => {
     if (!editor || !initialContent || !forceApplyContent || contentApplied.current) return;
 
+    let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 30;
 
     const tryApply = () => {
-      if (contentApplied.current) return;
+      if (cancelled || contentApplied.current) return;
       attempts++;
 
-      // Try setting content
       try {
+        // Strategy 1: setContent with JSON (standard TipTap approach)
         editor.commands.setContent(initialContent);
       } catch {
-        // Yjs might not be ready yet
+        // ignore — Yjs might not be ready
       }
 
-      // Verify it actually took by checking text content
-      const hasContent = editor.getText().trim().length > 5;
-      if (hasContent) {
+      // Check if content actually took
+      const textLen = editor.state.doc.textContent.length;
+      if (textLen > 5) {
         contentApplied.current = true;
-        return; // Success
+        return;
       }
 
-      // Retry if not yet applied and haven't exceeded max attempts
+      // Strategy 2: Clear and insert content nodes individually
+      if (attempts > 5 && attempts % 3 === 0) {
+        try {
+          const nodes = initialContent.type === "doc"
+            ? initialContent.content
+            : [initialContent];
+          if (Array.isArray(nodes)) {
+            editor.chain().clearContent().run();
+            editor.chain().insertContentAt(0, nodes).run();
+            const textLen2 = editor.state.doc.textContent.length;
+            if (textLen2 > 5) {
+              contentApplied.current = true;
+              return;
+            }
+          }
+        } catch {
+          // May fail if Yjs isn't ready
+        }
+      }
+
       if (attempts < maxAttempts) {
-        setTimeout(tryApply, 300);
+        setTimeout(tryApply, 250);
       }
     };
 
-    // Start after a brief delay to let Liveblocks initialize
-    const startTimer = setTimeout(tryApply, 500);
-    return () => clearTimeout(startTimer);
+    // Start almost immediately — the editor exists, just need Yjs to be ready
+    const startTimer = setTimeout(tryApply, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(startTimer);
+    };
   }, [editor, initialContent, forceApplyContent]);
 
   useEffect(() => {
