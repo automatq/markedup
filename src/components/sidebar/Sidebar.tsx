@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useUser, useClerk, OrganizationSwitcher } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ScribbleIcon } from "@/components/ScribbleIcon";
 
 export interface SidebarDocument {
   id: string;
@@ -99,9 +100,12 @@ export function Sidebar({
     <div className="flex h-full w-64 flex-col border-r border-black/8 dark:border-white/10 bg-white dark:bg-black">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3">
-        <h2 className="text-sm font-semibold text-black dark:text-white tracking-tight">
-          MarkedUp
-        </h2>
+        <div className="flex items-center gap-2">
+          <ScribbleIcon size={18} className="text-black dark:text-white/90" />
+          <h2 className="text-sm font-semibold text-black dark:text-white tracking-tight">
+            MarkedUp
+          </h2>
+        </div>
         <button
           onClick={onToggleCollapse}
           className="flex h-7 w-7 items-center justify-center rounded-lg text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
