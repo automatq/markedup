@@ -187,7 +187,7 @@ export default function SettingsPage() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
-  const [workspace, setWorkspace] = useState<{ orgId?: string | null; isPersonal?: boolean } | null>(null);
+  const [workspace, setWorkspace] = useState<{ orgId?: string | null; isPersonal?: boolean; name?: string } | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -197,6 +197,13 @@ export default function SettingsPage() {
 
   // Use Clerk org as primary orgId source, fall back to DB
   const clerkOrgId = organization?.id;
+
+  // Set orgName from Clerk org when available
+  useEffect(() => {
+    if (organization?.name && !orgName) {
+      setOrgName(organization.name);
+    }
+  }, [organization?.name, orgName]);
 
   // Fetch workspace info
   useEffect(() => {
@@ -369,7 +376,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-black/60 dark:text-white/60">
-                {orgName || "Unnamed Group"}
+                {orgName || organization?.name || workspace?.name || "Loading..."}
               </p>
               {isCreator && (
                 <button

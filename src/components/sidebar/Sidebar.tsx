@@ -20,7 +20,7 @@ import {
   Brain,
   Phone,
 } from "lucide-react";
-import { useUser, useClerk, useOrganization, OrganizationSwitcher } from "@clerk/nextjs";
+import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
@@ -174,6 +174,7 @@ export function Sidebar({
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
   const { organization } = useOrganization();
+  const { setActive } = useOrganizationList();
   const router = useRouter();
   const params = useParams<{ workspaceId: string }>();
   const [search, setSearch] = useState("");
@@ -310,7 +311,8 @@ export function Sidebar({
                     Personal
                   </p>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      if (setActive) await setActive({ organization: null });
                       router.push(`/${personalWorkspace.id}`);
                       setWsSwitcherOpen(false);
                     }}
@@ -334,7 +336,8 @@ export function Sidebar({
                   {teamWorkspaces.map((ws) => (
                     <button
                       key={ws.id}
-                      onClick={() => {
+                      onClick={async () => {
+                        if (setActive && ws.orgId) await setActive({ organization: ws.orgId });
                         router.push(`/${ws.id}`);
                         setWsSwitcherOpen(false);
                       }}
