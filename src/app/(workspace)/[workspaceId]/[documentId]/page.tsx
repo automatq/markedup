@@ -11,6 +11,7 @@ import {
   useMarkAllInboxNotificationsAsRead,
   useDeleteAllInboxNotifications,
   useMarkInboxNotificationAsRead,
+  useOthers,
 } from "@liveblocks/react/suspense";
 import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
@@ -42,12 +43,14 @@ function DocumentInner({
   workspaceId,
   initialTitle,
   initialLastEdited,
+  initialCreatedAt,
   initialContent,
 }: {
   documentId: string;
   workspaceId: string;
   initialTitle: string;
   initialLastEdited?: Date;
+  initialCreatedAt?: Date;
   initialContent?: any;
 }) {
   const router = useRouter();
@@ -62,9 +65,12 @@ function DocumentInner({
   const deleteAllNotifications = useDeleteAllInboxNotifications();
   const markNotificationRead = useMarkInboxNotificationAsRead();
 
+  const others = useOthers();
+
   const synced = syncStatus === "synchronized";
   const commentCount = threads?.filter((t) => !t.resolved).length ?? 0;
   const unreadNotifCount = inboxNotifications?.filter((n) => n.readAt === null).length ?? 0;
+  const activeUsers = (others?.length ?? 0) + 1; // others + self
 
   // Page state
   const [title, setTitle] = useState(initialTitle);
@@ -429,6 +435,10 @@ function DocumentInner({
         open={analyticsOpen}
         onClose={() => setAnalyticsOpen(false)}
         documentTitle={title}
+        editor={editorRef.current}
+        lastEdited={lastEdited}
+        createdAt={initialCreatedAt}
+        activeUsers={activeUsers}
       />
 
       <ConnectionsPanel
@@ -457,6 +467,7 @@ export default function DocumentPage() {
 
   const [initialTitle, setInitialTitle] = useState("Untitled");
   const [initialLastEdited, setInitialLastEdited] = useState<Date | undefined>(undefined);
+  const [initialCreatedAt, setInitialCreatedAt] = useState<Date | undefined>(undefined);
   const [initialContent, setInitialContent] = useState<any>(undefined);
   const [contentLoaded, setContentLoaded] = useState(false);
 
@@ -470,6 +481,7 @@ export default function DocumentPage() {
           const doc = await res.json();
           if (doc.title) setInitialTitle(doc.title);
           if (doc.updatedAt) setInitialLastEdited(new Date(doc.updatedAt));
+          if (doc.createdAt) setInitialCreatedAt(new Date(doc.createdAt));
           if (doc.content) setInitialContent(doc.content);
         }
       } catch (err) {
@@ -494,6 +506,7 @@ export default function DocumentPage() {
         workspaceId={workspaceId}
         initialTitle={initialTitle}
         initialLastEdited={initialLastEdited}
+        initialCreatedAt={initialCreatedAt}
         initialContent={initialContent}
       />
     </Room>
