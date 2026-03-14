@@ -37,6 +37,9 @@ model Document {
   /// Yjs document state as a binary blob (reserved for future collab)
   yjsState Bytes?
 
+  /// Soft-delete timestamp — null means not deleted
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

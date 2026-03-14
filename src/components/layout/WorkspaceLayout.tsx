@@ -8,6 +8,7 @@ interface WorkspaceLayoutProps {
   activeDocumentId?: string;
   onSelectDocument: (id: string) => void;
   onCreateDocument: () => void;
+  onOpenTrash: () => void;
   children: React.ReactNode;
 }
 
@@ -16,6 +17,7 @@ export function WorkspaceLayout({
   activeDocumentId,
   onSelectDocument,
   onCreateDocument,
+  onOpenTrash,
   children,
 }: WorkspaceLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -27,6 +29,7 @@ export function WorkspaceLayout({
         activeDocumentId={activeDocumentId}
         onSelectDocument={onSelectDocument}
         onCreateDocument={onCreateDocument}
+        onOpenTrash={onOpenTrash}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
       />

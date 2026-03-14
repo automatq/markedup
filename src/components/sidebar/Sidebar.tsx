@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { useUser, useClerk, OrganizationSwitcher } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -25,6 +26,7 @@ interface SidebarProps {
   activeDocumentId?: string;
   onSelectDocument: (id: string) => void;
   onCreateDocument: () => void;
+  onOpenTrash: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -59,6 +61,7 @@ export function Sidebar({
   activeDocumentId,
   onSelectDocument,
   onCreateDocument,
+  onOpenTrash,
   collapsed,
   onToggleCollapse,
 }: SidebarProps) {
@@ -177,6 +180,17 @@ export function Sidebar({
             </p>
           )}
         </div>
+      </div>
+
+      {/* Trash */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={onOpenTrash}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs text-black/40 dark:text-white/40 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Trash
+        </button>
       </div>
 
       {/* Footer: User profile + theme toggle */}

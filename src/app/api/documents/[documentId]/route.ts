@@ -114,7 +114,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    await db.document.delete({ where: { id: documentId } });
+    await db.document.update({
+      where: { id: documentId },
+      data: { deletedAt: new Date() },
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/documents/[id] error:", err);

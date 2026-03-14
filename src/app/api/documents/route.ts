@@ -26,10 +26,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const showTrash = request.nextUrl.searchParams.get("trash") === "true";
+
     const documents = await db.document.findMany({
-      where: { workspaceId },
-      select: { id: true, title: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
+      where: {
+        workspaceId,
+        deletedAt: showTrash ? { not: null } : null,
+      },
+      select: { id: true, title: true, updatedAt: true, deletedAt: true },
+      orderBy: showTrash ? { deletedAt: "desc" } : { updatedAt: "desc" },
     });
 
     return NextResponse.json(documents);

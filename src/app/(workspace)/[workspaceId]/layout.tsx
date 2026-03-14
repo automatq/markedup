@@ -5,6 +5,7 @@ import { WorkspaceLayout } from "@/components/layout/WorkspaceLayout";
 import { QuickSwitcher } from "@/components/QuickSwitcher";
 import { TemplatePicker } from "@/components/TemplatePicker";
 import { GraphView, GraphNode, GraphEdge } from "@/components/graph/GraphView";
+import { TrashDialog } from "@/components/dialogs/TrashDialog";
 import { useRouter, useParams } from "next/navigation";
 
 interface DocEntry {
@@ -25,22 +26,25 @@ export default function WorkspaceLayoutPage({
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [graphViewOpen, setGraphViewOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+
+  const refreshDocuments = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const res = await fetch(`/api/documents?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const docs = await res.json();
+        setDocuments(docs);
+      }
+    } catch (err) {
+      console.error("Failed to fetch documents:", err);
+    }
+  }, [workspaceId]);
 
   // Fetch documents from API
   useEffect(() => {
-    if (!workspaceId) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/documents?workspaceId=${workspaceId}`);
-        if (res.ok) {
-          const docs = await res.json();
-          setDocuments(docs);
-        }
-      } catch (err) {
-        console.error("Failed to fetch documents:", err);
-      }
-    })();
-  }, [workspaceId]);
+    refreshDocuments();
+  }, [refreshDocuments]);
 
   // Cmd+K to open Quick Switcher, Cmd+G for graph
   useEffect(() => {
@@ -110,6 +114,7 @@ export default function WorkspaceLayoutPage({
         activeDocumentId={params?.documentId}
         onSelectDocument={handleSelectDocument}
         onCreateDocument={handleCreateDocument}
+        onOpenTrash={() => setTrashOpen(true)}
       >
         {children}
       </WorkspaceLayout>
@@ -134,6 +139,14 @@ export default function WorkspaceLayoutPage({
         open={templatePickerOpen}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
+      />
+
+      {/* Trash */}
+      <TrashDialog
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        workspaceId={workspaceId}
+        onRestored={refreshDocuments}
       />
 
       {/* Graph View (Cmd+G) */}
