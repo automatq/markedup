@@ -57,10 +57,15 @@ function convertChildren(
       // Group consecutive text nodes into one XmlText with a delta
       const textGroup: TipTapNode[] = [];
       while (i < nodes.length && nodes[i].type === "text") {
-        textGroup.push(nodes[i]);
+        // Skip empty text nodes — ProseMirror rejects them
+        if (nodes[i].text) {
+          textGroup.push(nodes[i]);
+        }
         i++;
       }
-      result.push(createXmlText(textGroup));
+      if (textGroup.length > 0) {
+        result.push(createXmlText(textGroup));
+      }
     } else {
       result.push(createXmlElement(node));
       i++;

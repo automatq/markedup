@@ -13,31 +13,35 @@ export interface DocumentTemplate {
 
 // ── Helper builders ──────────────────────────────────────────────
 
-const h1 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text }] });
-const h2 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text }] });
-const h3 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text }] });
-const p = (text: string): JSONContent => ({ type: "paragraph", content: [{ type: "text", text }] });
+// Helpers that safely handle empty strings — ProseMirror rejects empty text nodes.
+const textNode = (text: string): JSONContent[] => text ? [{ type: "text", text }] : [];
+const h1 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 1 }, content: textNode(text) });
+const h2 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 2 }, content: textNode(text) });
+const h3 = (text: string): JSONContent => ({ type: "heading", attrs: { level: 3 }, content: textNode(text) });
+const p = (text: string): JSONContent => text ? { type: "paragraph", content: [{ type: "text", text }] } : { type: "paragraph" };
 const pEmpty = (): JSONContent => ({ type: "paragraph" });
 const bold = (label: string, value: string): JSONContent => ({
   type: "paragraph",
-  content: [
-    { type: "text", marks: [{ type: "bold" }], text: label },
-    { type: "text", text: value },
-  ],
+  content: value
+    ? [
+        { type: "text", marks: [{ type: "bold" }], text: label },
+        { type: "text", text: value },
+      ]
+    : [{ type: "text", marks: [{ type: "bold" }], text: label }],
 });
 const hr = (): JSONContent => ({ type: "horizontalRule" });
 const bullet = (...items: string[]): JSONContent => ({
   type: "bulletList",
   content: items.map((t) => ({
     type: "listItem",
-    content: [{ type: "paragraph", content: [{ type: "text", text: t }] }],
+    content: [cellParagraph(t)],
   })),
 });
 const numbered = (...items: string[]): JSONContent => ({
   type: "orderedList",
   content: items.map((t) => ({
     type: "listItem",
-    content: [{ type: "paragraph", content: [{ type: "text", text: t }] }],
+    content: [cellParagraph(t)],
   })),
 });
 const tasks = (...items: { text: string; checked?: boolean }[]): JSONContent => ({
@@ -45,9 +49,11 @@ const tasks = (...items: { text: string; checked?: boolean }[]): JSONContent => 
   content: items.map((t) => ({
     type: "taskItem",
     attrs: { checked: t.checked ?? false },
-    content: [{ type: "paragraph", content: [{ type: "text", text: t.text }] }],
+    content: [cellParagraph(t.text)],
   })),
 });
+const cellParagraph = (text: string): JSONContent =>
+  text ? { type: "paragraph", content: [{ type: "text", text }] } : { type: "paragraph" };
 const table = (headers: string[], ...rows: string[][]): JSONContent => ({
   type: "table",
   content: [
@@ -55,14 +61,14 @@ const table = (headers: string[], ...rows: string[][]): JSONContent => ({
       type: "tableRow",
       content: headers.map((h) => ({
         type: "tableHeader",
-        content: [{ type: "paragraph", content: [{ type: "text", text: h }] }],
+        content: [cellParagraph(h)],
       })),
     },
     ...rows.map((row) => ({
       type: "tableRow",
       content: row.map((cell) => ({
         type: "tableCell",
-        content: [{ type: "paragraph", content: [{ type: "text", text: cell }] }],
+        content: [cellParagraph(cell)],
       })),
     })),
   ],
@@ -70,7 +76,7 @@ const table = (headers: string[], ...rows: string[][]): JSONContent => ({
 const code = (lang: string, text: string): JSONContent => ({
   type: "codeBlock",
   attrs: { language: lang },
-  content: [{ type: "text", text }],
+  content: text ? [{ type: "text", text }] : [],
 });
 const callout = (...children: JSONContent[]): JSONContent => ({
   type: "callout",
@@ -85,10 +91,9 @@ const blockquote = (...children: JSONContent[]): JSONContent => ({
   type: "blockquote",
   content: children,
 });
-const highlight = (text: string): JSONContent => ({
-  type: "paragraph",
-  content: [{ type: "text", marks: [{ type: "highlight", attrs: { color: "#fef08a" } }], text }],
-});
+const highlight = (text: string): JSONContent => text
+  ? { type: "paragraph", content: [{ type: "text", marks: [{ type: "highlight", attrs: { color: "#fef08a" } }], text }] }
+  : { type: "paragraph" };
 
 // ── Templates ────────────────────────────────────────────────────
 
