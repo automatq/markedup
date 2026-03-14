@@ -17,6 +17,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Batch lookup by IDs (used by resolveRoomsInfo for notifications)
+    const ids = request.nextUrl.searchParams.get("ids");
+    if (ids) {
+      const idList = ids.split(",").filter(Boolean);
+      const documents = await db.document.findMany({
+        where: { id: { in: idList } },
+        select: { id: true, title: true },
+      });
+      return NextResponse.json(documents);
+    }
+
     const workspaceId = request.nextUrl.searchParams.get("workspaceId");
     if (!workspaceId) {
       return NextResponse.json(
