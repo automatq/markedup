@@ -43,6 +43,7 @@ const lowlight = createLowlight(common);
 interface EditorProps {
   initialContent?: any;
   forceApplyContent?: boolean;
+  synced?: boolean;
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
@@ -51,6 +52,7 @@ interface EditorProps {
 export function MarkedUpEditor({
   initialContent,
   forceApplyContent = false,
+  synced = false,
   className,
   editable = true,
   onEditorReady,
@@ -177,65 +179,44 @@ export function MarkedUpEditor({
   });
 
   // Template content injection for newly created documents.
-  // When forceApplyContent is true (doc just created from template via ?tid= param),
-  // we aggressively inject template content, retrying with multiple strategies.
+  // CRITICAL: We must wait for Liveblocks Yjs sync to complete before calling
+  // setContent, otherwise Yjs will overwrite our changes when it syncs.
   useEffect(() => {
-    if (!editor || !initialContent || !forceApplyContent || contentApplied.current) return;
+    if (!editor || !initialContent || !forceApplyContent || !synced || contentApplied.current) return;
 
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 30;
-
-    const tryApply = () => {
-      if (cancelled || contentApplied.current) return;
-      attempts++;
+    // Yjs is synced — safe to inject content now.
+    // Small delay to let the editor fully stabilize after sync.
+    const timer = setTimeout(() => {
+      if (contentApplied.current) return;
 
       try {
-        // Strategy 1: setContent with JSON (standard TipTap approach)
         editor.commands.setContent(initialContent);
-      } catch {
-        // ignore — Yjs might not be ready
-      }
-
-      // Check if content actually took
-      const textLen = editor.state.doc.textContent.length;
-      if (textLen > 5) {
-        contentApplied.current = true;
-        return;
-      }
-
-      // Strategy 2: Clear and insert content nodes individually
-      if (attempts > 5 && attempts % 3 === 0) {
-        try {
-          const nodes = initialContent.type === "doc"
-            ? initialContent.content
-            : [initialContent];
-          if (Array.isArray(nodes)) {
-            editor.chain().clearContent().run();
-            editor.chain().insertContentAt(0, nodes).run();
-            const textLen2 = editor.state.doc.textContent.length;
-            if (textLen2 > 5) {
-              contentApplied.current = true;
-              return;
-            }
-          }
-        } catch {
-          // May fail if Yjs isn't ready
+        const textLen = editor.state.doc.textContent.length;
+        if (textLen > 3) {
+          contentApplied.current = true;
+          return;
         }
+      } catch {
+        // ignore
       }
 
-      if (attempts < maxAttempts) {
-        setTimeout(tryApply, 250);
+      // Fallback: insert nodes individually
+      try {
+        const nodes = initialContent.type === "doc"
+          ? initialContent.content
+          : [initialContent];
+        if (Array.isArray(nodes)) {
+          editor.chain().clearContent().run();
+          editor.chain().insertContentAt(0, nodes).run();
+          contentApplied.current = true;
+        }
+      } catch {
+        // ignore
       }
-    };
+    }, 100);
 
-    // Start almost immediately — the editor exists, just need Yjs to be ready
-    const startTimer = setTimeout(tryApply, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(startTimer);
-    };
-  }, [editor, initialContent, forceApplyContent]);
+    return () => clearTimeout(timer);
+  }, [editor, initialContent, forceApplyContent, synced]);
 
   useEffect(() => {
     if (editor) editor.setEditable(editable);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Editor } from "@tiptap/core";
 import {
@@ -17,7 +17,7 @@ import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
 import { toMarkdown } from "@/lib/export/to-markdown";
-import { getTemplateById } from "@/lib/templates";
+import { consumePendingTemplate } from "@/lib/template-pending";
 
 // Dialogs
 import { MoveToDialog } from "@/components/dialogs/MoveToDialog";
@@ -399,6 +399,7 @@ function DocumentInner({
           <MarkedUpEditor
             initialContent={initialContent}
             forceApplyContent={forceApplyContent}
+            synced={synced}
             className={smallText ? "text-sm" : ""}
             editable={!locked}
             onEditorReady={handleEditorReady}
@@ -478,13 +479,8 @@ function DocumentInner({
  */
 export default function DocumentPage() {
   const params = useParams<{ workspaceId: string; documentId: string }>();
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const documentId = params?.documentId ?? "";
   const workspaceId = params?.workspaceId ?? "";
-
-  // Check URL for template ID (set when creating a doc from a template)
-  const templateId = searchParams?.get("tid") ?? null;
 
   const [initialTitle, setInitialTitle] = useState("Untitled");
   const [initialLastEdited, setInitialLastEdited] = useState<Date | undefined>(undefined);
@@ -503,16 +499,8 @@ export default function DocumentPage() {
     setInitialLastEdited(undefined);
     setInitialCreatedAt(undefined);
 
-    // If we came from template creation, look up the template content directly
-    let templateContent: any = null;
-    if (templateId) {
-      const tpl = getTemplateById(templateId);
-      if (tpl) {
-        templateContent = tpl.content;
-      }
-      // Clean the URL so refreshing doesn't re-apply
-      router.replace(`/${workspaceId}/${documentId}`, { scroll: false });
-    }
+    // Check if template content was set in memory by the layout
+    const templateContent = consumePendingTemplate();
 
     (async () => {
       try {
@@ -535,7 +523,7 @@ export default function DocumentPage() {
       }
       setContentLoaded(true);
     })();
-  }, [documentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [documentId]);
 
   if (!contentLoaded) {
     return (
