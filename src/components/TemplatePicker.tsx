@@ -16,6 +16,8 @@ import {
   LayoutList,
   BookMarked,
   Palette,
+  Landmark,
+  Crosshair,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +34,8 @@ const iconMap: Record<string, LucideIcon> = {
   BookMarked,
   Palette,
   Search,
+  Landmark,
+  Crosshair,
 };
 
 const categories = [
