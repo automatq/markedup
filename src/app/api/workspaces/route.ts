@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
 export async function GET() {
   try {
-    const { userId, orgId } = await auth();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Return workspaces the user owns OR org workspaces (excluding other users' personal ones)
+    // Get all org IDs the user is a member of from Clerk
+    const clerk = await clerkClient();
+    const memberships = await clerk.users.getOrganizationMembershipList({
+      userId,
+      limit: 50,
+    });
+    const membershipList = Array.isArray(memberships)
+      ? memberships
+      : memberships.data ?? [];
+    const orgIds = membershipList
+      .map((m: any) => m.organization?.id)
+      .filter(Boolean) as string[];
+
+    // Return: workspaces I own + team workspaces for any org I'm in
     const workspaces = await db.workspace.findMany({
       where: {
         OR: [
-          { ownerId: userId }, // All workspaces I own (including my personal)
-          ...(orgId
-            ? [{ orgId, isPersonal: false }] // Org workspaces that aren't someone's personal
+          { ownerId: userId },
+          ...(orgIds.length > 0
+            ? [{ orgId: { in: orgIds }, isPersonal: false }]
             : []),
         ],
       },
@@ -58,7 +71,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Only one personal workspace per user
     if (isPersonal) {
       const existing = await db.workspace.findFirst({
         where: { ownerId: userId, isPersonal: true },
@@ -68,7 +80,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Deduplicate slug
     let finalSlug = slug;
     const existing = await db.workspace.findUnique({ where: { slug } });
     if (existing) {
