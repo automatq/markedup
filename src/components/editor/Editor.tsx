@@ -42,6 +42,7 @@ const lowlight = createLowlight(common);
 
 interface EditorProps {
   initialContent?: any;
+  forceApplyContent?: boolean;
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
@@ -49,13 +50,14 @@ interface EditorProps {
 
 export function MarkedUpEditor({
   initialContent,
+  forceApplyContent = false,
   className,
   editable = true,
   onEditorReady,
 }: EditorProps) {
   // Liveblocks extension handles Yjs sync, cursors, comments, mentions
   const liveblocks = useLiveblocksExtension({
-    initialContent,
+    initialContent: forceApplyContent ? undefined : initialContent,
     comments: true,
     mentions: true,
   });
@@ -174,33 +176,32 @@ export function MarkedUpEditor({
     immediatelyRender: false,
   });
 
-  // After Liveblocks syncs, if editor is empty and we have template content, apply it.
-  // Liveblocks' initialContent only seeds brand-new rooms; for rooms that already have
-  // Yjs state (even empty), we must inject manually after sync settles.
+  // Template content injection.
+  // When forceApplyContent=true (document just created from template via sessionStorage),
+  // we skip all emptiness checks and inject content directly after Liveblocks sync.
+  // For returning visits, Liveblocks Yjs state has the content, so nothing needs to happen.
   useEffect(() => {
     if (!editor || !initialContent || contentApplied.current) return;
+    // Only force-apply for freshly created template documents
+    if (!forceApplyContent) return;
 
-    const tryApply = () => {
+    const apply = () => {
       if (contentApplied.current) return;
-      // Use TipTap's built-in isEmpty plus text length check
-      const empty = editor.isEmpty || editor.getText().trim().length === 0;
-      if (empty) {
-        contentApplied.current = true;
-        editor.commands.setContent(initialContent);
-      }
+      contentApplied.current = true;
+      editor.commands.setContent(initialContent);
     };
 
-    // If already synced, start trying immediately
     if (syncStatus === "synchronized") {
-      const timers = [0, 100, 300, 800].map((ms) => setTimeout(tryApply, ms));
-      return () => timers.forEach(clearTimeout);
+      // Yjs is ready — apply after a brief settle delay
+      const timer = setTimeout(apply, 150);
+      return () => clearTimeout(timer);
     }
 
-    // If not yet synced, set up a safety-net timer that fires regardless
-    // (handles cases where syncStatus never reaches "synchronized" quickly)
-    const safetyTimer = setTimeout(tryApply, 2000);
+    // Not yet synced — wait for sync then apply.
+    // Also set a hard safety net in case sync takes too long.
+    const safetyTimer = setTimeout(apply, 3000);
     return () => clearTimeout(safetyTimer);
-  }, [editor, initialContent, syncStatus]);
+  }, [editor, initialContent, forceApplyContent, syncStatus]);
 
   useEffect(() => {
     if (editor) editor.setEditable(editable);

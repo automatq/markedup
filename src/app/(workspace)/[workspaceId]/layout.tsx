@@ -88,6 +88,19 @@ export default function WorkspaceLayoutPage({
         if (res.ok) {
           const doc = await res.json();
           setDocuments((prev) => [doc, ...prev]);
+          // Signal the document page to force-apply template content.
+          // sessionStorage survives the navigation push but not full page reloads,
+          // which is exactly what we want: apply once on first load only.
+          if (template.content) {
+            try {
+              sessionStorage.setItem(
+                `template:${doc.id}`,
+                JSON.stringify(template.content)
+              );
+            } catch {
+              // sessionStorage may be unavailable in some contexts
+            }
+          }
           router.push(`/${workspaceId}/${doc.id}`);
         }
       } catch (err) {
