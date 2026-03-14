@@ -4,6 +4,21 @@ import { db } from "@/lib/db";
 import { Liveblocks } from "@liveblocks/node";
 import { tiptapJsonToYjsUpdate } from "@/lib/yjs-init";
 
+/** Check if the authenticated user can access a workspace */
+async function canAccessWorkspace(workspaceId: string, userId: string, orgId: string | null | undefined) {
+  const workspace = await db.workspace.findFirst({
+    where: {
+      id: workspaceId,
+      OR: [
+        { ownerId: userId },
+        ...(orgId ? [{ orgId, isPersonal: false }] : []),
+      ],
+    },
+    select: { id: true },
+  });
+  return !!workspace;
+}
+
 function getLiveblocks() {
   const secret = process.env.LIVEBLOCKS_SECRET_KEY;
   if (!secret) throw new Error("LIVEBLOCKS_SECRET_KEY not set");
@@ -12,7 +27,7 @@ function getLiveblocks() {
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -36,12 +51,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user owns this workspace
-    const workspace = await db.workspace.findFirst({
-      where: { id: workspaceId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!workspace) {
+    // Verify user can access this workspace (owner or org member for non-personal)
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -65,7 +76,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -80,12 +91,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user owns this workspace
-    const workspace = await db.workspace.findFirst({
-      where: { id: workspaceId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!workspace) {
+    // Verify user can access this workspace
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

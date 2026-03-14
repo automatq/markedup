@@ -10,6 +10,9 @@ import {
   ChevronRight,
   RefreshCw,
   Sparkles,
+  Save,
+  Check,
+  Lock,
 } from "lucide-react";
 import { AGENTS, AgentRole } from "@/lib/agents";
 import ReactMarkdown from "react-markdown";
@@ -38,15 +41,28 @@ function AgentBreakoutSection({
   generating,
   onGenerate,
   onDelete,
+  onSaveToPersonal,
 }: {
   agent: AgentRole;
   breakouts: Breakout[];
   generating: boolean;
   onGenerate: () => void;
   onDelete: (id: string) => void;
+  onSaveToPersonal: (breakoutId: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(breakouts.length > 0);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const latest = breakouts[0]; // sorted desc by createdAt
+
+  const handleSave = async () => {
+    if (!latest) return;
+    setSaving(true);
+    await onSaveToPersonal(latest.id);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div className="border border-black/6 dark:border-white/8 rounded-xl overflow-hidden">
@@ -89,7 +105,7 @@ function AgentBreakoutSection({
       {/* Expanded content */}
       {expanded && (
         <div className="border-t border-black/6 dark:border-white/8">
-          {/* Generate / Regenerate button */}
+          {/* Generate / Regenerate + Save buttons */}
           <div className="px-4 py-2.5 flex items-center gap-2">
             <button
               onClick={onGenerate}
@@ -113,6 +129,30 @@ function AgentBreakoutSection({
                 </>
               )}
             </button>
+            {latest && (
+              <button
+                onClick={handleSave}
+                disabled={saving || saved}
+                className="flex items-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-colors disabled:opacity-40"
+              >
+                {saved ? (
+                  <>
+                    <Check className="h-3 w-3 text-emerald-500" />
+                    <span className="text-emerald-500">Saved</span>
+                  </>
+                ) : saving ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3 w-3" />
+                    Save to My Space
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Breakout content */}
@@ -154,8 +194,10 @@ export function BreakoutPanel({
   const [breakouts, setBreakouts] = useState<Breakout[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingAgent, setGeneratingAgent] = useState<string | null>(null);
+  const [autoSave, setAutoSave] = useState(false);
+  const [autoSaveLoading, setAutoSaveLoading] = useState(false);
 
-  // Fetch breakouts
+  // Fetch breakouts + auto-save setting
   const fetchBreakouts = useCallback(async () => {
     try {
       const res = await fetch(`/api/breakouts?documentId=${documentId}`);
@@ -168,12 +210,48 @@ export function BreakoutPanel({
     setLoading(false);
   }, [documentId]);
 
+  const fetchAutoSaveSetting = useCallback(async () => {
+    try {
+      const res = await fetch("/api/workspaces");
+      if (res.ok) {
+        const workspaces = await res.json();
+        const personal = workspaces.find((w: any) => w.isPersonal);
+        if (personal) {
+          setAutoSave(personal.autoBreakouts ?? false);
+        }
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (open) {
       setLoading(true);
       fetchBreakouts();
+      fetchAutoSaveSetting();
     }
-  }, [open, fetchBreakouts]);
+  }, [open, fetchBreakouts, fetchAutoSaveSetting]);
+
+  const toggleAutoSave = useCallback(async () => {
+    setAutoSaveLoading(true);
+    const newVal = !autoSave;
+    try {
+      // Find personal workspace
+      const wsRes = await fetch("/api/workspaces");
+      if (wsRes.ok) {
+        const workspaces = await wsRes.json();
+        const personal = workspaces.find((w: any) => w.isPersonal);
+        if (personal) {
+          await fetch("/api/workspaces", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: personal.id, autoBreakouts: newVal }),
+          });
+          setAutoSave(newVal);
+        }
+      }
+    } catch {}
+    setAutoSaveLoading(false);
+  }, [autoSave]);
 
   const handleGenerate = useCallback(
     async (agent: AgentRole) => {
@@ -200,17 +278,26 @@ export function BreakoutPanel({
     [documentId, documentTitle, getDocumentContent, fetchBreakouts]
   );
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      try {
-        await fetch(`/api/breakouts?id=${id}`, { method: "DELETE" });
-        setBreakouts((prev) => prev.filter((b) => b.id !== id));
-      } catch {
-        /* ignore */
-      }
-    },
-    []
-  );
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/breakouts?id=${id}`, { method: "DELETE" });
+      setBreakouts((prev) => prev.filter((b) => b.id !== id));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleSaveToPersonal = useCallback(async (breakoutId: string) => {
+    try {
+      await fetch("/api/breakouts/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ breakoutId }),
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleGenerateAll = useCallback(async () => {
     for (const agent of AGENTS) {
@@ -254,6 +341,33 @@ export function BreakoutPanel({
         </div>
       </div>
 
+      {/* Auto-save toggle */}
+      <div className="px-4 py-2.5 border-b border-black/6 dark:border-white/6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Lock className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
+          <span className="text-[11px] text-black/50 dark:text-white/50">
+            Auto-save to My Space
+          </span>
+        </div>
+        <button
+          onClick={toggleAutoSave}
+          disabled={autoSaveLoading}
+          className={`relative h-5 w-9 rounded-full transition-colors ${
+            autoSave
+              ? "bg-black dark:bg-white"
+              : "bg-black/15 dark:bg-white/15"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
+              autoSave
+                ? "left-[18px] bg-white dark:bg-black"
+                : "left-0.5 bg-white dark:bg-black"
+            }`}
+          />
+        </button>
+      </div>
+
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
@@ -265,6 +379,11 @@ export function BreakoutPanel({
             <p className="text-xs text-black/40 dark:text-white/40 mb-2">
               Each agent generates a role-specific action plan from your
               document. Breakout files are visible to the entire team.
+              {autoSave && (
+                <span className="block mt-1 text-emerald-600 dark:text-emerald-400">
+                  Auto-saving breakouts to your personal workspace.
+                </span>
+              )}
             </p>
             {AGENTS.map((agent) => (
               <AgentBreakoutSection
@@ -274,6 +393,7 @@ export function BreakoutPanel({
                 generating={generatingAgent === agent.id}
                 onGenerate={() => handleGenerate(agent)}
                 onDelete={handleDelete}
+                onSaveToPersonal={handleSaveToPersonal}
               />
             ))}
           </>

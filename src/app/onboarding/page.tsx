@@ -67,7 +67,16 @@ export default function OnboardingPage() {
         await user.setProfileImage({ file: avatarFile });
       }
 
-      // Create workspace first
+      // Create personal workspace first (private, invisible to others)
+      const personalName = `${user.firstName ?? "My"}'s Space`;
+      const personalSlug = `${(user.firstName ?? "my").toLowerCase()}-personal-${Date.now()}`;
+      await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: personalName, slug: personalSlug, isPersonal: true }),
+      }).catch(() => {}); // Non-fatal — may already exist
+
+      // Create team workspace
       const wsName = workspaceName || `${user.firstName ?? "My"}'s Workspace`;
       const slug = wsName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace";
       const res = await fetch("/api/workspaces", {

@@ -9,15 +9,25 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Return workspaces the user owns OR that belong to their active org
+    // Return workspaces the user owns OR org workspaces (excluding other users' personal ones)
     const workspaces = await db.workspace.findMany({
       where: {
         OR: [
-          { ownerId: userId },
-          ...(orgId ? [{ orgId }] : []),
+          { ownerId: userId }, // All workspaces I own (including my personal)
+          ...(orgId
+            ? [{ orgId, isPersonal: false }] // Org workspaces that aren't someone's personal
+            : []),
         ],
       },
-      select: { id: true, name: true, slug: true, orgId: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        orgId: true,
+        isPersonal: true,
+        ownerId: true,
+        autoBreakouts: true,
+      },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -39,13 +49,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, slug } = body;
+    const { name, slug, isPersonal } = body;
 
     if (!name || !slug) {
       return NextResponse.json(
         { error: "name and slug are required" },
         { status: 400 }
       );
+    }
+
+    // Only one personal workspace per user
+    if (isPersonal) {
+      const existing = await db.workspace.findFirst({
+        where: { ownerId: userId, isPersonal: true },
+      });
+      if (existing) {
+        return NextResponse.json(existing, { status: 200 });
+      }
     }
 
     // Deduplicate slug
@@ -60,7 +80,8 @@ export async function POST(request: NextRequest) {
         name,
         slug: finalSlug,
         ownerId: userId,
-        orgId: orgId ?? null,
+        orgId: isPersonal ? null : (orgId ?? null),
+        isPersonal: isPersonal ?? false,
       },
     });
 
@@ -69,6 +90,44 @@ export async function POST(request: NextRequest) {
     console.error("POST /api/workspaces error:", err);
     return NextResponse.json(
       { error: "Failed to create workspace", detail: err?.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, autoBreakouts } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    const workspace = await db.workspace.findFirst({
+      where: { id, ownerId: userId },
+    });
+    if (!workspace) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const updated = await db.workspace.update({
+      where: { id },
+      data: {
+        ...(typeof autoBreakouts === "boolean" ? { autoBreakouts } : {}),
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (err: any) {
+    console.error("PATCH /api/workspaces error:", err);
+    return NextResponse.json(
+      { error: "Failed to update workspace", detail: err?.message },
       { status: 500 }
     );
   }

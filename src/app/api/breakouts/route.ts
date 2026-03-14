@@ -101,6 +101,33 @@ ${documentContent || "(empty document)"}`;
       },
     });
 
+    // Auto-save to personal workspace if the user has it enabled
+    try {
+      const personalWs = await db.workspace.findFirst({
+        where: { ownerId: userId, isPersonal: true, autoBreakouts: true },
+      });
+      if (personalWs) {
+        const tiptapContent = {
+          type: "doc",
+          content: content.split("\n").map((line: string) =>
+            line.trim()
+              ? { type: "paragraph", content: [{ type: "text", text: line }] }
+              : { type: "paragraph" }
+          ),
+        };
+        await db.document.create({
+          data: {
+            workspaceId: personalWs.id,
+            title: `Breakout: ${agent.name} (${agent.title}) — ${documentTitle || "Untitled"}`,
+            content: tiptapContent,
+          },
+        });
+      }
+    } catch (autoSaveErr) {
+      // Non-fatal — breakout was still created
+      console.error("Auto-save breakout to personal workspace failed:", autoSaveErr);
+    }
+
     return NextResponse.json(breakout, { status: 201 });
   } catch (err) {
     console.error("POST /api/breakouts error:", err);

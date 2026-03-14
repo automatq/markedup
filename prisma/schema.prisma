@@ -16,6 +16,10 @@ model Workspace {
   orgId     String?
   /// Clerk user ID of the workspace owner
   ownerId   String
+  /// True = private to the owner, not visible to org members
+  isPersonal Boolean   @default(false)
+  /// Auto-save agent breakout files to this workspace
+  autoBreakouts Boolean @default(false)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   documents Document[]

@@ -11,8 +11,11 @@ import {
   LogOut,
   ChevronDown,
   Trash2,
+  Lock,
+  Users,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, OrganizationSwitcher } from "@clerk/nextjs";
+import { useRouter, useParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 
@@ -57,6 +60,14 @@ function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
   );
 }
 
+interface WorkspaceEntry {
+  id: string;
+  name: string;
+  slug: string;
+  isPersonal?: boolean;
+  orgId?: string | null;
+}
+
 export function Sidebar({
   documents,
   activeDocumentId,
@@ -70,10 +81,28 @@ export function Sidebar({
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
   const { organization } = useOrganization();
+  const router = useRouter();
+  const params = useParams<{ workspaceId: string }>();
   const [search, setSearch] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [dragOverTrash, setDragOverTrash] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
+  const [wsSwitcherOpen, setWsSwitcherOpen] = useState(false);
+
+  // Fetch workspaces
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/workspaces");
+        if (res.ok) setWorkspaces(await res.json());
+      } catch {}
+    })();
+  }, []);
+
+  const currentWorkspace = workspaces.find((w) => w.id === params?.workspaceId);
+  const personalWorkspace = workspaces.find((w) => w.isPersonal);
+  const teamWorkspaces = workspaces.filter((w) => !w.isPersonal);
 
   const handleDragStart = useCallback((e: React.DragEvent, docId: string) => {
     e.dataTransfer.setData("text/plain", docId);
@@ -155,29 +184,81 @@ export function Sidebar({
       </div>
 
       {/* Workspace switcher */}
-      <div className="px-3 pb-2">
-        {organization ? (
-          <OrganizationSwitcher
-            hidePersonal={false}
-            createOrganizationMode="modal"
-            organizationProfileMode="modal"
-            appearance={{
-              elements: {
-                rootBox: "w-full",
-                organizationSwitcherTrigger:
-                  "w-full rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white hover:border-black/20 dark:hover:border-white/25 transition-colors",
-              },
-            }}
-          />
-        ) : (
-          <div className="w-full rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white flex items-center gap-2">
-            {user?.imageUrl && (
-              <img src={user.imageUrl} alt="" className="h-5 w-5 rounded-full" />
-            )}
-            <span className="truncate font-medium">
-              {user?.fullName || user?.firstName || "My Workspace"}
+      <div className="px-3 pb-2 relative">
+        <button
+          onClick={() => setWsSwitcherOpen(!wsSwitcherOpen)}
+          className="flex w-full items-center gap-2 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs text-black dark:text-white hover:border-black/20 dark:hover:border-white/25 transition-colors"
+        >
+          {currentWorkspace?.isPersonal ? (
+            <Lock className="h-3.5 w-3.5 text-black/40 dark:text-white/40 shrink-0" />
+          ) : (
+            <Users className="h-3.5 w-3.5 text-black/40 dark:text-white/40 shrink-0" />
+          )}
+          <span className="truncate font-medium flex-1 text-left">
+            {currentWorkspace?.name || "Workspace"}
+          </span>
+          {currentWorkspace?.isPersonal && (
+            <span className="text-[9px] uppercase tracking-wider text-black/30 dark:text-white/30 shrink-0">
+              Private
             </span>
-          </div>
+          )}
+          <ChevronDown className={`h-3 w-3 text-black/30 dark:text-white/30 shrink-0 transition-transform ${wsSwitcherOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {/* Workspace dropdown */}
+        {wsSwitcherOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setWsSwitcherOpen(false)} />
+            <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up py-1">
+              {/* Personal workspace */}
+              {personalWorkspace && (
+                <>
+                  <p className="px-3 pt-2 pb-1 text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+                    Personal
+                  </p>
+                  <button
+                    onClick={() => {
+                      router.push(`/${personalWorkspace.id}`);
+                      setWsSwitcherOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                      currentWorkspace?.id === personalWorkspace.id
+                        ? "bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium"
+                        : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    <Lock className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{personalWorkspace.name}</span>
+                  </button>
+                </>
+              )}
+              {/* Team workspaces */}
+              {teamWorkspaces.length > 0 && (
+                <>
+                  <p className="px-3 pt-2 pb-1 text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+                    Team
+                  </p>
+                  {teamWorkspaces.map((ws) => (
+                    <button
+                      key={ws.id}
+                      onClick={() => {
+                        router.push(`/${ws.id}`);
+                        setWsSwitcherOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                        currentWorkspace?.id === ws.id
+                          ? "bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium"
+                          : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      <Users className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{ws.name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </>
         )}
       </div>
 
