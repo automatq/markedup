@@ -233,13 +233,13 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
 
   const max = Math.max(1, ...cells.map((c) => c.count));
 
-  function cellOpacity(count: number): string {
+  function cellColor(count: number): string {
     if (count === 0) return "bg-black/[0.03] dark:bg-white/[0.04]";
     const ratio = count / max;
-    if (ratio < 0.25) return "bg-black/[0.10] dark:bg-white/[0.10]";
-    if (ratio < 0.5) return "bg-black/[0.20] dark:bg-white/[0.20]";
-    if (ratio < 0.75) return "bg-black/[0.35] dark:bg-white/[0.35]";
-    return "bg-black/[0.55] dark:bg-white/[0.55]";
+    if (ratio < 0.25) return "bg-[#c9a84c]/20 dark:bg-[#d4af37]/20";
+    if (ratio < 0.5) return "bg-[#c9a84c]/40 dark:bg-[#d4af37]/40";
+    if (ratio < 0.75) return "bg-[#c9a84c]/65 dark:bg-[#d4af37]/65";
+    return "bg-[#c9a84c] dark:bg-[#d4af37]";
   }
 
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -279,7 +279,7 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
               return (
                 <div
                   key={dayIdx}
-                  className={`h-[11px] w-[11px] rounded-[2px] ${cellOpacity(cell.count)} transition-colors`}
+                  className={`h-[11px] w-[11px] rounded-[2px] ${cellColor(cell.count)} transition-colors ${cell.count > 0 ? "cursor-pointer hover:ring-1 hover:ring-[#c9a84c]/50 dark:hover:ring-[#d4af37]/50" : ""}`}
                   title={`${cell.date}: ${cell.count} commit${cell.count !== 1 ? "s" : ""}`}
                 />
               );
@@ -291,10 +291,10 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
       <div className="flex items-center gap-1 mt-2 justify-end">
         <span className="text-[8px] text-black/20 dark:text-white/20 mr-0.5">Less</span>
         <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.03] dark:bg-white/[0.04]" />
-        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.10] dark:bg-white/[0.10]" />
-        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.20] dark:bg-white/[0.20]" />
-        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.35] dark:bg-white/[0.35]" />
-        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.55] dark:bg-white/[0.55]" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-[#c9a84c]/20 dark:bg-[#d4af37]/20" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-[#c9a84c]/40 dark:bg-[#d4af37]/40" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-[#c9a84c]/65 dark:bg-[#d4af37]/65" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-[#c9a84c] dark:bg-[#d4af37]" />
         <span className="text-[8px] text-black/20 dark:text-white/20 ml-0.5">More</span>
       </div>
     </div>
@@ -1009,7 +1009,7 @@ export default function OverviewPage() {
                     rel="noopener noreferrer"
                     className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group"
                   >
-                    <code className="text-[10px] text-black/40 dark:text-white/40 font-mono mt-0.5 shrink-0">{c.sha}</code>
+                    <code className="text-[10px] text-[#c9a84c] dark:text-[#d4af37] font-mono mt-0.5 shrink-0">{c.sha}</code>
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
                         {c.message}
