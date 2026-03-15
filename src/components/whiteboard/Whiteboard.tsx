@@ -80,25 +80,58 @@ export function Whiteboard() {
   const [textInput, setTextInput] = useState<{ x: number; y: number } | null>(null);
   const [textValue, setTextValue] = useState("");
 
-  const shapes = useStorage((root) => root.shapes) as any as WhiteboardShape[] | null;
+  const shapes = useStorage((root) => {
+    const s = root.shapes;
+    if (!s) return [];
+    // Convert LiveObjects to plain objects for rendering
+    try {
+      return [...(s as any)].map((item: any) => {
+        if (item && typeof item.toObject === "function") return item.toObject();
+        return item;
+      }) as WhiteboardShape[];
+    } catch {
+      return [];
+    }
+  });
   const self = useSelf();
   const others = useOthers();
   const history = useHistory();
 
+  // Ensure shapes LiveList exists in storage, create if missing
+  const ensureShapes = useMutation(({ storage }) => {
+    if (!storage.get("shapes")) {
+      storage.set("shapes", new LiveList([]) as any);
+    }
+  }, []);
+
+  // Init storage on mount
+  useEffect(() => {
+    ensureShapes();
+  }, [ensureShapes]);
+
   const addShape = useMutation(({ storage }, shape: WhiteboardShape) => {
-    const shapesList = storage.get("shapes") as any;
+    let shapesList = storage.get("shapes") as any;
+    if (!shapesList) {
+      shapesList = new LiveList([]);
+      storage.set("shapes", shapesList as any);
+    }
     shapesList.push(new LiveObject(shape as any));
   }, []);
 
   const removeShape = useMutation(({ storage }, shapeId: string) => {
     const shapesList = storage.get("shapes") as any;
+    if (!shapesList) return;
     const arr = [...shapesList];
-    const idx = arr.findIndex((s: any) => s.get("id") === shapeId);
+    const idx = arr.findIndex((s: any) => {
+      if (s && typeof s.get === "function") return s.get("id") === shapeId;
+      return s?.id === shapeId;
+    });
     if (idx !== -1) shapesList.delete(idx);
   }, []);
 
   const clearAll = useMutation(({ storage }) => {
     const shapesList = storage.get("shapes") as any;
+    if (!shapesList) return;
     while (shapesList.length > 0) shapesList.delete(0);
   }, []);
 
