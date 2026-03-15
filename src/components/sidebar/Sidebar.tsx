@@ -19,6 +19,8 @@ import {
   Loader2,
   Brain,
   Phone,
+  Camera,
+  Palette,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
@@ -183,6 +185,8 @@ export function Sidebar({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [wsSwitcherOpen, setWsSwitcherOpen] = useState(false);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Fetch workspaces
   React.useEffect(() => {
@@ -505,6 +509,94 @@ export function Sidebar({
                   <Settings className="h-3.5 w-3.5" />
                   Manage account
                 </button>
+
+                {/* Avatar settings */}
+                <button
+                  onClick={() => setAvatarMenuOpen(!avatarMenuOpen)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                  <Palette className="h-3.5 w-3.5" />
+                  Change avatar
+                </button>
+                {avatarMenuOpen && (
+                  <div className="px-3 pb-2">
+                    {/* Color picker */}
+                    <p className="text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30 mb-1.5 mt-1">
+                      Avatar color
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {[
+                        "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#ef4444",
+                        "#8b5cf6", "#06b6d4", "#f97316", "#14b8a6", "#3b82f6",
+                        "#e11d48", "#84cc16", "#0ea5e9", "#a855f7", "#f43f5e",
+                      ].map((color) => (
+                        <button
+                          key={color}
+                          onClick={async () => {
+                            if (!user) return;
+                            await user.update({
+                              unsafeMetadata: {
+                                ...((user.unsafeMetadata as Record<string, unknown>) || {}),
+                                avatarColor: color,
+                              },
+                            });
+                          }}
+                          className={`h-5 w-5 rounded-full transition-all ${
+                            (user?.unsafeMetadata?.avatarColor as string) === color
+                              ? "ring-2 ring-offset-1 ring-black/20 dark:ring-white/20 dark:ring-offset-black scale-110"
+                              : "hover:scale-110"
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Upload photo */}
+                    <label className="flex items-center gap-2 rounded-lg border border-black/8 dark:border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-black/50 dark:text-white/50 hover:border-black/20 dark:hover:border-white/20 hover:text-black dark:hover:text-white transition-colors cursor-pointer">
+                      {uploadingAvatar ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Camera className="h-3 w-3" />
+                      )}
+                      {uploadingAvatar ? "Uploading..." : "Upload photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !user) return;
+                          setUploadingAvatar(true);
+                          try {
+                            await user.setProfileImage({ file });
+                          } catch (err) {
+                            console.error("Failed to upload avatar:", err);
+                          }
+                          setUploadingAvatar(false);
+                        }}
+                      />
+                    </label>
+
+                    {/* Remove photo */}
+                    {user?.imageUrl && user.imageUrl.includes("clerk") && !user.imageUrl.includes("gravatar") && (
+                      <button
+                        onClick={async () => {
+                          if (!user) return;
+                          try {
+                            await user.setProfileImage({ file: null });
+                          } catch (err) {
+                            console.error("Failed to remove avatar:", err);
+                          }
+                        }}
+                        className="mt-1.5 flex items-center gap-2 text-[11px] text-red-500/60 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Remove photo
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between px-3 py-2">
                   <span className="text-xs text-black/40 dark:text-white/40">Theme</span>
                   <ThemeToggle />
