@@ -837,9 +837,9 @@ export function Sidebar({
                     </p>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {[
-                        "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#ef4444",
-                        "#8b5cf6", "#06b6d4", "#f97316", "#14b8a6", "#3b82f6",
-                        "#e11d48", "#84cc16", "#0ea5e9", "#a855f7", "#f43f5e",
+                        "#cd7f32", "#d4af37", "#c0c0c0", "#e5e4e2", "#b76e79",
+                        "#b87333", "#878681", "#2a3439", "#b5a642", "#dfe0e2",
+                        "#8c7853", "#71797e", "#aa9b75", "#704214", "#a97142",
                       ].map((color) => (
                         <button
                           key={color}
