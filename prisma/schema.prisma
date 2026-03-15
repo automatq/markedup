@@ -231,19 +231,21 @@ model AgentReport {
   @@index([workspaceId, createdAt])
 }
 
-/// Workspace integrations (GitHub repo, etc.)
+/// Workspace integrations (GitHub repos, etc.)
 model WorkspaceIntegration {
   id          String   @id @default(cuid())
   workspaceId String
   /// Integration type: "github"
   type        String
+  /// Unique name within type — e.g. "owner/repo" for GitHub
+  name        String   @default("")
   /// JSON config — e.g. { owner, repo, token? }
   config      Json
   createdBy   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([workspaceId, type])
+  @@unique([workspaceId, type, name])
   @@index([workspaceId])
 }
 

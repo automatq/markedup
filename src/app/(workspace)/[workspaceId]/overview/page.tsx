@@ -117,9 +117,10 @@ interface InsightsData {
 
 interface GitHubData {
   configured: boolean;
-  repo?: string;
+  repos?: { id: string; name: string }[];
+  activeRepo?: string;
   totalCommits?: number;
-  commits?: { sha: string; message: string; author: string; authorAvatar?: string; date: string; url: string }[];
+  commits?: { sha: string; message: string; author: string; authorAvatar?: string; date: string; repo: string; url: string }[];
   timeline?: { date: string; commits: number; authors: number }[];
   authors?: { name: string; avatar?: string; commits: number }[];
 }
@@ -329,6 +330,7 @@ export default function OverviewPage() {
   // GitHub state — default to unconfigured so the connect card shows immediately
   const [github, setGitHub] = useState<GitHubData>({ configured: false });
   const [githubExpanded, setGithubExpanded] = useState(false);
+  const [activeRepo, setActiveRepo] = useState("all");
 
   // GitHub config modal
   const [showGitHubConfig, setShowGitHubConfig] = useState(false);
@@ -371,12 +373,13 @@ export default function OverviewPage() {
     setInsightsLoading(false);
   }, [workspaceId]);
 
-  const fetchGitHub = useCallback(async () => {
+  const fetchGitHub = useCallback(async (repo?: string) => {
     try {
-      const res = await fetch(`/api/github/activity?workspaceId=${workspaceId}`);
+      const repoParam = repo ?? activeRepo;
+      const res = await fetch(`/api/github/activity?workspaceId=${workspaceId}&repo=${encodeURIComponent(repoParam)}`);
       if (res.ok) setGitHub(await res.json());
     } catch {}
-  }, [workspaceId]);
+  }, [workspaceId, activeRepo]);
 
   const generateInsights = useCallback(async () => {
     setGeneratingInsights(true);
@@ -402,7 +405,10 @@ export default function OverviewPage() {
       });
       if (res.ok) {
         setShowGitHubConfig(false);
-        fetchGitHub();
+        setGhOwner("");
+        setGhRepo("");
+        setGhToken("");
+        fetchGitHub("all");
       } else {
         const data = await res.json().catch(() => ({}));
         setGhError(data.error || `Failed to connect (${res.status})`);
@@ -483,6 +489,18 @@ export default function OverviewPage() {
       fetchAgentMonitors();
     } catch {}
   }, [workspaceId, fetchAgentMonitors]);
+
+  const removeGitHubRepo = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/github/activity?id=${id}`, { method: "DELETE" });
+      if (res.ok) fetchGitHub("all");
+    } catch {}
+  }, [fetchGitHub]);
+
+  const switchRepo = useCallback((repo: string) => {
+    setActiveRepo(repo);
+    fetchGitHub(repo);
+  }, [fetchGitHub]);
 
   useEffect(() => {
     fetchOverview();
@@ -836,141 +854,195 @@ export default function OverviewPage() {
           </CardContent>
         </Card>
 
-        {/* ═══════ WORKFLOW LOG + GITHUB ═══════ */}
-        {(insights?.workflowLog || github?.configured) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* Unified Workflow Log */}
-            {insights?.workflowLog && insights.workflowLog.length > 0 && (
-              <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-                <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-black/40 dark:text-white/40" />
-                    <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                      Workflow Log
-                    </CardTitle>
+        {/* ═══════ WORKFLOW LOG ═══════ */}
+        {insights?.workflowLog && insights.workflowLog.length > 0 && (
+          <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+            <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-black/40 dark:text-white/40" />
+                <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                  Workflow Log
+                </CardTitle>
+              </div>
+              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                AI-tracked activity across all team members
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-0.5">
+                {insights.workflowLog.map((entry, i) => (
+                  <div key={i} className="flex items-start gap-2.5 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                    <div className="mt-0.5 text-black/25 dark:text-white/25">
+                      {workflowIcon(entry.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-black/60 dark:text-white/60 leading-snug">
+                        <span className="font-medium text-black/80 dark:text-white/80">{entry.author}</span>
+                        {" "}{entry.summary}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${impactColor(entry.impact)}`}>
+                        {entry.impact}
+                      </span>
+                      <span className="text-[9px] text-black/20 dark:text-white/20">
+                        {entry.date}
+                      </span>
+                    </div>
                   </div>
-                  <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                    AI-tracked activity across all team members
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-3 max-h-[400px] overflow-y-auto">
-                  <div className="space-y-0.5">
-                    {insights.workflowLog.map((entry, i) => (
-                      <div key={i} className="flex items-start gap-2.5 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                        <div className="mt-0.5 text-black/25 dark:text-white/25">
-                          {workflowIcon(entry.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-black/60 dark:text-white/60 leading-snug">
-                            <span className="font-medium text-black/80 dark:text-white/80">{entry.author}</span>
-                            {" "}{entry.summary}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${impactColor(entry.impact)}`}>
-                            {entry.impact}
-                          </span>
-                          <span className="text-[9px] text-black/20 dark:text-white/20">
-                            {entry.date}
-                          </span>
-                        </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ═══════ GITHUB ACTIVITY — FULL WIDTH ═══════ */}
+        {github?.configured && (
+          <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+            <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
+                <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                  GitHub Activity
+                </CardTitle>
+
+                {/* Repo switcher */}
+                {github.repos && github.repos.length > 0 && (
+                  <div className="flex items-center gap-1 ml-2">
+                    <button
+                      onClick={() => switchRepo("all")}
+                      className={`text-[10px] rounded-full px-2.5 py-0.5 font-medium transition-colors ${
+                        activeRepo === "all"
+                          ? "bg-black/10 dark:bg-white/10 text-black/70 dark:text-white/70"
+                          : "text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50"
+                      }`}
+                    >
+                      All Projects
+                    </button>
+                    {github.repos.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => switchRepo(r.name)}
+                        className={`text-[10px] rounded-full px-2.5 py-0.5 font-medium transition-colors ${
+                          activeRepo === r.name
+                            ? "bg-black/10 dark:bg-white/10 text-black/70 dark:text-white/70"
+                            : "text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50"
+                        }`}
+                      >
+                        {r.name.split("/")[1] || r.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto shrink-0">
+                  <span className="text-[10px] text-black/25 dark:text-white/25">
+                    {github.totalCommits} commits
+                  </span>
+                  <button
+                    onClick={() => setShowGitHubConfig(true)}
+                    className="flex items-center gap-1 text-[10px] text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Repo
+                  </button>
+                </div>
+              </div>
+              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                {activeRepo === "all" ? "Combined activity across all connected repositories" : activeRepo}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {/* Contribution calendar — full width */}
+              {github.timeline && github.timeline.length > 0 && (
+                <div className="mb-5">
+                  <ContributionCalendar timeline={github.timeline} />
+                </div>
+              )}
+
+              {/* Author breakdown + repo management */}
+              <div className="flex items-start gap-6 mb-4 flex-wrap">
+                {github.authors && github.authors.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {github.authors.map((a) => (
+                      <div key={a.name} className="flex items-center gap-1.5 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-2.5 py-0.5">
+                        {a.avatar ? (
+                          <img src={a.avatar} alt="" className="h-4 w-4 rounded-full" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center">
+                            <span className="text-[8px] font-bold text-black/40 dark:text-white/40">{a.name.charAt(0)}</span>
+                          </div>
+                        )}
+                        <span className="text-[10px] text-black/50 dark:text-white/50">{a.name}</span>
+                        <span className="text-[9px] text-black/25 dark:text-white/25">{a.commits}</span>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
 
-            {/* GitHub Activity */}
-            {github?.configured && (
-              <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-                <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
-                  <div className="flex items-center gap-2">
-                    <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
-                    <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                      GitHub Activity
-                    </CardTitle>
-                    <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5 ml-auto">
-                      {github.repo}
-                    </span>
-                  </div>
-                  <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                    {github.totalCommits} commits in the last 30 days
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-3">
-                  {/* Author breakdown */}
-                  {github.authors && github.authors.length > 0 && (
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {github.authors.map((a) => (
-                        <div key={a.name} className="flex items-center gap-1.5 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-2.5 py-0.5">
-                          {a.avatar ? (
-                            <img src={a.avatar} alt="" className="h-4 w-4 rounded-full" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center">
-                              <span className="text-[8px] font-bold text-black/40 dark:text-white/40">{a.name.charAt(0)}</span>
-                            </div>
-                          )}
-                          <span className="text-[10px] text-black/50 dark:text-white/50">{a.name}</span>
-                          <span className="text-[9px] text-black/25 dark:text-white/25">{a.commits}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Contribution calendar */}
-                  {github.timeline && github.timeline.length > 0 && (
-                    <div className="mb-4 rounded-lg border border-black/6 dark:border-white/8 p-3">
-                      <ContributionCalendar timeline={github.timeline} />
-                    </div>
-                  )}
-
-                  {/* Recent commits */}
-                  <div className="max-h-[280px] overflow-y-auto space-y-0.5">
-                    {github.commits?.slice(0, githubExpanded ? 50 : 10).map((c) => (
-                      <a
-                        key={c.sha}
-                        href={c.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group"
-                      >
-                        <code className="text-[10px] text-black/40 dark:text-white/40 font-mono mt-0.5 shrink-0">{c.sha}</code>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
-                            {c.message}
-                          </p>
-                          <p className="text-[9px] text-black/25 dark:text-white/25">
-                            {c.author} · {new Date(c.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </p>
-                        </div>
-                      </a>
+                {/* Connected repos list with remove */}
+                {github.repos && github.repos.length > 1 && activeRepo === "all" && (
+                  <div className="flex flex-wrap gap-1.5 ml-auto">
+                    {github.repos.map((r) => (
+                      <div key={r.id} className="flex items-center gap-1 rounded-full border border-black/6 dark:border-white/8 pl-2.5 pr-1 py-0.5">
+                        <span className="text-[9px] text-black/35 dark:text-white/35">{r.name}</span>
+                        <button
+                          onClick={() => removeGitHubRepo(r.id)}
+                          className="text-black/15 dark:text-white/15 hover:text-red-500 transition-colors p-0.5"
+                          title={`Remove ${r.name}`}
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
                     ))}
                   </div>
-                  {github.commits && github.commits.length > 10 && (
-                    <button
-                      onClick={() => setGithubExpanded(!githubExpanded)}
-                      className="mt-2 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
-                    >
-                      {githubExpanded ? "Show less" : `Show all ${github.commits.length} commits`}
-                    </button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                )}
+              </div>
+
+              {/* Recent commits */}
+              <div className="max-h-[320px] overflow-y-auto space-y-0.5">
+                {github.commits?.slice(0, githubExpanded ? 50 : 10).map((c) => (
+                  <a
+                    key={c.sha + c.repo}
+                    href={c.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group"
+                  >
+                    <code className="text-[10px] text-black/40 dark:text-white/40 font-mono mt-0.5 shrink-0">{c.sha}</code>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
+                        {c.message}
+                      </p>
+                      <p className="text-[9px] text-black/25 dark:text-white/25">
+                        {c.author} · {c.repo.split("/")[1]} · {new Date(c.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+              {github.commits && github.commits.length > 10 && (
+                <button
+                  onClick={() => setGithubExpanded(!githubExpanded)}
+                  className="mt-2 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
+                >
+                  {githubExpanded ? "Show less" : `Show all ${github.commits.length} commits`}
+                </button>
+              )}
+            </CardContent>
+          </Card>
         )}
 
-        {/* GitHub Setup Card (when not configured) */}
-        {!github.configured && (
+        {/* GitHub Setup Card — shows when not configured, or when "Add Repo" is clicked */}
+        {(!github.configured || showGitHubConfig) && (
           <div className="mb-6">
-            {showGitHubConfig ? (
+            {showGitHubConfig || github.configured ? (
               <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
                 <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
                   <div className="flex items-center gap-2">
                     <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
                     <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                      Connect GitHub Repository
+                      {github.configured ? "Add Another Repository" : "Connect GitHub Repository"}
                     </CardTitle>
                   </div>
                 </CardHeader>
@@ -1003,7 +1075,7 @@ export default function OverviewPage() {
                       value={ghToken}
                       onChange={(e) => setGhToken(e.target.value)}
                       type="password"
-                      placeholder="ghp_..."
+                      placeholder="ghp_... or github_pat_..."
                       className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
                     />
                   </div>
@@ -1054,7 +1126,7 @@ export default function OverviewPage() {
         <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
           <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-indigo-500" />
+              <Target className="h-4 w-4 text-black/40 dark:text-white/40" />
               <CardTitle className="text-sm font-semibold text-black dark:text-white">
                 Team Scorecards
               </CardTitle>

@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       recentBreakouts,
       recentCallLogs,
       agentConfigs,
-      githubIntegration,
+      githubIntegrations,
     ] = await Promise.all([
       db.workspace.findUnique({
         where: { id: workspaceId },
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
         where: { workspaceId },
         select: { id: true, name: true, title: true, roleId: true, systemPrompt: true },
       }),
-      db.workspaceIntegration.findUnique({
-        where: { workspaceId_type: { workspaceId, type: "github" } },
+      db.workspaceIntegration.findMany({
+        where: { workspaceId, type: "github" },
       }),
     ]);
 
@@ -101,21 +101,24 @@ export async function POST(request: NextRequest) {
 
     // Fetch GitHub commits if configured
     let githubContext = "";
-    if (githubIntegration) {
-      const config = githubIntegration.config as { owner: string; repo: string; token?: string };
+    for (const integration of githubIntegrations) {
+      const config = integration.config as { owner: string; repo: string; token?: string };
       try {
         const headers: Record<string, string> = {
           Accept: "application/vnd.github.v3+json",
           "User-Agent": "MarkedUp",
         };
-        if (config.token) headers.Authorization = `Bearer ${config.token}`;
+        if (config.token) {
+          const prefix = config.token.startsWith("github_pat_") ? "Bearer" : "token";
+          headers.Authorization = `${prefix} ${config.token}`;
+        }
         const ghRes = await fetch(
           `https://api.github.com/repos/${config.owner}/${config.repo}/commits?since=${sevenDaysAgo.toISOString()}&per_page=50`,
           { headers }
         );
         if (ghRes.ok) {
           const commits = await ghRes.json();
-          githubContext = `\n\n## GitHub Activity (${config.owner}/${config.repo}) - Last 7 Days\n`;
+          githubContext += `\n\n## GitHub Activity (${config.owner}/${config.repo}) - Last 7 Days\n`;
           githubContext += `Total commits: ${commits.length}\n`;
           for (const c of commits.slice(0, 30)) {
             const author = c.commit?.author?.name || "Unknown";
