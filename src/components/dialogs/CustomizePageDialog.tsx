@@ -74,13 +74,26 @@ interface CustomizePageDialogProps {
 
 const COVER_PRESETS = [
   "",
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-  "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-  "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-  "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
-  "linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)",
+  // Bronze
+  "linear-gradient(135deg, #cd7f32 0%, #a0522d 50%, #daa06d 100%)",
+  // Gold
+  "linear-gradient(135deg, #d4af37 0%, #ffd700 50%, #b8860b 100%)",
+  // Silver
+  "linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 50%, #a8a8a8 100%)",
+  // Platinum
+  "linear-gradient(135deg, #e5e4e2 0%, #c0bfbd 50%, #d8d8d6 100%)",
+  // Rose Gold
+  "linear-gradient(135deg, #b76e79 0%, #e8b4b8 50%, #c9878f 100%)",
+  // Copper
+  "linear-gradient(135deg, #b87333 0%, #da8a67 50%, #8c5523 100%)",
+  // Titanium
+  "linear-gradient(135deg, #878681 0%, #b0afab 50%, #6e6d69 100%)",
+  // Gunmetal
+  "linear-gradient(135deg, #2a3439 0%, #536267 50%, #3d4b51 100%)",
+  // Brass
+  "linear-gradient(135deg, #b5a642 0%, #d4c36a 50%, #8e7f33 100%)",
+  // Chrome
+  "linear-gradient(135deg, #dfe0e2 0%, #b9bbbe 50%, #f0f1f3 100%)",
 ];
 
 const ICON_PRESETS = ["", "📄", "📝", "📋", "🎯", "🚀", "💡", "🔧", "📊", "🏗️", "🎨", "📚", "⚡", "🔥", "✨", "🌟"];
