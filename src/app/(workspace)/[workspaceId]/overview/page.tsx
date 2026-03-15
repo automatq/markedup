@@ -37,6 +37,10 @@ import {
   AlertTriangle,
   Trash2,
   Power,
+  Info,
+  TrendingDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   Card,
@@ -159,6 +163,19 @@ interface RoleAssignmentItem {
   userId: string;
   agentConfigId: string;
   agentConfig: { id: string; roleId: string; name: string; title: string; color: string; avatar: string };
+}
+
+interface AgentDigest {
+  agentId: string;
+  roleId: string;
+  id: string;
+  createdAt: string;
+  payload: {
+    summary?: string;
+    alerts?: { level: "info" | "warning" | "critical"; message: string }[];
+    metrics?: { activityScore?: number; trendDirection?: string; keyInsight?: string };
+    recommendations?: string[];
+  };
 }
 
 /* ──────────────────── Chart configs ──────────────────── */
@@ -400,6 +417,9 @@ export default function OverviewPage() {
   // Role assignments
   const [roleAssignments, setRoleAssignments] = useState<RoleAssignmentItem[]>([]);
 
+  // Agent digests
+  const [agentDigests, setAgentDigests] = useState<AgentDigest[]>([]);
+
   /* ── Data fetchers ── */
 
   const fetchOverview = useCallback(async () => {
@@ -495,6 +515,16 @@ export default function OverviewPage() {
     } catch {}
   }, [workspaceId]);
 
+  const fetchDigests = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agents/digests?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const d = await res.json();
+        setAgentDigests(d.digests || []);
+      }
+    } catch {}
+  }, [workspaceId]);
+
   const assignRole = useCallback(async (memberUserId: string, agentConfigId: string) => {
     try {
       await fetch("/api/agents/assignments", {
@@ -579,14 +609,16 @@ export default function OverviewPage() {
     fetchKpis();
     fetchAgentMonitors();
     fetchRoleAssignments();
+    fetchDigests();
     const interval = setInterval(fetchOverview, 30000);
     return () => clearInterval(interval);
-  }, [fetchOverview, fetchInsights, fetchGitHub, fetchKpis, fetchAgentMonitors, fetchRoleAssignments]);
+  }, [fetchOverview, fetchInsights, fetchGitHub, fetchKpis, fetchAgentMonitors, fetchRoleAssignments, fetchDigests]);
 
   /* ── Derived data ── */
 
   const findAgent = useCallback((roleId: string) => data?.agents.find((a) => a.roleId === roleId), [data?.agents]);
   const findMonitor = useCallback((agentId: string) => agentMonitors.find((m) => m.agent.id === agentId), [agentMonitors]);
+  const findDigest = useCallback((roleId: string) => agentDigests.find((d) => d.roleId === roleId), [agentDigests]);
 
   const ceoAgent = useMemo(() => findAgent("ceo"), [findAgent]);
   const ctoAgent = useMemo(() => findAgent("cto"), [findAgent]);
@@ -1014,6 +1046,9 @@ export default function OverviewPage() {
               </div>
             </div>
           )}
+
+          {/* CEO Agent Digest */}
+          {findDigest("ceo") && <AgentDigestCard digest={findDigest("ceo")!} />}
         </section>
 
         {/* ═══════════════════════════════════════════════════
@@ -1245,6 +1280,9 @@ export default function OverviewPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* CTO Agent Digest */}
+          {findDigest("cto") && <AgentDigestCard digest={findDigest("cto")!} />}
         </section>
 
         {/* ═══════════════════════════════════════════════════
@@ -1354,6 +1392,9 @@ export default function OverviewPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* CRO Agent Digest */}
+          {findDigest("cro") && <AgentDigestCard digest={findDigest("cro")!} />}
         </section>
 
         {/* ═══════════════════════════════════════════════════
@@ -1561,5 +1602,98 @@ function GitHubConfigCard({ title, ghOwner, setGhOwner, ghRepo, setGhRepo, ghTok
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AgentDigestCard({ digest }: { digest: AgentDigest }) {
+  const [expanded, setExpanded] = useState(false);
+  const p = digest.payload;
+  const alertIcon = (level: string) => {
+    switch (level) {
+      case "critical": return <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />;
+      case "warning": return <AlertTriangle className="h-3 w-3 text-[#c9a84c] dark:text-[#d4af37] shrink-0" />;
+      default: return <Info className="h-3 w-3 text-black/30 dark:text-white/30 shrink-0" />;
+    }
+  };
+  const alertBg = (level: string) => {
+    switch (level) {
+      case "critical": return "bg-red-500/5 border-red-500/10";
+      case "warning": return "bg-[#c9a84c]/5 dark:bg-[#d4af37]/5 border-[#c9a84c]/10 dark:border-[#d4af37]/10";
+      default: return "bg-black/[0.02] dark:bg-white/[0.02] border-black/5 dark:border-white/5";
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-black/6 dark:border-white/8 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
+      >
+        <Brain className="h-3.5 w-3.5 text-[#c9a84c] dark:text-[#d4af37] shrink-0" />
+        <span className="text-[11px] font-medium text-black/60 dark:text-white/60 flex-1 text-left truncate">
+          Latest Agent Report
+        </span>
+        {p.metrics?.activityScore !== undefined && (
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-xs font-bold ${p.metrics.activityScore >= 70 ? "text-[#c9a84c] dark:text-[#d4af37]" : p.metrics.activityScore >= 40 ? "text-black/50 dark:text-white/50" : "text-black/25 dark:text-white/25"}`}>
+              {p.metrics.activityScore}
+            </span>
+            {p.metrics.trendDirection === "up" && <TrendingUp className="h-3 w-3 text-[#c9a84c] dark:text-[#d4af37]" />}
+            {p.metrics.trendDirection === "down" && <TrendingDown className="h-3 w-3 text-black/30 dark:text-white/30" />}
+          </div>
+        )}
+        {p.alerts && p.alerts.some((a) => a.level === "critical" || a.level === "warning") && (
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#c9a84c]/10 dark:bg-[#d4af37]/10 shrink-0">
+            <AlertTriangle className="h-2.5 w-2.5 text-[#c9a84c] dark:text-[#d4af37]" />
+          </span>
+        )}
+        <span className="text-[9px] text-black/20 dark:text-white/20 shrink-0">{timeAgo(digest.createdAt)}</span>
+        {expanded ? <ChevronUp className="h-3 w-3 text-black/20 dark:text-white/20 shrink-0" /> : <ChevronDown className="h-3 w-3 text-black/20 dark:text-white/20 shrink-0" />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-black/5 dark:border-white/5 pt-3">
+          {/* Summary */}
+          {p.summary && (
+            <p className="text-[11px] text-black/60 dark:text-white/60 leading-relaxed">{p.summary}</p>
+          )}
+
+          {/* Key insight */}
+          {p.metrics?.keyInsight && (
+            <div className="flex items-start gap-2 rounded-lg bg-[#c9a84c]/5 dark:bg-[#d4af37]/5 px-3 py-2">
+              <Zap className="h-3 w-3 text-[#c9a84c] dark:text-[#d4af37] mt-0.5 shrink-0" />
+              <p className="text-[11px] text-black/60 dark:text-white/60 leading-relaxed">{p.metrics.keyInsight}</p>
+            </div>
+          )}
+
+          {/* Alerts */}
+          {p.alerts && p.alerts.length > 0 && (
+            <div className="space-y-1.5">
+              {p.alerts.map((alert, i) => (
+                <div key={i} className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${alertBg(alert.level)}`}>
+                  {alertIcon(alert.level)}
+                  <p className="text-[11px] text-black/60 dark:text-white/60 leading-relaxed">{alert.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recommendations */}
+          {p.recommendations && p.recommendations.length > 0 && (
+            <div>
+              <p className="text-[9px] uppercase tracking-wider text-black/30 dark:text-white/30 font-medium mb-1.5">Recommendations</p>
+              <ul className="space-y-1">
+                {p.recommendations.map((rec, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[11px] text-black/50 dark:text-white/45 leading-relaxed">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#c9a84c]/40 dark:bg-[#d4af37]/40 shrink-0" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
