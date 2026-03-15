@@ -19,27 +19,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Get all agent configs for this workspace
-    const agents = await db.agentConfig.findMany({
-      where: { workspaceId },
-      select: { id: true, roleId: true },
-    });
+    // Fetch agents and all digest reports in two queries (no N+1)
+    const [agents, allReports] = await Promise.all([
+      db.agentConfig.findMany({
+        where: { workspaceId },
+        select: { id: true, roleId: true },
+      }),
+      db.agentReport.findMany({
+        where: { workspaceId, type: "monitor_digest", agentId: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, agentId: true, payload: true, createdAt: true },
+      }),
+    ]);
 
-    // Fetch the latest digest for each agent
-    const digests = await Promise.all(
-      agents.map(async (agent) => {
-        const report = await db.agentReport.findFirst({
-          where: { workspaceId, agentId: agent.id, type: "monitor_digest" },
-          orderBy: { createdAt: "desc" },
-          select: { id: true, payload: true, createdAt: true },
-        });
-        return report ? { agentId: agent.id, roleId: agent.roleId, ...report } : null;
-      })
-    );
+    // Pick the latest report per agent
+    const agentRoleMap = new Map(agents.map((a) => [a.id, a.roleId]));
+    const seen = new Set<string>();
+    const digests = [];
+    for (const report of allReports) {
+      if (!report.agentId || seen.has(report.agentId)) continue;
+      const roleId = agentRoleMap.get(report.agentId);
+      if (!roleId) continue;
+      seen.add(report.agentId);
+      digests.push({ agentId: report.agentId, roleId, id: report.id, payload: report.payload, createdAt: report.createdAt });
+    }
 
-    return NextResponse.json({
-      digests: digests.filter(Boolean),
-    });
+    return NextResponse.json({ digests });
   } catch (err) {
     console.error("GET /api/agents/digests error:", err);
     return NextResponse.json({ error: "Failed to load digests" }, { status: 500 });

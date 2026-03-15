@@ -72,7 +72,10 @@ model Document {
   agentTraining AgentTrainingDoc[]
 
   @@index([workspaceId])
+  @@index([workspaceId, deletedAt])
+  @@index([workspaceId, updatedAt])
   @@index([parentId])
+  @@index([createdBy])
 }
 
 model Node {
@@ -110,6 +113,7 @@ model Breakout {
 
   @@index([documentId])
   @@index([documentId, agentId])
+  @@index([createdBy])
 }
 
 /// Invite codes for joining a company workspace

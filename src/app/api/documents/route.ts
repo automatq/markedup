@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
       await db.document.deleteMany({
         where: { workspaceId, deletedAt: { not: null, lt: threeDaysAgo } },
-      }).catch(() => {});
+      }).catch((err) => console.warn("Auto-purge failed:", err));
     }
 
     const documents = await db.document.findMany({

@@ -1,7 +1,8 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { canAccessDocument } from "@/lib/auth";
+import { resolveUsers } from "@/lib/clerk-users";
 
 // POST — record that the current user viewed this document
 export async function POST(
@@ -50,28 +51,14 @@ export async function GET(
     orderBy: { viewedAt: "desc" },
   });
 
-  // Resolve user names/avatars from Clerk
-  const clerk = await clerkClient();
-  const enriched = await Promise.all(
-    views.map(async (v) => {
-      try {
-        const user = await clerk.users.getUser(v.userId);
-        return {
-          userId: v.userId,
-          viewedAt: v.viewedAt,
-          name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Anonymous",
-          avatar: user.imageUrl,
-        };
-      } catch {
-        return {
-          userId: v.userId,
-          viewedAt: v.viewedAt,
-          name: "Unknown",
-          avatar: undefined,
-        };
-      }
-    })
-  );
+  // Resolve user names/avatars from Clerk (batch fetch)
+  const userMap = await resolveUsers(views.map((v) => v.userId));
+  const enriched = views.map((v) => ({
+    userId: v.userId,
+    viewedAt: v.viewedAt,
+    name: userMap[v.userId]?.name || "Unknown",
+    avatar: userMap[v.userId]?.avatar,
+  }));
 
   return NextResponse.json(enriched);
 }

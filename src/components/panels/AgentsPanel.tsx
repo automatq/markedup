@@ -105,13 +105,14 @@ function AssignmentPicker({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
+    const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/users/search?query=${encodeURIComponent(search)}`);
         if (res.ok) setUsers(await res.json());
       } catch { /* ignore */ }
       setLoading(false);
-    })();
+    }, search ? 300 : 0);
+    return () => clearTimeout(timer);
   }, [search]);
 
   return (

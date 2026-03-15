@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { canAccessWorkspace } from "@/lib/auth";
+import { resolveUsers } from "@/lib/clerk-users";
 
 /**
  * POST /api/overview/insights
@@ -97,19 +98,10 @@ export async function POST(request: NextRequest) {
     for (const b of recentBreakouts) if (b.createdBy) userIdSet.add(b.createdBy);
     for (const c of recentCallLogs) if (c.createdBy) userIdSet.add(c.createdBy);
 
+    const resolvedUsers = await resolveUsers(Array.from(userIdSet));
     const userMap: Record<string, string> = {};
-    if (userIdSet.size > 0) {
-      try {
-        const clerk = await clerkClient();
-        const users = await Promise.all(
-          Array.from(userIdSet).map((id) => clerk.users.getUser(id).catch(() => null))
-        );
-        for (const u of users) {
-          if (u) {
-            userMap[u.id] = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.emailAddresses[0]?.emailAddress || "Unknown";
-          }
-        }
-      } catch {}
+    for (const [id, u] of Object.entries(resolvedUsers)) {
+      userMap[id] = u.name;
     }
 
     // Fetch GitHub commits if configured
@@ -140,7 +132,9 @@ export async function POST(request: NextRequest) {
             githubContext += `- [${date}] ${author}: ${msg}\n`;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`GitHub fetch failed for ${config.owner}/${config.repo}:`, err);
+      }
     }
 
     // Build activity summary for AI

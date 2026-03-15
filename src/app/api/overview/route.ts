@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { canAccessWorkspace } from "@/lib/auth";
+import { resolveUsers } from "@/lib/clerk-users";
 
 /**
  * GET /api/overview?workspaceId=...
@@ -106,23 +107,7 @@ export async function GET(request: NextRequest) {
     for (const c of recentCallLogs) if (c.createdBy) userIdSet.add(c.createdBy);
     for (const v of recentViews) if (v.userId) userIdSet.add(v.userId);
 
-    const userMap: Record<string, { name: string; avatar?: string }> = {};
-    if (userIdSet.size > 0) {
-      try {
-        const clerk = await clerkClient();
-        const users = await Promise.all(
-          Array.from(userIdSet).map((id) => clerk.users.getUser(id).catch(() => null))
-        );
-        for (const u of users) {
-          if (u) {
-            userMap[u.id] = {
-              name: `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.emailAddresses[0]?.emailAddress || "Unknown",
-              avatar: u.imageUrl || undefined,
-            };
-          }
-        }
-      } catch {}
-    }
+    const userMap = await resolveUsers(Array.from(userIdSet));
 
     // Build activity feed — unified timeline of all actions
     const activity: {

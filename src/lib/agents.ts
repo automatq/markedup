@@ -14,13 +14,3 @@ export interface AgentAssignment {
   userName: string;
   userAvatar?: string;
 }
-
-/**
- * No default agents — groups create their own.
- * This empty array is used as a fallback when no agents are configured.
- */
-export const AGENTS: AgentRole[] = [];
-
-export function getAgent(id: string, agents: AgentRole[]): AgentRole | undefined {
-  return agents.find((a) => a.id === id);
-}

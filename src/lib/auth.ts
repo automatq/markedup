@@ -97,19 +97,6 @@ export async function canAccessDocument(
 
   return hasAccess ? document : null;
 }
-
-/**
- * Check if a user belongs to a specific Clerk organization.
- */
-export async function isOrgMember(
-  orgId: string,
-  userId: string,
-  userOrgId: string | null
-) {
-  // Fast path: user's active org matches
-  return userOrgId === orgId;
-}
-
 /**
  * Require workspace access or return a 403 Response.
  * Use in API routes: const err = await requireWorkspaceAccess(...); if (err) return err;

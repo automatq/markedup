@@ -105,32 +105,36 @@ async function generateMonitorReport(
     const integrations = await db.workspaceIntegration.findMany({
       where: { workspaceId: monitor.workspaceId, type: "github" },
     });
-    for (const integration of integrations) {
-      const config = integration.config as { owner: string; repo: string; token?: string };
-      try {
-        const headers: Record<string, string> = {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": "MarkedUp",
-        };
-        if (config.token) {
-          const prefix = config.token.startsWith("github_pat_") ? "Bearer" : "token";
-          headers.Authorization = `${prefix} ${config.token}`;
-        }
-        const res = await fetch(
-          `https://api.github.com/repos/${config.owner}/${config.repo}/commits?since=${sevenDaysAgo.toISOString()}&per_page=30`,
-          { headers }
-        );
-        if (res.ok) {
-          const commits = await res.json();
-          context += `\n## GitHub (${config.owner}/${config.repo}) — ${commits.length} commits this week\n`;
-          for (const c of commits.slice(0, 20)) {
-            const author = c.commit?.author?.name || "Unknown";
-            const date = c.commit?.author?.date?.slice(0, 10) || "";
-            const msg = c.commit?.message?.split("\n")[0] || "";
-            context += `- [${date}] ${author}: ${msg}\n`;
+    const ghResults = await Promise.all(
+      integrations.map(async (integration) => {
+        const config = integration.config as { owner: string; repo: string; token?: string };
+        try {
+          const headers: Record<string, string> = {
+            Accept: "application/vnd.github.v3+json",
+            "User-Agent": "MarkedUp",
+          };
+          if (config.token) {
+            const prefix = config.token.startsWith("github_pat_") ? "Bearer" : "token";
+            headers.Authorization = `${prefix} ${config.token}`;
           }
-        }
-      } catch {}
+          const res = await fetch(
+            `https://api.github.com/repos/${config.owner}/${config.repo}/commits?since=${sevenDaysAgo.toISOString()}&per_page=30`,
+            { headers }
+          );
+          if (res.ok) return { config, commits: await res.json() };
+        } catch {}
+        return null;
+      })
+    );
+    for (const result of ghResults) {
+      if (!result) continue;
+      context += `\n## GitHub (${result.config.owner}/${result.config.repo}) — ${result.commits.length} commits this week\n`;
+      for (const c of result.commits.slice(0, 20)) {
+        const author = c.commit?.author?.name || "Unknown";
+        const date = c.commit?.author?.date?.slice(0, 10) || "";
+        const msg = c.commit?.message?.split("\n")[0] || "";
+        context += `- [${date}] ${author}: ${msg}\n`;
+      }
     }
   }
 

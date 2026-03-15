@@ -42,19 +42,25 @@ export default clerkMiddleware(async (auth, request) => {
     return NextResponse.next();
   }
 
-  // Check if user has completed onboarding
-  try {
-    const clerk = await clerkClient();
-    const user = await clerk.users.getUser(userId);
-    const meta = (user.unsafeMetadata as Record<string, unknown>) || {};
-    if (!meta.onboardingComplete) {
-      // Redirect to onboarding, preserving the original URL to return to
-      const onboardingUrl = new URL("/onboarding", request.url);
-      onboardingUrl.searchParams.set("returnUrl", pathname);
-      return NextResponse.redirect(onboardingUrl);
+  // Check if user has completed onboarding (skip Clerk call if cookie set)
+  const onboarded = request.cookies.get("onboarded")?.value === "1";
+  if (!onboarded) {
+    try {
+      const clerk = await clerkClient();
+      const user = await clerk.users.getUser(userId);
+      const meta = (user.unsafeMetadata as Record<string, unknown>) || {};
+      if (!meta.onboardingComplete) {
+        const onboardingUrl = new URL("/onboarding", request.url);
+        onboardingUrl.searchParams.set("returnUrl", pathname);
+        return NextResponse.redirect(onboardingUrl);
+      }
+      // Set cookie so we skip Clerk call on subsequent requests
+      const response = NextResponse.next();
+      response.cookies.set("onboarded", "1", { httpOnly: true, secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
+      return response;
+    } catch {
+      // If we can't check, let them through rather than block
     }
-  } catch {
-    // If we can't check, let them through rather than block
   }
 
   return NextResponse.next();
