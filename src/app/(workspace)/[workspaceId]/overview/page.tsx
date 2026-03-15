@@ -150,14 +150,14 @@ interface AgentMonitorItem {
 /* ──────────────────── Chart configs ──────────────────── */
 
 const activityChartConfig = {
-  edits: { label: "Edits", color: "var(--chart-1)" },
-  created: { label: "Created", color: "var(--chart-5)" },
-  breakouts: { label: "Breakouts", color: "var(--chart-2)" },
+  edits: { label: "Edits", color: "var(--chart-1)" },        // gold
+  created: { label: "Created", color: "var(--chart-2)" },    // silver
+  breakouts: { label: "Breakouts", color: "var(--chart-3)" }, // copper
 } satisfies ChartConfig;
 
 const signalNoiseChartConfig = {
-  signal: { label: "Signal", color: "var(--chart-1)" },
-  noise: { label: "Noise", color: "var(--chart-3)" },
+  signal: { label: "Signal", color: "var(--chart-1)" },  // gold
+  noise: { label: "Noise", color: "var(--chart-5)" },    // muted bronze
 } satisfies ChartConfig;
 
 const visionChartConfig = {
@@ -540,7 +540,7 @@ export default function OverviewPage() {
             <button
               onClick={generateInsights}
               disabled={generatingInsights}
-              className="flex items-center gap-1.5 rounded-lg bg-black dark:bg-white px-3 py-1.5 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-3 py-1.5 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-50"
             >
               {generatingInsights ? (
                 <>
@@ -632,7 +632,7 @@ export default function OverviewPage() {
                     <XAxis type="number" domain={[0, 100]} hide />
                     <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
                     <Bar dataKey="signal" fill="var(--chart-1)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
-                    <Bar dataKey="noise" fill="var(--chart-3)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                    <Bar dataKey="noise" fill="var(--chart-5)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
                   </BarChart>
                 </ChartContainer>
 
@@ -827,8 +827,8 @@ export default function OverviewPage() {
                     />
                   }
                 />
-                <Area dataKey="created" type="natural" fill="url(#fillCreated)" stroke="var(--color-created)" strokeWidth={2} stackId="a" />
                 <Area dataKey="edits" type="natural" fill="url(#fillEdits)" stroke="var(--color-edits)" strokeWidth={2} stackId="a" />
+                <Area dataKey="created" type="natural" fill="url(#fillCreated)" stroke="var(--color-created)" strokeWidth={2} stackId="a" />
                 <Area dataKey="breakouts" type="natural" fill="url(#fillBreakouts)" stroke="var(--color-breakouts)" strokeWidth={2} stackId="a" />
                 <ChartLegend content={<ChartLegendContent />} />
               </AreaChart>
@@ -1014,7 +1014,7 @@ export default function OverviewPage() {
                     <button
                       onClick={saveGitHubConfig}
                       disabled={ghSaving || !ghOwner || !ghRepo}
-                      className="flex items-center gap-1.5 rounded-lg bg-black dark:bg-white px-4 py-1.5 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50"
+                      className="flex items-center gap-1.5 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-4 py-1.5 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-50"
                     >
                       {ghSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitCommit className="h-3 w-3" />}
                       Connect
@@ -1108,7 +1108,7 @@ export default function OverviewPage() {
                   </div>
                   <div className="flex items-end">
                     <button onClick={addKpi} disabled={!kpiName || !kpiTarget || !kpiUserId}
-                      className="w-full rounded-md bg-black dark:bg-white px-3 py-1 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-40">
+                      className="w-full rounded-md bg-[#c9a84c] dark:bg-[#d4af37] px-3 py-1 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-40">
                       Add
                     </button>
                   </div>
