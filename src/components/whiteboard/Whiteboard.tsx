@@ -456,6 +456,7 @@ export function Whiteboard() {
           workspaceId: params.workspaceId,
           title: `Markerboard — ${new Date().toLocaleDateString()}`,
           content,
+          sourceType: "markerboard",
         }),
       });
       if (res.ok) {

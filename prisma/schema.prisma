@@ -46,6 +46,9 @@ model Document {
   /// Yjs document state as a binary blob (reserved for future collab)
   yjsState Bytes?
 
+  /// Origin type: "spreadsheet", "markerboard", or null for regular docs
+  sourceType String?
+
   /// Soft-delete timestamp — null means not deleted
   deletedAt DateTime?
 

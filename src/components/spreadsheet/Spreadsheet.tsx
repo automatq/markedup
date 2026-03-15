@@ -585,6 +585,7 @@ export function Spreadsheet() {
           workspaceId: params.workspaceId,
           title: `Spreadsheet — ${new Date().toLocaleDateString()}`,
           content,
+          sourceType: "spreadsheet",
         }),
       });
       if (res.ok) {

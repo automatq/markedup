@@ -36,6 +36,7 @@ import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
 import { AgentsPanel } from "@/components/panels/AgentsPanel";
 import { BreakoutPanel } from "@/components/panels/BreakoutPanel";
 import { PresentationMode } from "@/components/PresentationMode";
+import { PenLine, Grid3X3, ArrowUpRight } from "lucide-react";
 
 /**
  * Inner document content — rendered inside RoomProvider.
@@ -48,6 +49,7 @@ function DocumentInner({
   initialLastEdited,
   initialCreatedAt,
   initialContent,
+  sourceType,
 }: {
   documentId: string;
   workspaceId: string;
@@ -55,6 +57,7 @@ function DocumentInner({
   initialLastEdited?: Date;
   initialCreatedAt?: Date;
   initialContent?: any;
+  sourceType?: string | null;
 }) {
   const router = useRouter();
   const { user } = useUser();
@@ -329,6 +332,27 @@ function DocumentInner({
         />
       )}
 
+      {/* Source banner — link back to live spreadsheet/markerboard */}
+      {sourceType && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-black/6 dark:border-white/6 bg-black/[0.02] dark:bg-white/[0.02]">
+          {sourceType === "spreadsheet" ? (
+            <Grid3X3 className="h-3.5 w-3.5 text-emerald-500" />
+          ) : (
+            <PenLine className="h-3.5 w-3.5 text-indigo-500" />
+          )}
+          <span className="text-[11px] text-black/50 dark:text-white/50">
+            Exported from {sourceType === "spreadsheet" ? "Spreadsheet" : "Markerboard"}
+          </span>
+          <button
+            onClick={() => router.push(`/${workspaceId}/${sourceType === "spreadsheet" ? "spreadsheet" : "whiteboard"}`)}
+            className="ml-auto flex items-center gap-1 text-[11px] font-medium text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white rounded-md px-2.5 py-1 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
+          >
+            Open in {sourceType === "spreadsheet" ? "Spreadsheet" : "Markerboard"}
+            <ArrowUpRight className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
       {/* Status badges */}
       {(locked || suggestEdits || isWiki || notifyMe) && (
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-black/6 dark:border-white/6 bg-black/[0.02] dark:bg-white/[0.02]">
@@ -573,6 +597,7 @@ export default function DocumentPage() {
   const [initialLastEdited, setInitialLastEdited] = useState<Date | undefined>(undefined);
   const [initialCreatedAt, setInitialCreatedAt] = useState<Date | undefined>(undefined);
   const [initialContent, setInitialContent] = useState<any>(undefined);
+  const [sourceType, setSourceType] = useState<string | null>(null);
   const [contentLoaded, setContentLoaded] = useState(false);
 
   // Load document metadata — reset state when documentId changes
@@ -583,6 +608,7 @@ export default function DocumentPage() {
     setInitialTitle("Untitled");
     setInitialLastEdited(undefined);
     setInitialCreatedAt(undefined);
+    setSourceType(null);
 
     (async () => {
       try {
@@ -598,6 +624,9 @@ export default function DocumentPage() {
           // server-side Yjs pre-seeding done in POST /api/documents.
           if (doc.content) {
             setInitialContent(doc.content);
+          }
+          if (doc.sourceType) {
+            setSourceType(doc.sourceType);
           }
         }
       } catch (err) {
@@ -625,6 +654,7 @@ export default function DocumentPage() {
         initialLastEdited={initialLastEdited}
         initialCreatedAt={initialCreatedAt}
         initialContent={initialContent}
+        sourceType={sourceType}
       />
     </Room>
   );

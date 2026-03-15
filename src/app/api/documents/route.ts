@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { workspaceId, title, content } = body;
+    const { workspaceId, title, content, sourceType } = body;
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
         title: title ?? "Untitled",
         content: content ?? undefined,
         createdBy: userId,
+        sourceType: sourceType ?? undefined,
       },
     });
 
