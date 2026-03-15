@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId: userOrgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -17,6 +17,11 @@ export async function GET(request: NextRequest) {
     const orgId = request.nextUrl.searchParams.get("orgId");
     if (!orgId) {
       return NextResponse.json({ error: "orgId required" }, { status: 400 });
+    }
+
+    // Only allow members of this org to list its members
+    if (userOrgId !== orgId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const clerk = await clerkClient();

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import type { AgentRole } from "@/lib/agents";
+import { canAccessDocument, canAccessWorkspace } from "@/lib/auth";
 
 /**
  * GET /api/breakouts?documentId=...
@@ -10,7 +11,7 @@ import type { AgentRole } from "@/lib/agents";
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
     const documentId = request.nextUrl.searchParams.get("documentId");
     if (!documentId) {
       return NextResponse.json({ error: "documentId required" }, { status: 400 });
+    }
+
+    if (!(await canAccessDocument(documentId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const breakouts = await db.breakout.findMany({
@@ -39,7 +44,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -54,7 +59,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "documentId and agentId required" }, { status: 400 });
     }
 
-    // Look up agent from DB
+    if (!(await canAccessDocument(documentId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Look up agent from DB and verify it belongs to the same workspace
     const agentConfig = await db.agentConfig.findUnique({ where: { id: agentId } });
     if (!agentConfig) {
       return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
@@ -151,7 +160,7 @@ ${documentContent || "(empty document)"}`;
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -159,6 +168,18 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    // Verify the breakout's document belongs to a workspace the user can access
+    const breakout = await db.breakout.findUnique({
+      where: { id },
+      select: { document: { select: { workspaceId: true } } },
+    });
+    if (!breakout) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (!(await canAccessWorkspace(breakout.document.workspaceId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     await db.breakout.delete({ where: { id } });

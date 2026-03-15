@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { Liveblocks } from "@liveblocks/node";
+import { db } from "@/lib/db";
+import { canAccessWorkspace } from "@/lib/auth";
 
 function getLiveblocks() {
   const secret = process.env.LIVEBLOCKS_SECRET_KEY;
@@ -14,7 +16,7 @@ function getLiveblocks() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -25,6 +27,18 @@ export async function GET(request: NextRequest) {
     }
 
     const ids = documentIds.split(",").filter(Boolean);
+
+    // Verify the user can access the workspace these documents belong to
+    if (ids.length > 0) {
+      const doc = await db.document.findFirst({
+        where: { id: { in: ids } },
+        select: { workspaceId: true },
+      });
+      if (doc && !(await canAccessWorkspace(doc.workspaceId, userId, orgId ?? null))) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const liveblocks = getLiveblocks();
 
     // Fetch active users for each room in parallel

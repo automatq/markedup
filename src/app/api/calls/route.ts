@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { toFile } from "openai";
+import { canAccessWorkspace } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export const maxDuration = 120; // 2 min timeout for long transcriptions
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
     const workspaceId = request.nextUrl.searchParams.get("workspaceId");
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId required" }, { status: 400 });
+    }
+
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const calls = await db.callLog.findMany({
@@ -48,7 +53,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -67,6 +72,10 @@ export async function POST(request: NextRequest) {
     }
     if (!workspaceId) {
       return NextResponse.json({ error: "workspaceId required" }, { status: 400 });
+    }
+
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -182,7 +191,7 @@ sales,discovery,qualified
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -190,6 +199,18 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    // Verify the call belongs to a workspace the user can access
+    const call = await db.callLog.findUnique({
+      where: { id },
+      select: { workspaceId: true },
+    });
+    if (!call) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (!(await canAccessWorkspace(call.workspaceId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     await db.callLog.delete({ where: { id } });

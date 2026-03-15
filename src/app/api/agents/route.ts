@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
+import { canAccessWorkspace } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -19,12 +20,17 @@ export async function POST(request: NextRequest) {
 
     const { agentId, message, documentContent, history, workspaceId } = await request.json();
 
-    // Look up agent from workspace config
+    // Look up agent and verify workspace access
     const agent = await db.agentConfig.findFirst({
       where: { id: agentId },
     });
     if (!agent) {
       return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
+    }
+
+    // Verify user can access the workspace this agent belongs to
+    if (!(await canAccessWorkspace(agent.workspaceId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const systemPrompt = documentContent

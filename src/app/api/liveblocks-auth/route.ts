@@ -1,6 +1,7 @@
 import { Liveblocks } from "@liveblocks/node";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 let _liveblocks: Liveblocks | null = null;
 function getLiveblocks() {
@@ -17,7 +18,7 @@ function getLiveblocks() {
 export async function POST() {
   try {
     const liveblocks = getLiveblocks();
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -40,11 +41,31 @@ export async function POST() {
       },
     });
 
-    // Grant access to all document rooms for authenticated users.
-    // Document-level access is enforced at the API layer (/api/documents).
-    // TODO: For stricter isolation, scope to specific document IDs per workspace
-    // and re-authenticate when new documents are created.
-    session.allow("document:*", session.FULL_ACCESS);
+    // Scope access to only documents in workspaces the user can access
+    const workspaces = await db.workspace.findMany({
+      where: {
+        OR: [
+          { ownerId: userId },
+          ...(orgId ? [{ orgId, isPersonal: false }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    const wsIds = workspaces.map((w) => w.id);
+
+    if (wsIds.length > 0) {
+      // Get all document IDs in accessible workspaces
+      const documents = await db.document.findMany({
+        where: { workspaceId: { in: wsIds }, deletedAt: null },
+        select: { id: true },
+      });
+
+      // Grant access to each document room individually
+      for (const doc of documents) {
+        session.allow(`document:${doc.id}`, session.FULL_ACCESS);
+      }
+    }
 
     const { status, body } = await session.authorize();
 

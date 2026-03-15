@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { canAccessWorkspace } from "@/lib/auth";
 
 /**
  * POST /api/calls/save
@@ -9,7 +10,7 @@ import { db } from "@/lib/db";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -17,6 +18,10 @@ export async function POST(request: NextRequest) {
     const { callId, workspaceId } = await request.json();
     if (!callId || !workspaceId) {
       return NextResponse.json({ error: "callId and workspaceId required" }, { status: 400 });
+    }
+
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const call = await db.callLog.findUnique({ where: { id: callId } });

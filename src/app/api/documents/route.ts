@@ -3,21 +3,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { Liveblocks } from "@liveblocks/node";
 import { tiptapJsonToYjsUpdate } from "@/lib/yjs-init";
-
-/** Check if the authenticated user can access a workspace */
-async function canAccessWorkspace(workspaceId: string, userId: string, orgId: string | null | undefined) {
-  const workspace = await db.workspace.findFirst({
-    where: {
-      id: workspaceId,
-      OR: [
-        { ownerId: userId },
-        ...(orgId ? [{ orgId, isPersonal: false }] : []),
-      ],
-    },
-    select: { id: true },
-  });
-  return !!workspace;
-}
+import { canAccessWorkspace } from "@/lib/auth";
 
 function getLiveblocks() {
   const secret = process.env.LIVEBLOCKS_SECRET_KEY;
@@ -52,7 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify user can access this workspace (owner or org member for non-personal)
-    if (!(await canAccessWorkspace(workspaceId, userId, orgId))) {
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId ?? null))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -123,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user can access this workspace
-    if (!(await canAccessWorkspace(workspaceId, userId, orgId))) {
+    if (!(await canAccessWorkspace(workspaceId, userId, orgId ?? null))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

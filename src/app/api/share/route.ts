@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { canAccessDocument } from "@/lib/auth";
 
 /// Create a share link for a document
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -16,6 +17,11 @@ export async function POST(request: NextRequest) {
         { error: "documentId is required" },
         { status: 400 }
       );
+    }
+
+    // Verify user can access the document before creating a share link
+    if (!(await canAccessDocument(documentId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Check if a share link already exists for this document

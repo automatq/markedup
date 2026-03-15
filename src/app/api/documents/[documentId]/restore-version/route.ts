@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { Liveblocks } from "@liveblocks/node";
+import { canAccessDocument } from "@/lib/auth";
 
 function getLiveblocks() {
   const secret = process.env.LIVEBLOCKS_SECRET_KEY;
@@ -18,12 +19,17 @@ export async function POST(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { documentId } = await params;
+
+    if (!(await canAccessDocument(documentId, userId, orgId ?? null))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { roomId, createdAt } = await request.json();
 
     if (!roomId || !createdAt) {
