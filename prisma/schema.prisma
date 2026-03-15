@@ -247,6 +247,55 @@ model WorkspaceIntegration {
   @@index([workspaceId])
 }
 
+/// Weekly KPI targets and actuals per team member
+model Kpi {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Clerk user ID of the team member this KPI belongs to
+  userId      String
+  /// KPI name (e.g. "Docs Created", "Calls Made", "Revenue Closed")
+  name        String
+  /// Target value for the week
+  target      Float
+  /// Actual value (updated as the week progresses)
+  actual      Float    @default(0)
+  /// Unit label (e.g. "docs", "calls", "$", "%")
+  unit        String   @default("")
+  /// ISO week string (e.g. "2026-W11")
+  week        String
+  /// Category for grouping: "output" | "quality" | "growth" | "custom"
+  category    String   @default("custom")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, userId, name, week])
+  @@index([workspaceId, week])
+  @@index([workspaceId, userId])
+}
+
+/// Per-workspace agent monitoring toggle + config
+model AgentMonitor {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Which agent config is monitoring
+  agentConfigId String
+  /// Whether this agent is actively monitoring
+  enabled     Boolean  @default(false)
+  /// What to monitor: JSON array e.g. ["docs","calls","github","kpis"]
+  watchList   Json     @default("[]")
+  /// How often to auto-report: "daily" | "weekly" | "realtime"
+  frequency   String   @default("weekly")
+  /// Last time the agent ran an auto-analysis
+  lastRunAt   DateTime?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, agentConfigId])
+  @@index([workspaceId])
+}
+
 /// Track who viewed a document and when
 model DocumentView {
   id         String   @id @default(cuid())

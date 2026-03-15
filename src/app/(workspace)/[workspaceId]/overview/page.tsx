@@ -35,6 +35,12 @@ import {
   Zap,
   Clock,
   Settings,
+  CheckCircle2,
+  AlertTriangle,
+  Trash2,
+  Power,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   Card,
@@ -116,6 +122,29 @@ interface GitHubData {
   commits?: { sha: string; message: string; author: string; authorAvatar?: string; date: string; url: string }[];
   timeline?: { date: string; commits: number; authors: number }[];
   authors?: { name: string; avatar?: string; commits: number }[];
+}
+
+interface KpiItem {
+  id: string;
+  userId: string;
+  name: string;
+  target: number;
+  actual: number;
+  unit: string;
+  week: string;
+  category: string;
+}
+
+interface KpiData {
+  week: string;
+  currentWeek: string;
+  members: { userId: string; kpis: KpiItem[] }[];
+  all: KpiItem[];
+}
+
+interface AgentMonitorItem {
+  agent: { id: string; name: string; title: string; roleId: string; color: string; avatar: string };
+  monitor: { id: string; enabled: boolean; watchList: string[]; frequency: string; lastRunAt: string | null } | null;
 }
 
 /* ──────────────────── Chart configs ──────────────────── */
@@ -218,6 +247,19 @@ export default function OverviewPage() {
   const [ghSaving, setGhSaving] = useState(false);
   const [ghError, setGhError] = useState("");
 
+  // KPI state
+  const [kpiData, setKpiData] = useState<KpiData | null>(null);
+  const [showAddKpi, setShowAddKpi] = useState(false);
+  const [kpiName, setKpiName] = useState("");
+  const [kpiTarget, setKpiTarget] = useState("");
+  const [kpiUnit, setKpiUnit] = useState("");
+  const [kpiUserId, setKpiUserId] = useState("");
+  const [kpiCategory, setKpiCategory] = useState("output");
+
+  // Agent monitor state
+  const [agentMonitors, setAgentMonitors] = useState<AgentMonitorItem[]>([]);
+  const [showAgentMonitors, setShowAgentMonitors] = useState(false);
+
   const fetchOverview = useCallback(async () => {
     try {
       const res = await fetch(`/api/overview?workspaceId=${workspaceId}`);
@@ -280,13 +322,86 @@ export default function OverviewPage() {
     setGhSaving(false);
   }, [workspaceId, ghOwner, ghRepo, ghToken, fetchGitHub]);
 
+  const fetchKpis = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/kpis?workspaceId=${workspaceId}`);
+      if (res.ok) setKpiData(await res.json());
+    } catch {}
+  }, [workspaceId]);
+
+  const fetchAgentMonitors = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agents/monitor?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const d = await res.json();
+        setAgentMonitors(d.agents || []);
+      }
+    } catch {}
+  }, [workspaceId]);
+
+  const addKpi = useCallback(async () => {
+    if (!kpiName || !kpiTarget || !kpiUserId) return;
+    try {
+      const res = await fetch("/api/kpis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          userId: kpiUserId,
+          name: kpiName,
+          target: parseFloat(kpiTarget),
+          unit: kpiUnit,
+          category: kpiCategory,
+        }),
+      });
+      if (res.ok) {
+        setKpiName("");
+        setKpiTarget("");
+        setKpiUnit("");
+        setShowAddKpi(false);
+        fetchKpis();
+      }
+    } catch {}
+  }, [workspaceId, kpiName, kpiTarget, kpiUnit, kpiUserId, kpiCategory, fetchKpis]);
+
+  const updateKpiActual = useCallback(async (id: string, actual: number) => {
+    try {
+      await fetch("/api/kpis", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, actual }),
+      });
+      fetchKpis();
+    } catch {}
+  }, [fetchKpis]);
+
+  const deleteKpi = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/kpis?id=${id}`, { method: "DELETE" });
+      fetchKpis();
+    } catch {}
+  }, [fetchKpis]);
+
+  const toggleAgentMonitor = useCallback(async (agentConfigId: string, enabled: boolean) => {
+    try {
+      await fetch("/api/agents/monitor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, agentConfigId, enabled }),
+      });
+      fetchAgentMonitors();
+    } catch {}
+  }, [workspaceId, fetchAgentMonitors]);
+
   useEffect(() => {
     fetchOverview();
     fetchInsights();
     fetchGitHub();
+    fetchKpis();
+    fetchAgentMonitors();
     const interval = setInterval(fetchOverview, 30000);
     return () => clearInterval(interval);
-  }, [fetchOverview, fetchInsights, fetchGitHub]);
+  }, [fetchOverview, fetchInsights, fetchGitHub, fetchKpis, fetchAgentMonitors]);
 
   if (loading) {
     return (
@@ -838,6 +953,274 @@ export default function OverviewPage() {
               </button>
             )}
           </div>
+        )}
+
+        {/* ═══════ TEAM SCORECARDS + KPIs ═══════ */}
+        <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+          <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-indigo-500" />
+              <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                Team Scorecards
+              </CardTitle>
+              <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5 ml-1">
+                {kpiData?.week || "This Week"}
+              </span>
+              <button
+                onClick={() => setShowAddKpi(!showAddKpi)}
+                className="ml-auto flex items-center gap-1 text-[10px] text-indigo-500 hover:text-indigo-600 transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                Add KPI
+              </button>
+            </div>
+            <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+              Weekly targets and signal strength for each team member
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {/* Add KPI form */}
+            {showAddKpi && (
+              <div className="mb-4 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.03] p-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
+                  <div>
+                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Member</label>
+                    <select
+                      value={kpiUserId}
+                      onChange={(e) => setKpiUserId(e.target.value)}
+                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white outline-none"
+                    >
+                      <option value="">Select...</option>
+                      {data.memberActivity.map((m) => (
+                        <option key={m.userId} value={m.userId}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">KPI Name</label>
+                    <input value={kpiName} onChange={(e) => setKpiName(e.target.value)} placeholder="e.g. Docs Created"
+                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Target</label>
+                    <input value={kpiTarget} onChange={(e) => setKpiTarget(e.target.value)} type="number" placeholder="10"
+                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Unit</label>
+                    <input value={kpiUnit} onChange={(e) => setKpiUnit(e.target.value)} placeholder="docs"
+                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={addKpi} disabled={!kpiName || !kpiTarget || !kpiUserId}
+                      className="w-full rounded-md bg-indigo-500 px-3 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 transition-colors disabled:opacity-40">
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Member scorecards */}
+            {data.memberActivity.length > 0 ? (
+              <div className="space-y-4">
+                {data.memberActivity.map((member) => {
+                  const memberKpis = kpiData?.all.filter((k) => k.userId === member.userId) || [];
+                  const snMember = sn?.members.find((m) => m.name === member.name);
+                  const totalTarget = memberKpis.reduce((s, k) => s + k.target, 0);
+                  const totalActual = memberKpis.reduce((s, k) => s + k.actual, 0);
+                  const overallProgress = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : null;
+
+                  return (
+                    <div key={member.userId} className="rounded-xl border border-black/6 dark:border-white/8 p-4">
+                      {/* Member header */}
+                      <div className="flex items-center gap-3 mb-3">
+                        {member.avatar ? (
+                          <img src={member.avatar} alt="" className="h-8 w-8 rounded-full shrink-0" />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center shrink-0">
+                            <span className="text-[11px] font-bold text-black/40 dark:text-white/40">{member.name.charAt(0).toUpperCase()}</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-black dark:text-white">{member.name}</p>
+                          <p className="text-[10px] text-black/30 dark:text-white/30">
+                            {member.docs} pages · {member.edits} edits this week
+                          </p>
+                        </div>
+
+                        {/* Signal indicator */}
+                        {snMember && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-right">
+                              <div className="flex items-center gap-1">
+                                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                                <span className="text-[10px] text-black/40 dark:text-white/40">{snMember.signal}%</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="h-2 w-2 rounded-full bg-red-500" />
+                                <span className="text-[10px] text-black/40 dark:text-white/40">{snMember.noise}%</span>
+                              </div>
+                            </div>
+                            <div className="w-16 h-8">
+                              <div className="h-full flex flex-col justify-center gap-0.5">
+                                <div className="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${snMember.signal}%` }} />
+                                </div>
+                                <div className="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                                  <div className="h-full bg-red-500 rounded-full transition-all" style={{ width: `${snMember.noise}%` }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Overall KPI progress */}
+                        {overallProgress !== null && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {overallProgress >= 80 ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            ) : overallProgress >= 50 ? (
+                              <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4 text-red-500" />
+                            )}
+                            <span className={`text-sm font-bold ${
+                              overallProgress >= 80 ? "text-emerald-500" : overallProgress >= 50 ? "text-amber-500" : "text-red-500"
+                            }`}>
+                              {overallProgress}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* KPIs */}
+                      {memberKpis.length > 0 ? (
+                        <div className="space-y-2">
+                          {memberKpis.map((kpi) => {
+                            const pct = kpi.target > 0 ? Math.min(100, Math.round((kpi.actual / kpi.target) * 100)) : 0;
+                            const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+                            return (
+                              <div key={kpi.id} className="flex items-center gap-3">
+                                <span className="text-[11px] text-black/50 dark:text-white/50 w-28 truncate shrink-0">{kpi.name}</span>
+                                <div className="flex-1 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                                  <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <input
+                                    type="number"
+                                    value={kpi.actual}
+                                    onChange={(e) => updateKpiActual(kpi.id, parseFloat(e.target.value) || 0)}
+                                    className="w-12 rounded border border-black/10 dark:border-white/10 bg-transparent px-1.5 py-0.5 text-[10px] text-black dark:text-white text-center outline-none focus:border-indigo-500"
+                                  />
+                                  <span className="text-[10px] text-black/25 dark:text-white/25">/ {kpi.target} {kpi.unit}</span>
+                                  <button onClick={() => deleteKpi(kpi.id)} className="text-black/15 dark:text-white/15 hover:text-red-500 transition-colors">
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-black/20 dark:text-white/20 italic">
+                          No KPIs set — click "Add KPI" to track targets for this member
+                        </p>
+                      )}
+
+                      {/* Signal insight */}
+                      {snMember?.insight && (
+                        <p className="mt-2 text-[10px] text-black/35 dark:text-white/35 italic leading-relaxed">
+                          {snMember.insight}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[11px] text-black/30 dark:text-white/30 text-center py-6">
+                No team members with activity yet
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ═══════ AGENT MONITORING ═══════ */}
+        {data.agents.length > 0 && (
+          <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+            <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-purple-500" />
+                <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                  Active Agent Monitoring
+                </CardTitle>
+                <button
+                  onClick={() => setShowAgentMonitors(!showAgentMonitors)}
+                  className="ml-auto text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
+                >
+                  {showAgentMonitors ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+              </div>
+              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                Toggle agents to actively watch workspace activity and help you reach targets
+              </CardDescription>
+            </CardHeader>
+            {showAgentMonitors && (
+              <CardContent className="pt-4">
+                <div className="space-y-2">
+                  {agentMonitors.map(({ agent, monitor }) => (
+                    <div key={agent.id} className="flex items-center gap-3 rounded-lg border border-black/6 dark:border-white/8 px-4 py-3">
+                      <div
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+                        style={{ backgroundColor: agent.color }}
+                      >
+                        {agent.avatar}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-black dark:text-white">{agent.name}</p>
+                        <p className="text-[10px] text-black/35 dark:text-white/35">{agent.title}</p>
+                      </div>
+
+                      {/* Frequency badge */}
+                      {monitor?.enabled && (
+                        <span className="text-[9px] text-purple-500 bg-purple-500/10 rounded-full px-2 py-0.5 font-medium shrink-0">
+                          {monitor.frequency}
+                        </span>
+                      )}
+
+                      {/* Last run */}
+                      {monitor?.lastRunAt && (
+                        <span className="text-[9px] text-black/20 dark:text-white/20 shrink-0">
+                          Last: {timeAgo(monitor.lastRunAt)}
+                        </span>
+                      )}
+
+                      {/* Toggle */}
+                      <button
+                        onClick={() => toggleAgentMonitor(agent.id, !monitor?.enabled)}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-medium transition-all shrink-0 ${
+                          monitor?.enabled
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            : "bg-black/5 dark:bg-white/5 text-black/30 dark:text-white/30 border border-black/8 dark:border-white/8"
+                        }`}
+                      >
+                        <Power className="h-3 w-3" />
+                        {monitor?.enabled ? "Active" : "Off"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {agentMonitors.some((a) => a.monitor?.enabled) && (
+                  <p className="mt-3 text-[10px] text-black/30 dark:text-white/30 leading-relaxed">
+                    Active agents will analyze workspace activity, track KPI progress, and generate reports
+                    to help your team stay on target. Agents run on their configured frequency.
+                  </p>
+                )}
+              </CardContent>
+            )}
+          </Card>
         )}
 
         {/* ═══════ ACTIVITY FEED + SIDEBAR ═══════ */}
