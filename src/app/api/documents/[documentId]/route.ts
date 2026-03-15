@@ -116,7 +116,7 @@ export async function DELETE(
 
     await db.document.update({
       where: { id: documentId },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), deletedBy: userId },
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

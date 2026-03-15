@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { X, Trash2, RotateCcw, Loader2, AlertTriangle } from "lucide-react";
+import { X, Trash2, RotateCcw, Loader2, Clock } from "lucide-react";
 
 interface TrashedDoc {
   id: string;
   title: string;
   deletedAt: string;
+  deletedByName?: string | null;
 }
 
 interface TrashDialogProps {
@@ -31,6 +32,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
+/** Days remaining before auto-delete (3-day window) */
+function daysRemaining(dateStr: string): number {
+  const deleted = new Date(dateStr).getTime();
+  const expiry = deleted + 3 * 24 * 60 * 60 * 1000;
+  const remaining = expiry - Date.now();
+  return Math.max(0, Math.ceil(remaining / (24 * 60 * 60 * 1000)));
+}
+
 export function TrashDialog({
   open,
   onClose,
@@ -40,7 +49,6 @@ export function TrashDialog({
   const [docs, setDocs] = useState<TrashedDoc[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const fetchTrash = useCallback(async () => {
     if (!workspaceId) return;
@@ -62,7 +70,6 @@ export function TrashDialog({
   useEffect(() => {
     if (open) {
       fetchTrash();
-      setConfirmDeleteId(null);
     }
   }, [open, fetchTrash]);
 
@@ -84,22 +91,6 @@ export function TrashDialog({
     },
     [onRestored]
   );
-
-  const permanentDelete = useCallback(async (id: string) => {
-    setActionId(id);
-    try {
-      const res = await fetch(`/api/documents/${id}/permanent-delete`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setDocs((prev) => prev.filter((d) => d.id !== id));
-      }
-    } catch {
-      // ignore
-    }
-    setActionId(null);
-    setConfirmDeleteId(null);
-  }, []);
 
   if (!open) return null;
 
@@ -125,6 +116,14 @@ export function TrashDialog({
           </button>
         </div>
 
+        {/* Auto-delete notice */}
+        <div className="mx-5 mb-3 flex items-center gap-2 rounded-lg bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/10 dark:border-amber-500/15 px-3 py-2">
+          <Clock className="h-3.5 w-3.5 text-amber-500/60 shrink-0" />
+          <p className="text-[11px] text-amber-600/70 dark:text-amber-400/70">
+            Items in trash are automatically deleted after 3 days
+          </p>
+        </div>
+
         <div className="flex-1 overflow-y-auto px-5 pb-5">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -142,66 +141,50 @@ export function TrashDialog({
             </div>
           ) : (
             <div className="space-y-1.5">
-              {docs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center gap-3 rounded-xl border border-black/6 dark:border-white/8 px-3 py-2.5"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-black/70 dark:text-white/70 truncate">
-                      {doc.title || "Untitled"}
-                    </p>
-                    <p className="text-[10px] text-black/30 dark:text-white/30">
-                      Deleted {formatDate(doc.deletedAt)}
-                    </p>
-                  </div>
+              {docs.map((doc) => {
+                const days = daysRemaining(doc.deletedAt);
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-3 rounded-xl border border-black/6 dark:border-white/8 px-3 py-2.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-black/70 dark:text-white/70 truncate">
+                        {doc.title || "Untitled"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] text-black/30 dark:text-white/30">
+                          {doc.deletedByName
+                            ? `Deleted by ${doc.deletedByName}`
+                            : "Deleted"}{" "}
+                          {formatDate(doc.deletedAt)}
+                        </p>
+                        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                          days <= 1
+                            ? "bg-red-500/10 text-red-500 dark:text-red-400"
+                            : "bg-black/[0.04] dark:bg-white/[0.06] text-black/30 dark:text-white/30"
+                        }`}>
+                          {days === 0 ? "Expiring soon" : `${days}d left`}
+                        </span>
+                      </div>
+                    </div>
 
-                  {confirmDeleteId === doc.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => permanentDelete(doc.id)}
-                        disabled={actionId === doc.id}
-                        className="flex items-center gap-1 rounded-lg bg-red-500 px-2 py-1 text-[10px] font-medium text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-                      >
-                        {actionId === doc.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <AlertTriangle className="h-3 w-3" />
-                        )}
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="rounded-lg px-2 py-1 text-[10px] font-medium text-black/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => restoreDoc(doc.id)}
-                        disabled={actionId === doc.id}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-black/30 dark:text-white/30 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
-                        title="Restore"
-                      >
-                        {actionId === doc.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(doc.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-black/20 dark:text-white/20 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                        title="Delete permanently"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    <button
+                      onClick={() => restoreDoc(doc.id)}
+                      disabled={actionId === doc.id}
+                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-black/40 dark:text-white/40 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                      title="Restore"
+                    >
+                      {actionId === doc.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      )}
+                      Restore
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

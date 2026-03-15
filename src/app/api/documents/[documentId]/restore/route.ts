@@ -32,7 +32,7 @@ export async function POST(
 
     await db.document.update({
       where: { id: documentId },
-      data: { deletedAt: null },
+      data: { deletedAt: null, deletedBy: null },
     });
 
     return NextResponse.json({ ok: true });

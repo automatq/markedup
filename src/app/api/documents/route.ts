@@ -53,35 +53,47 @@ export async function GET(request: NextRequest) {
 
     const showTrash = request.nextUrl.searchParams.get("trash") === "true";
 
+    // Auto-purge: permanently delete trash items older than 3 days
+    if (showTrash) {
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      await db.document.deleteMany({
+        where: { workspaceId, deletedAt: { not: null, lt: threeDaysAgo } },
+      }).catch(() => {});
+    }
+
     const documents = await db.document.findMany({
       where: {
         workspaceId,
         deletedAt: showTrash ? { not: null } : null,
       },
-      select: { id: true, title: true, updatedAt: true, deletedAt: true, createdBy: true },
+      select: { id: true, title: true, updatedAt: true, deletedAt: true, createdBy: true, deletedBy: true },
       orderBy: showTrash ? { deletedAt: "desc" } : { updatedAt: "desc" },
     });
 
-    // Resolve author names for documents with createdBy
-    const authorIds = [...new Set(documents.map((d: any) => d.createdBy).filter(Boolean))];
-    const authorMap: Record<string, string> = {};
-    if (authorIds.length > 0) {
+    // Resolve user names for both createdBy and deletedBy
+    const userIds = [...new Set([
+      ...documents.map((d: any) => d.createdBy),
+      ...documents.map((d: any) => d.deletedBy),
+    ].filter(Boolean))];
+    const userMap: Record<string, string> = {};
+    if (userIds.length > 0) {
       try {
         const clerk = await clerkClient();
-        const users = await Promise.all(authorIds.map((id) => clerk.users.getUser(id).catch(() => null)));
+        const users = await Promise.all(userIds.map((id) => clerk.users.getUser(id).catch(() => null)));
         for (const u of users) {
           if (u) {
-            authorMap[u.id] = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.emailAddresses[0]?.emailAddress || "Unknown";
+            userMap[u.id] = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.emailAddresses[0]?.emailAddress || "Unknown";
           }
         }
       } catch {
-        // Non-fatal — docs still returned, just without author names
+        // Non-fatal — docs still returned, just without user names
       }
     }
 
     const enriched = documents.map((d: any) => ({
       ...d,
-      authorName: d.createdBy ? (authorMap[d.createdBy] || "Unknown") : null,
+      authorName: d.createdBy ? (userMap[d.createdBy] || "Unknown") : null,
+      deletedByName: d.deletedBy ? (userMap[d.deletedBy] || "Unknown") : null,
     }));
 
     return NextResponse.json(enriched);
