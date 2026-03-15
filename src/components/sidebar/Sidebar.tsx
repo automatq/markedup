@@ -216,6 +216,13 @@ export function Sidebar({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [authorDropdownOpen]);
+
+  // Reset author filter when switching workspaces
+  useEffect(() => {
+    setSelectedAuthor("all");
+    setAuthorDropdownOpen(false);
+  }, [params?.workspaceId]);
+
   const [textIntensity, setTextIntensity] = useState(0.85);
   const [fontScale, setFontScale] = useState(1);
   const [lineSpacing, setLineSpacing] = useState(1);
@@ -510,14 +517,16 @@ export function Sidebar({
       {/* Author Filter Dropdown (team workspaces only) */}
       {(() => {
         const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
-        const hasAuthors = isTeam && filtered.some((d) => d.authorName);
+        const hasAuthors = isTeam && filtered.some((d) => d.createdBy);
         if (!hasAuthors) return null;
 
         const currentUserId = user?.id;
         const authorMap: Record<string, string> = {};
         for (const doc of filtered) {
-          if (doc.createdBy && doc.authorName) {
-            authorMap[doc.createdBy] = doc.createdBy === currentUserId ? "You" : doc.authorName;
+          if (doc.createdBy) {
+            if (!authorMap[doc.createdBy]) {
+              authorMap[doc.createdBy] = doc.createdBy === currentUserId ? "You" : (doc.authorName || "Team Member");
+            }
           }
         }
         const sortedAuthors = Object.entries(authorMap).sort((a, b) => {
@@ -585,7 +594,7 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto px-2 py-1">
         {(() => {
           const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
-          const hasAuthors = isTeam && filtered.some((d) => d.authorName);
+          const hasAuthors = isTeam && filtered.some((d) => d.createdBy);
           const currentUserId = user?.id;
 
           // Apply author filter for team workspaces
@@ -624,7 +633,7 @@ export function Sidebar({
                   const docs = groups[authorId];
                   const authorName = authorId === currentUserId
                     ? "You"
-                    : docs[0]?.authorName || "Unknown";
+                    : docs[0]?.authorName || "Team Member";
                   const isCollapsed = collapsedAuthors.has(authorId);
 
                   return (
