@@ -27,7 +27,8 @@ export async function POST() {
     const name = user
       ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Anonymous"
       : "Anonymous";
-    const avatar = user?.imageUrl;
+    // Only pass avatar URL if user has a custom uploaded image
+    const avatar = user?.hasImage ? user.imageUrl : undefined;
     const color =
       (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
 

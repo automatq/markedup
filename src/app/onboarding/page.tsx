@@ -271,9 +271,9 @@ function OnboardingInner() {
             <div className="relative group">
               <div
                 className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white transition-colors overflow-hidden"
-                style={{ backgroundColor: user?.imageUrl ? undefined : avatarColor }}
+                style={{ backgroundColor: user?.hasImage ? undefined : avatarColor }}
               >
-                {user?.imageUrl ? (
+                {user?.hasImage && user?.imageUrl ? (
                   <img src={user.imageUrl} alt="" className="h-full w-full object-cover" />
                 ) : firstName.trim() ? (
                   `${firstName.trim()[0]}${lastName.trim()?.[0] || ""}`.toUpperCase()

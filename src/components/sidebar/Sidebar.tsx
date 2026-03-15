@@ -25,7 +25,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 
@@ -56,6 +56,7 @@ interface SidebarProps {
 function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
   const { user } = useUser();
   const avatarColor = (user?.unsafeMetadata?.avatarColor as string) ?? "#6366f1";
+  const hasCustomImage = user?.hasImage;
   const initials = user
     ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() ||
       user.emailAddresses[0]?.emailAddress[0]?.toUpperCase() ||
@@ -67,9 +68,9 @@ function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
   return (
     <div
       className={`${sizeClass} rounded-full flex items-center justify-center font-semibold text-white overflow-hidden shrink-0`}
-      style={{ backgroundColor: user?.imageUrl ? undefined : avatarColor }}
+      style={{ backgroundColor: hasCustomImage ? undefined : avatarColor }}
     >
-      {user?.imageUrl ? (
+      {hasCustomImage && user?.imageUrl ? (
         <img src={user.imageUrl} alt="" className="h-full w-full object-cover" />
       ) : (
         initials
@@ -190,6 +191,7 @@ export function Sidebar({
   const { setActive } = useOrganizationList();
   const router = useRouter();
   const params = useParams<{ workspaceId: string }>();
+  const pathname = usePathname();
   const [search, setSearch] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [dragOverTrash, setDragOverTrash] = useState(false);
@@ -426,7 +428,7 @@ export function Sidebar({
         <button
           onClick={() => router.push(`/${params?.workspaceId}`)}
           className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all ${
-            !activeDocumentId
+            pathname === `/${params?.workspaceId}`
               ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white font-medium"
               : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
           }`}
@@ -440,7 +442,11 @@ export function Sidebar({
       <div className="px-3 pb-2">
         <button
           onClick={() => router.push(`/${params?.workspaceId}/calls`)}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+          className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all ${
+            pathname === `/${params?.workspaceId}/calls`
+              ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white font-medium"
+              : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+          }`}
         >
           <Phone className="h-3.5 w-3.5 shrink-0" />
           Calls
@@ -695,6 +701,12 @@ export function Sidebar({
                           key={color}
                           onClick={async () => {
                             if (!user) return;
+                            // If user has a custom photo, remove it so the color shows
+                            if (user.hasImage) {
+                              try {
+                                await user.setProfileImage({ file: null });
+                              } catch {}
+                            }
                             await user.update({
                               unsafeMetadata: {
                                 ...((user.unsafeMetadata as Record<string, unknown>) || {}),
