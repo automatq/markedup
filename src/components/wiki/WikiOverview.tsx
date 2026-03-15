@@ -184,7 +184,7 @@ export function WikiOverview({
           <div className="flex items-center gap-2 text-black/30 dark:text-white/30 mb-3">
             <Brain className="h-4 w-4" />
             <span className="text-[10px] uppercase tracking-widest font-medium">
-              Business Wiki
+              Wiki
             </span>
           </div>
           <h1 className="text-3xl font-bold text-black dark:text-white tracking-tight">
