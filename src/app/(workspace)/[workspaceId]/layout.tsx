@@ -11,6 +11,8 @@ import { useRouter, useParams } from "next/navigation";
 interface DocEntry {
   id: string;
   title: string;
+  createdBy?: string | null;
+  authorName?: string | null;
 }
 
 export default function WorkspaceLayoutPage({

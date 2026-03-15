@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { Liveblocks } from "@liveblocks/node";
 import { tiptapJsonToYjsUpdate } from "@/lib/yjs-init";
@@ -63,11 +63,33 @@ export async function GET(request: NextRequest) {
         workspaceId,
         deletedAt: showTrash ? { not: null } : null,
       },
-      select: { id: true, title: true, updatedAt: true, deletedAt: true },
+      select: { id: true, title: true, updatedAt: true, deletedAt: true, createdBy: true },
       orderBy: showTrash ? { deletedAt: "desc" } : { updatedAt: "desc" },
     });
 
-    return NextResponse.json(documents);
+    // Resolve author names for documents with createdBy
+    const authorIds = [...new Set(documents.map((d: any) => d.createdBy).filter(Boolean))];
+    const authorMap: Record<string, string> = {};
+    if (authorIds.length > 0) {
+      try {
+        const clerk = await clerkClient();
+        const users = await Promise.all(authorIds.map((id) => clerk.users.getUser(id).catch(() => null)));
+        for (const u of users) {
+          if (u) {
+            authorMap[u.id] = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.emailAddresses[0]?.emailAddress || "Unknown";
+          }
+        }
+      } catch {
+        // Non-fatal — docs still returned, just without author names
+      }
+    }
+
+    const enriched = documents.map((d: any) => ({
+      ...d,
+      authorName: d.createdBy ? (authorMap[d.createdBy] || "Unknown") : null,
+    }));
+
+    return NextResponse.json(enriched);
   } catch (err) {
     console.error("GET /api/documents error:", err);
     return NextResponse.json({ error: "Failed to fetch documents" }, { status: 500 });
@@ -101,6 +123,7 @@ export async function POST(request: NextRequest) {
         workspaceId,
         title: title ?? "Untitled",
         content: content ?? undefined,
+        createdBy: userId,
       },
     });
 

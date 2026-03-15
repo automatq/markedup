@@ -37,6 +37,8 @@ model Document {
   title       String    @default("Untitled")
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Clerk user ID of who created this document
+  createdBy   String?
 
   /// TipTap JSONContent stored as JSON
   content Json?

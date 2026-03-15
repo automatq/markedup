@@ -22,6 +22,7 @@ import {
   Camera,
   Palette,
   Accessibility,
+  ChevronRight,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
@@ -31,6 +32,8 @@ import { ScribbleIcon } from "@/components/ScribbleIcon";
 export interface SidebarDocument {
   id: string;
   title: string;
+  createdBy?: string | null;
+  authorName?: string | null;
 }
 
 interface SidebarProps {
@@ -189,6 +192,7 @@ export function Sidebar({
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [a11yOpen, setA11yOpen] = useState(false);
+  const [collapsedAuthors, setCollapsedAuthors] = useState<Set<string>>(new Set());
   const [textIntensity, setTextIntensity] = useState(0.85);
   const [fontScale, setFontScale] = useState(1);
   const [lineSpacing, setLineSpacing] = useState(1);
@@ -478,32 +482,116 @@ export function Sidebar({
 
       {/* Document List */}
       <div className="flex-1 overflow-y-auto px-2 py-1">
-        <div className="space-y-0.5">
-          {filtered.map((doc) => (
-            <button
-              key={doc.id}
-              onClick={() => onSelectDocument(doc.id)}
-              draggable
-              onDragStart={(e) => handleDragStart(e, doc.id)}
-              onDragEnd={handleDragEnd}
-              className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 cursor-grab active:cursor-grabbing ${
-                draggingId === doc.id
-                  ? "opacity-40"
-                  : doc.id === activeDocumentId
-                    ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
-                    : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{doc.title || "Untitled"}</span>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="px-2 py-6 text-center text-xs text-black/30 dark:text-white/30">
-              No documents found
-            </p>
-          )}
-        </div>
+        {(() => {
+          const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
+          const hasAuthors = isTeam && filtered.some((d) => d.authorName);
+
+          if (hasAuthors) {
+            // Group documents by author
+            const groups: Record<string, SidebarDocument[]> = {};
+            const currentUserId = user?.id;
+            for (const doc of filtered) {
+              const key = doc.createdBy || "_unknown";
+              if (!groups[key]) groups[key] = [];
+              groups[key].push(doc);
+            }
+            // Sort: current user first, then alphabetically by author name
+            const sortedKeys = Object.keys(groups).sort((a, b) => {
+              if (a === currentUserId) return -1;
+              if (b === currentUserId) return 1;
+              const nameA = groups[a][0]?.authorName || "Unknown";
+              const nameB = groups[b][0]?.authorName || "Unknown";
+              return nameA.localeCompare(nameB);
+            });
+
+            const toggleAuthor = (authorId: string) => {
+              setCollapsedAuthors((prev) => {
+                const next = new Set(prev);
+                if (next.has(authorId)) next.delete(authorId);
+                else next.add(authorId);
+                return next;
+              });
+            };
+
+            return (
+              <div className="space-y-1">
+                {sortedKeys.map((authorId) => {
+                  const docs = groups[authorId];
+                  const authorName = authorId === currentUserId
+                    ? "You"
+                    : docs[0]?.authorName || "Unknown";
+                  const isCollapsed = collapsedAuthors.has(authorId);
+
+                  return (
+                    <div key={authorId}>
+                      <button
+                        onClick={() => toggleAuthor(authorId)}
+                        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-black/35 dark:text-white/35 hover:text-black/60 dark:hover:text-white/60 transition-colors"
+                      >
+                        <ChevronRight className={`h-3 w-3 transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
+                        <span className="truncate">{authorName}</span>
+                        <span className="text-black/20 dark:text-white/20 ml-auto">{docs.length}</span>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="space-y-0.5">
+                          {docs.map((doc) => (
+                            <button
+                              key={doc.id}
+                              onClick={() => onSelectDocument(doc.id)}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, doc.id)}
+                              onDragEnd={handleDragEnd}
+                              className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 pl-6 py-2 text-left text-sm transition-all duration-150 cursor-grab active:cursor-grabbing ${
+                                draggingId === doc.id
+                                  ? "opacity-40"
+                                  : doc.id === activeDocumentId
+                                    ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
+                                    : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+                              }`}
+                            >
+                              <FileText className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{doc.title || "Untitled"}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+
+          // Flat list for personal workspaces or when no author data
+          return (
+            <div className="space-y-0.5">
+              {filtered.map((doc) => (
+                <button
+                  key={doc.id}
+                  onClick={() => onSelectDocument(doc.id)}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, doc.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 cursor-grab active:cursor-grabbing ${
+                    draggingId === doc.id
+                      ? "opacity-40"
+                      : doc.id === activeDocumentId
+                        ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
+                        : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{doc.title || "Untitled"}</span>
+                </button>
+              ))}
+              {filtered.length === 0 && (
+                <p className="px-2 py-6 text-center text-xs text-black/30 dark:text-white/30">
+                  No documents found
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Trash — drop target */}
