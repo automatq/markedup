@@ -70,8 +70,8 @@ export function Whiteboard() {
   const [color, setColor] = useState("#ffffff");
   const [strokeWidth, setStrokeWidth] = useState(4);
 
-  const bgColor = boardMode === "blackboard" ? "#1a1a2e" : "#fafafa";
-  const gridColor = boardMode === "blackboard" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  const bgColor = boardMode === "blackboard" ? "#09090b" : "#fafafa";
+  const gridColor = boardMode === "blackboard" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
@@ -431,7 +431,7 @@ export function Whiteboard() {
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
       {/* Toolbar */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 rounded-xl border border-black/8 dark:border-white/10 bg-white/90 dark:bg-black/90 backdrop-blur-sm px-2 py-1.5 shadow-lg">
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 rounded-xl border border-black/8 dark:border-white/[0.12] bg-white/95 dark:bg-[#161618]/95 backdrop-blur-md px-2 py-1.5 shadow-lg">
         {tools.map((t) => (
           <button
             key={t.key}
@@ -518,7 +518,7 @@ export function Whiteboard() {
       </div>
 
       {/* Zoom controls */}
-      <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-lg border border-black/8 dark:border-white/10 bg-white/90 dark:bg-black/90 backdrop-blur-sm px-1 py-1 shadow-lg">
+      <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-lg border border-black/8 dark:border-white/[0.12] bg-white/95 dark:bg-[#161618]/95 backdrop-blur-md px-1 py-1 shadow-lg">
         <button onClick={() => setZoom((z) => Math.max(z * 0.8, 0.1))} className="flex h-7 w-7 items-center justify-center rounded text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">
           <ZoomOut className="h-3.5 w-3.5" />
         </button>
