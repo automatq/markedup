@@ -64,9 +64,9 @@ function runSimulation(
 ): GraphNode[] {
   const result = nodes.map((n, i) => ({
     ...n,
-    // Spread nodes in a spiral for better initial layout
-    x: Math.cos((i / Math.max(nodes.length, 1)) * Math.PI * 2 * 1.5) * Math.min(width, height) * 0.25,
-    y: Math.sin((i / Math.max(nodes.length, 1)) * Math.PI * 2 * 1.5) * Math.min(width, height) * 0.25,
+    // Spread nodes in a spiral — scale radius with node count
+    x: Math.cos((i / Math.max(nodes.length, 1)) * Math.PI * 2 * 1.5) * Math.sqrt(nodes.length) * 40,
+    y: Math.sin((i / Math.max(nodes.length, 1)) * Math.PI * 2 * 1.5) * Math.sqrt(nodes.length) * 40,
     vx: 0,
     vy: 0,
   }));
@@ -191,8 +191,33 @@ export function GraphView({
         const simulated = runSimulation(graphNodes, data.edges, w, h);
         setNodes(simulated);
         setEdges(data.edges);
-        setOffset({ x: 0, y: 0 });
-        setZoom(1);
+
+        // Auto-fit: compute bounding box and zoom to fill ~70% of viewport
+        if (simulated.length > 0) {
+          const dpr = window.devicePixelRatio || 1;
+          const cw = w * dpr;
+          const ch = h * dpr;
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const n of simulated) {
+            const r = getNodeRadius(n.connections || 0) + 30; // padding for labels
+            minX = Math.min(minX, n.x - r);
+            maxX = Math.max(maxX, n.x + r);
+            minY = Math.min(minY, n.y - r);
+            maxY = Math.max(maxY, n.y + r);
+          }
+          const graphW = maxX - minX || 1;
+          const graphH = maxY - minY || 1;
+          const centerX = (minX + maxX) / 2;
+          const centerY = (minY + maxY) / 2;
+          const fitZoom = Math.min(cw / graphW, ch / graphH) * 0.7;
+          // Clamp: don't zoom in too much on 1-2 nodes, don't zoom out too far
+          const clampedZoom = Math.max(0.5, Math.min(fitZoom, 3));
+          setZoom(clampedZoom);
+          setOffset({ x: -centerX, y: -centerY });
+        } else {
+          setOffset({ x: 0, y: 0 });
+          setZoom(1);
+        }
       } catch (err) {
         console.error("Failed to fetch graph:", err);
       } finally {
