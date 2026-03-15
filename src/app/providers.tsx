@@ -30,6 +30,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (localStorage.getItem("reduceMotion") === "true") el.classList.add("reduce-motion");
     if (localStorage.getItem("dyslexiaFont") === "true") el.classList.add("dyslexia-font");
     if (localStorage.getItem("highContrast") === "true") el.classList.add("high-contrast");
+
+    const uiFont = localStorage.getItem("uiFont");
+    if (uiFont) {
+      const fontMap: Record<string, string> = {
+        "geist-sans": "var(--font-geist-sans, system-ui, sans-serif)",
+        "geist-mono": "var(--font-geist-mono, 'Courier New', monospace)",
+        "inter": "var(--font-inter, system-ui, sans-serif)",
+        "dm-sans": "var(--font-dm-sans, system-ui, sans-serif)",
+        "space-grotesk": "var(--font-space-grotesk, system-ui, sans-serif)",
+        "jetbrains-mono": "var(--font-jetbrains-mono, 'Courier New', monospace)",
+        "ibm-plex-sans": "var(--font-ibm-plex-sans, system-ui, sans-serif)",
+        "ibm-plex-mono": "var(--font-ibm-plex-mono, 'Courier New', monospace)",
+      };
+      el.style.setProperty("--ui-font", fontMap[uiFont] || fontMap["geist-sans"]);
+    }
   }, []);
 
   return (

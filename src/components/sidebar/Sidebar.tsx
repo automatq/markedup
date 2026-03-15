@@ -252,6 +252,7 @@ export function Sidebar({
   const [reduceMotion, setReduceMotion] = useState(false);
   const [dyslexiaFont, setDyslexiaFont] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
+  const [uiFont, setUiFont] = useState("geist-sans");
 
   // Fetch workspaces
   React.useEffect(() => {
@@ -274,6 +275,8 @@ export function Sidebar({
     setReduceMotion(localStorage.getItem("reduceMotion") === "true");
     setDyslexiaFont(localStorage.getItem("dyslexiaFont") === "true");
     setHighContrast(localStorage.getItem("highContrast") === "true");
+    const savedFont = localStorage.getItem("uiFont");
+    if (savedFont) setUiFont(savedFont);
   }, []);
 
   const updateA11y = useCallback((key: string, value: string) => {
@@ -300,6 +303,19 @@ export function Sidebar({
       const on = value === "true";
       setHighContrast(on);
       el.classList.toggle("high-contrast", on);
+    } else if (key === "uiFont") {
+      setUiFont(value);
+      const fontMap: Record<string, string> = {
+        "geist-sans": "var(--font-geist-sans, system-ui, sans-serif)",
+        "geist-mono": "var(--font-geist-mono, 'Courier New', monospace)",
+        "inter": "var(--font-inter, system-ui, sans-serif)",
+        "dm-sans": "var(--font-dm-sans, system-ui, sans-serif)",
+        "space-grotesk": "var(--font-space-grotesk, system-ui, sans-serif)",
+        "jetbrains-mono": "var(--font-jetbrains-mono, 'Courier New', monospace)",
+        "ibm-plex-sans": "var(--font-ibm-plex-sans, system-ui, sans-serif)",
+        "ibm-plex-mono": "var(--font-ibm-plex-mono, 'Courier New', monospace)",
+      };
+      el.style.setProperty("--ui-font", fontMap[value] || fontMap["geist-sans"]);
     }
   }, []);
 
@@ -988,6 +1004,38 @@ export function Sidebar({
                           className="flex-1 h-1 rounded-full appearance-none bg-black/10 dark:bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
                         />
                         <span className="text-[9px] text-black/25 dark:text-white/25">Wide</span>
+                      </div>
+                    </div>
+
+                    {/* UI Font */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">UI Font</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {([
+                          { key: "geist-sans", label: "Geist", css: "var(--font-geist-sans)" },
+                          { key: "inter", label: "Inter", css: "var(--font-inter)" },
+                          { key: "dm-sans", label: "DM Sans", css: "var(--font-dm-sans)" },
+                          { key: "space-grotesk", label: "Space Grotesk", css: "var(--font-space-grotesk)" },
+                          { key: "ibm-plex-sans", label: "IBM Plex", css: "var(--font-ibm-plex-sans)" },
+                          { key: "geist-mono", label: "Geist Mono", css: "var(--font-geist-mono)" },
+                          { key: "jetbrains-mono", label: "JetBrains", css: "var(--font-jetbrains-mono)" },
+                          { key: "ibm-plex-mono", label: "IBM Mono", css: "var(--font-ibm-plex-mono)" },
+                        ] as const).map((f) => (
+                          <button
+                            key={f.key}
+                            onClick={() => updateA11y("uiFont", f.key)}
+                            className={`rounded-md border px-2 py-1.5 text-left transition-all ${
+                              uiFont === f.key
+                                ? "border-black dark:border-white bg-black/[0.04] dark:bg-white/[0.04]"
+                                : "border-black/8 dark:border-white/10 hover:border-black/20 dark:hover:border-white/25"
+                            }`}
+                          >
+                            <span className="text-[11px] text-black dark:text-white" style={{ fontFamily: f.css }}>Aa</span>
+                            <p className="text-[8px] text-black/40 dark:text-white/40 mt-0.5">{f.label}</p>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
