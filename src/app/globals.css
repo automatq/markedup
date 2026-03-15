@@ -401,8 +401,8 @@
 }
 
 .dark .ProseMirror ul[data-type="taskList"] li label input[type="checkbox"]:checked {
-  background: #fff;
-  border-color: #fff;
+  background: rgba(255, 255, 255, var(--text-intensity, 0.87));
+  border-color: rgba(255, 255, 255, var(--text-intensity, 0.87));
 }
 
 .ProseMirror ul[data-type="taskList"] li label input[type="checkbox"]:checked::after {
