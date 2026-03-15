@@ -75,22 +75,11 @@ export async function POST() {
     const wsIds = workspaces.map((w) => w.id);
 
     if (wsIds.length > 0) {
-      // Get all document IDs in accessible workspaces
-      const documents = await db.document.findMany({
-        where: { workspaceId: { in: wsIds }, deletedAt: null },
-        select: { id: true },
-      });
-
-      // Grant access to each document room individually
-      for (const doc of documents) {
-        session.allow(`document:${doc.id}`, session.FULL_ACCESS);
-      }
-
-      // Grant access to whiteboard and spreadsheet rooms for each workspace
-      for (const wsId of wsIds) {
-        session.allow(`whiteboard:${wsId}`, session.FULL_ACCESS);
-        session.allow(`spreadsheet:${wsId}`, session.FULL_ACCESS);
-      }
+      // Use wildcard patterns to avoid the 10-room token limit.
+      // Liveblocks supports "*" wildcards in room ID patterns.
+      session.allow(`document:*`, session.FULL_ACCESS);
+      session.allow(`whiteboard:*`, session.FULL_ACCESS);
+      session.allow(`spreadsheet:*`, session.FULL_ACCESS);
     }
 
     const { status, body } = await session.authorize();
