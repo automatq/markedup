@@ -12,6 +12,7 @@ import {
   Loader2,
   Check,
   User,
+  Camera,
 } from "lucide-react";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 
@@ -32,6 +33,8 @@ export default function OnboardingPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [avatarColor, setAvatarColor] = useState("#6366f1");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Create path state
   const [path, setPath] = useState<"create" | "join" | null>(null);
@@ -86,6 +89,10 @@ export default function OnboardingPage() {
       await user.update({
         firstName: firstName.trim(),
         lastName: lastName.trim() || undefined,
+        unsafeMetadata: {
+          ...((user.unsafeMetadata as Record<string, unknown>) || {}),
+          avatarColor,
+        },
       });
       setStep(1);
     } catch (err: any) {
@@ -244,12 +251,66 @@ export default function OnboardingPage() {
               </span>
             </div>
 
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
-              <User className="h-6 w-6 text-black/60 dark:text-white/60" />
+            {/* Avatar preview */}
+            <div className="relative group">
+              <div
+                className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white transition-colors overflow-hidden"
+                style={{ backgroundColor: user?.imageUrl ? undefined : avatarColor }}
+              >
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt="" className="h-full w-full object-cover" />
+                ) : firstName.trim() ? (
+                  `${firstName.trim()[0]}${lastName.trim()?.[0] || ""}`.toUpperCase()
+                ) : (
+                  <User className="h-7 w-7" />
+                )}
+              </div>
+              <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                {uploadingAvatar ? (
+                  <Loader2 className="h-5 w-5 text-white animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-white" />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !user) return;
+                    setUploadingAvatar(true);
+                    try {
+                      await user.setProfileImage({ file });
+                    } catch (err) {
+                      console.error("Failed to upload avatar:", err);
+                    }
+                    setUploadingAvatar(false);
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* Color picker */}
+            <div className="flex flex-wrap justify-center gap-2 max-w-xs">
+              {[
+                "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#ef4444",
+                "#8b5cf6", "#06b6d4", "#f97316", "#14b8a6", "#3b82f6",
+              ].map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setAvatarColor(color)}
+                  className={`h-6 w-6 rounded-full transition-all ${
+                    avatarColor === color
+                      ? "ring-2 ring-offset-2 ring-black/20 dark:ring-white/20 dark:ring-offset-black scale-110"
+                      : "hover:scale-110"
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
             </div>
 
             <h1 className="text-2xl font-semibold text-black dark:text-white tracking-tight text-center">
-              What should we call you?
+              Set up your profile
             </h1>
             <p className="text-sm text-black/40 dark:text-white/40 -mt-3">
               This is how your team will see you
