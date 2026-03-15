@@ -205,6 +205,7 @@ export function Sidebar({
   const [selectedAuthor, setSelectedAuthor] = useState<string>("all");
   const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false);
   const authorDropdownRef = useRef<HTMLDivElement>(null);
+  const [orgMembers, setOrgMembers] = useState<{ userId: string; name: string }[]>([]);
 
   useEffect(() => {
     if (!authorDropdownOpen) return;
@@ -217,11 +218,32 @@ export function Sidebar({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [authorDropdownOpen]);
 
-  // Reset author filter when switching workspaces
+  // Reset author filter and fetch org members when switching workspaces
   useEffect(() => {
     setSelectedAuthor("all");
     setAuthorDropdownOpen(false);
+    setOrgMembers([]);
   }, [params?.workspaceId]);
+
+  // Fetch org members for team workspaces
+  useEffect(() => {
+    const ws = workspaces.find((w) => w.id === params?.workspaceId);
+    if (!ws || ws.isPersonal || !ws.orgId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/organizations/members?orgId=${ws.orgId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOrgMembers(
+            (data.members || []).map((m: any) => ({
+              userId: m.userId,
+              name: m.name || "Unknown",
+            }))
+          );
+        }
+      } catch {}
+    })();
+  }, [workspaces, params?.workspaceId]);
 
   const [textIntensity, setTextIntensity] = useState(0.85);
   const [fontScale, setFontScale] = useState(1);
@@ -517,26 +539,46 @@ export function Sidebar({
       {/* Author Filter Dropdown (team workspaces only) */}
       {(() => {
         const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
-        const hasAuthors = isTeam && filtered.some((d) => d.createdBy);
-        if (!hasAuthors) return null;
+        if (!isTeam) return null;
 
         const currentUserId = user?.id;
-        const authorMap: Record<string, string> = {};
-        for (const doc of filtered) {
-          if (doc.createdBy) {
-            if (!authorMap[doc.createdBy]) {
-              authorMap[doc.createdBy] = doc.createdBy === currentUserId ? "You" : (doc.authorName || "Team Member");
-            }
-          }
-        }
-        const sortedAuthors = Object.entries(authorMap).sort((a, b) => {
-          if (a[0] === currentUserId) return -1;
-          if (b[0] === currentUserId) return 1;
-          return a[1].localeCompare(b[1]);
+
+        // Build member list from org members (fetched from Clerk), with doc counts
+        const memberList = orgMembers.length > 0
+          ? orgMembers.map((m) => ({
+              id: m.userId,
+              name: m.userId === currentUserId ? "You" : m.name,
+              count: filtered.filter((d) => d.createdBy === m.userId).length,
+            }))
+          : // Fallback: derive from documents if org members haven't loaded yet
+            (() => {
+              const seen = new Map<string, { name: string; count: number }>();
+              for (const doc of filtered) {
+                if (doc.createdBy) {
+                  const existing = seen.get(doc.createdBy);
+                  if (existing) {
+                    existing.count++;
+                  } else {
+                    seen.set(doc.createdBy, {
+                      name: doc.createdBy === currentUserId ? "You" : (doc.authorName || "Team Member"),
+                      count: 1,
+                    });
+                  }
+                }
+              }
+              return Array.from(seen.entries()).map(([id, v]) => ({ id, name: v.name, count: v.count }));
+            })();
+
+        // Sort: current user first, then alphabetically
+        const sortedMembers = [...memberList].sort((a, b) => {
+          if (a.id === currentUserId) return -1;
+          if (b.id === currentUserId) return 1;
+          return a.name.localeCompare(b.name);
         });
+
         const selectedLabel = selectedAuthor === "all"
           ? "All Members"
-          : authorMap[selectedAuthor] || "All Members";
+          : sortedMembers.find((m) => m.id === selectedAuthor)?.name || "All Members";
 
         return (
           <div className="px-3 pb-2 relative" ref={authorDropdownRef}>
@@ -564,26 +606,23 @@ export function Sidebar({
                   All Members
                   <span className="ml-auto text-black/30 dark:text-white/30">{filtered.length}</span>
                 </button>
-                {sortedAuthors.map(([authorId, name]) => {
-                  const count = filtered.filter((d) => d.createdBy === authorId).length;
-                  return (
-                    <button
-                      key={authorId}
-                      onClick={() => { setSelectedAuthor(authorId); setAuthorDropdownOpen(false); }}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-                        selectedAuthor === authorId
-                          ? "text-black dark:text-white bg-black/[0.04] dark:bg-white/[0.06]"
-                          : "text-black/60 dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
-                      }`}
-                    >
-                      <span className="h-4 w-4 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[8px] font-bold shrink-0">
-                        {name === "You" ? "Y" : name[0]?.toUpperCase()}
-                      </span>
-                      {name}
-                      <span className="ml-auto text-black/30 dark:text-white/30">{count}</span>
-                    </button>
-                  );
-                })}
+                {sortedMembers.map((member) => (
+                  <button
+                    key={member.id}
+                    onClick={() => { setSelectedAuthor(member.id); setAuthorDropdownOpen(false); }}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
+                      selectedAuthor === member.id
+                        ? "text-black dark:text-white bg-black/[0.04] dark:bg-white/[0.06]"
+                        : "text-black/60 dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <span className="h-4 w-4 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[8px] font-bold shrink-0">
+                      {member.name === "You" ? "Y" : member.name[0]?.toUpperCase()}
+                    </span>
+                    {member.name}
+                    <span className="ml-auto text-black/30 dark:text-white/30">{member.count}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -594,15 +633,20 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto px-2 py-1">
         {(() => {
           const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
-          const hasAuthors = isTeam && filtered.some((d) => d.createdBy);
           const currentUserId = user?.id;
 
+          // Build a name lookup from org members
+          const memberNameMap: Record<string, string> = {};
+          for (const m of orgMembers) {
+            memberNameMap[m.userId] = m.userId === currentUserId ? "You" : m.name;
+          }
+
           // Apply author filter for team workspaces
-          const visibleDocs = hasAuthors && selectedAuthor !== "all"
+          const visibleDocs = isTeam && selectedAuthor !== "all"
             ? filtered.filter((d) => d.createdBy === selectedAuthor)
             : filtered;
 
-          if (hasAuthors && selectedAuthor === "all") {
+          if (isTeam && selectedAuthor === "all" && filtered.length > 0) {
             // Group documents by author
             const groups: Record<string, SidebarDocument[]> = {};
             for (const doc of visibleDocs) {
@@ -613,8 +657,8 @@ export function Sidebar({
             const sortedKeys = Object.keys(groups).sort((a, b) => {
               if (a === currentUserId) return -1;
               if (b === currentUserId) return 1;
-              const nameA = groups[a][0]?.authorName || "Unknown";
-              const nameB = groups[b][0]?.authorName || "Unknown";
+              const nameA = memberNameMap[a] || groups[a][0]?.authorName || "Unknown";
+              const nameB = memberNameMap[b] || groups[b][0]?.authorName || "Unknown";
               return nameA.localeCompare(nameB);
             });
 
@@ -631,9 +675,8 @@ export function Sidebar({
               <div className="space-y-1">
                 {sortedKeys.map((authorId) => {
                   const docs = groups[authorId];
-                  const authorName = authorId === currentUserId
-                    ? "You"
-                    : docs[0]?.authorName || "Team Member";
+                  const authorName = memberNameMap[authorId]
+                    || (authorId === currentUserId ? "You" : docs[0]?.authorName || "Team Member");
                   const isCollapsed = collapsedAuthors.has(authorId);
 
                   return (
@@ -718,7 +761,7 @@ export function Sidebar({
               ))}
               {visibleDocs.length === 0 && (
                 <p className="px-2 py-6 text-center text-xs text-black/30 dark:text-white/30">
-                  No documents found
+                  {isTeam && selectedAuthor !== "all" ? "No documents by this member" : "No documents found"}
                 </p>
               )}
             </div>

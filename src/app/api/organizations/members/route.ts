@@ -19,12 +19,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "orgId required" }, { status: 400 });
     }
 
-    // Only allow members of this org to list its members
-    if (userOrgId !== orgId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const clerk = await clerkClient();
+
+    // Check actual org membership (not just active org)
+    if (userOrgId !== orgId) {
+      try {
+        const memberships = await clerk.users.getOrganizationMembershipList({
+          userId,
+          limit: 50,
+        });
+        const membershipList = Array.isArray(memberships)
+          ? memberships
+          : memberships.data ?? [];
+        const userOrgIds = membershipList
+          .map((m: any) => m.organization?.id)
+          .filter(Boolean) as string[];
+        if (!userOrgIds.includes(orgId)) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      } catch {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     const membershipsResponse = await clerk.organizations.getOrganizationMembershipList({
       organizationId: orgId,
