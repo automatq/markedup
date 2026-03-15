@@ -15,12 +15,21 @@ interface UserInfo {
 const userCache = new Map<string, UserInfo>();
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Load saved text intensity preference
+  // Load saved accessibility preferences
   useEffect(() => {
-    const saved = localStorage.getItem("textIntensity");
-    if (saved) {
-      document.documentElement.style.setProperty("--text-intensity", saved);
-    }
+    const el = document.documentElement;
+    const textIntensity = localStorage.getItem("textIntensity");
+    if (textIntensity) el.style.setProperty("--text-intensity", textIntensity);
+
+    const fontScale = localStorage.getItem("editorFontScale");
+    if (fontScale) el.style.setProperty("--editor-font-scale", fontScale);
+
+    const lineSpacing = localStorage.getItem("editorLineSpacing");
+    if (lineSpacing) el.style.setProperty("--editor-line-spacing", lineSpacing);
+
+    if (localStorage.getItem("reduceMotion") === "true") el.classList.add("reduce-motion");
+    if (localStorage.getItem("dyslexiaFont") === "true") el.classList.add("dyslexia-font");
+    if (localStorage.getItem("highContrast") === "true") el.classList.add("high-contrast");
   }, []);
 
   return (

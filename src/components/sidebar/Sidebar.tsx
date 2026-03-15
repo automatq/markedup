@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -21,6 +21,7 @@ import {
   Phone,
   Camera,
   Palette,
+  Accessibility,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
@@ -187,6 +188,13 @@ export function Sidebar({
   const [wsSwitcherOpen, setWsSwitcherOpen] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [a11yOpen, setA11yOpen] = useState(false);
+  const [textIntensity, setTextIntensity] = useState(0.85);
+  const [fontScale, setFontScale] = useState(1);
+  const [lineSpacing, setLineSpacing] = useState(1);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [dyslexiaFont, setDyslexiaFont] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
 
   // Fetch workspaces
   React.useEffect(() => {
@@ -196,6 +204,46 @@ export function Sidebar({
         if (res.ok) setWorkspaces(await res.json());
       } catch {}
     })();
+  }, []);
+
+  // Load accessibility preferences
+  useEffect(() => {
+    const ti = localStorage.getItem("textIntensity");
+    if (ti) setTextIntensity(parseFloat(ti));
+    const fs = localStorage.getItem("editorFontScale");
+    if (fs) setFontScale(parseFloat(fs));
+    const ls = localStorage.getItem("editorLineSpacing");
+    if (ls) setLineSpacing(parseFloat(ls));
+    setReduceMotion(localStorage.getItem("reduceMotion") === "true");
+    setDyslexiaFont(localStorage.getItem("dyslexiaFont") === "true");
+    setHighContrast(localStorage.getItem("highContrast") === "true");
+  }, []);
+
+  const updateA11y = useCallback((key: string, value: string) => {
+    localStorage.setItem(key, value);
+    const el = document.documentElement;
+    if (key === "textIntensity") {
+      el.style.setProperty("--text-intensity", value);
+      setTextIntensity(parseFloat(value));
+    } else if (key === "editorFontScale") {
+      el.style.setProperty("--editor-font-scale", value);
+      setFontScale(parseFloat(value));
+    } else if (key === "editorLineSpacing") {
+      el.style.setProperty("--editor-line-spacing", value);
+      setLineSpacing(parseFloat(value));
+    } else if (key === "reduceMotion") {
+      const on = value === "true";
+      setReduceMotion(on);
+      el.classList.toggle("reduce-motion", on);
+    } else if (key === "dyslexiaFont") {
+      const on = value === "true";
+      setDyslexiaFont(on);
+      el.classList.toggle("dyslexia-font", on);
+    } else if (key === "highContrast") {
+      const on = value === "true";
+      setHighContrast(on);
+      el.classList.toggle("high-contrast", on);
+    }
   }, []);
 
   const currentWorkspace = workspaces.find((w) => w.id === params?.workspaceId);
@@ -594,6 +642,111 @@ export function Sidebar({
                         Remove photo
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* Accessibility */}
+                <button
+                  onClick={() => setA11yOpen(!a11yOpen)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                  <Accessibility className="h-3.5 w-3.5" />
+                  Accessibility
+                </button>
+                {a11yOpen && (
+                  <div className="px-3 pb-2 space-y-3">
+                    {/* Text brightness */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">Text brightness</span>
+                        <span className="text-[10px] text-black/30 dark:text-white/30">{Math.round(textIntensity * 100)}%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-black/25 dark:text-white/25">Dim</span>
+                        <input
+                          type="range" min="0.4" max="1" step="0.05" value={textIntensity}
+                          onChange={(e) => updateA11y("textIntensity", e.target.value)}
+                          className="flex-1 h-1 rounded-full appearance-none bg-black/10 dark:bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
+                        />
+                        <span className="text-[9px] text-black/25 dark:text-white/25">Bright</span>
+                      </div>
+                    </div>
+
+                    {/* Font size */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">Font size</span>
+                        <span className="text-[10px] text-black/30 dark:text-white/30">{Math.round(fontScale * 100)}%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-black/25 dark:text-white/25">Small</span>
+                        <input
+                          type="range" min="0.8" max="1.5" step="0.05" value={fontScale}
+                          onChange={(e) => updateA11y("editorFontScale", e.target.value)}
+                          className="flex-1 h-1 rounded-full appearance-none bg-black/10 dark:bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
+                        />
+                        <span className="text-[9px] text-black/25 dark:text-white/25">Large</span>
+                      </div>
+                    </div>
+
+                    {/* Line spacing */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">Line spacing</span>
+                        <span className="text-[10px] text-black/30 dark:text-white/30">{lineSpacing === 1 ? "Normal" : `${Math.round(lineSpacing * 100)}%`}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-black/25 dark:text-white/25">Tight</span>
+                        <input
+                          type="range" min="0.9" max="2" step="0.1" value={lineSpacing}
+                          onChange={(e) => updateA11y("editorLineSpacing", e.target.value)}
+                          className="flex-1 h-1 rounded-full appearance-none bg-black/10 dark:bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
+                        />
+                        <span className="text-[9px] text-black/25 dark:text-white/25">Wide</span>
+                      </div>
+                    </div>
+
+                    {/* Toggle options */}
+                    <div className="space-y-1.5 pt-1">
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-[11px] text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">Reduce motion</span>
+                          <p className="text-[9px] text-black/25 dark:text-white/25">Minimize animations</p>
+                        </div>
+                        <button
+                          onClick={() => updateA11y("reduceMotion", String(!reduceMotion))}
+                          className={`relative w-7 h-4 rounded-full transition-colors ${reduceMotion ? "bg-black dark:bg-white" : "bg-black/15 dark:bg-white/15"}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full transition-transform ${reduceMotion ? "translate-x-3 bg-white dark:bg-black" : "bg-white dark:bg-white/60"}`} />
+                        </button>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-[11px] text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">High contrast</span>
+                          <p className="text-[9px] text-black/25 dark:text-white/25">Maximum text visibility</p>
+                        </div>
+                        <button
+                          onClick={() => updateA11y("highContrast", String(!highContrast))}
+                          className={`relative w-7 h-4 rounded-full transition-colors ${highContrast ? "bg-black dark:bg-white" : "bg-black/15 dark:bg-white/15"}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full transition-transform ${highContrast ? "translate-x-3 bg-white dark:bg-black" : "bg-white dark:bg-white/60"}`} />
+                        </button>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-[11px] text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">Dyslexia-friendly font</span>
+                          <p className="text-[9px] text-black/25 dark:text-white/25">Wider letter shapes</p>
+                        </div>
+                        <button
+                          onClick={() => updateA11y("dyslexiaFont", String(!dyslexiaFont))}
+                          className={`relative w-7 h-4 rounded-full transition-colors ${dyslexiaFont ? "bg-black dark:bg-white" : "bg-black/15 dark:bg-white/15"}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full transition-transform ${dyslexiaFont ? "translate-x-3 bg-white dark:bg-black" : "bg-white dark:bg-white/60"}`} />
+                        </button>
+                      </label>
+                    </div>
                   </div>
                 )}
 
