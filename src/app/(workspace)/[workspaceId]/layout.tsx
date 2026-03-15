@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { WorkspaceLayout } from "@/components/layout/WorkspaceLayout";
 import { QuickSwitcher } from "@/components/QuickSwitcher";
 import { TemplatePicker } from "@/components/TemplatePicker";
@@ -41,9 +41,31 @@ export default function WorkspaceLayoutPage({
     }
   }, [workspaceId]);
 
-  // Fetch documents from API
+  // Fetch documents from API + poll every 5s for live updates
+  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
   useEffect(() => {
     refreshDocuments();
+    const startPolling = () => {
+      clearInterval(pollRef.current);
+      pollRef.current = setInterval(refreshDocuments, 5000);
+    };
+    startPolling();
+
+    // Pause polling when tab is hidden, resume + refresh when visible
+    const handleVisibility = () => {
+      if (document.hidden) {
+        clearInterval(pollRef.current);
+      } else {
+        refreshDocuments();
+        startPolling();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(pollRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [refreshDocuments]);
 
   // Cmd+K to open Quick Switcher, Cmd+G for graph
