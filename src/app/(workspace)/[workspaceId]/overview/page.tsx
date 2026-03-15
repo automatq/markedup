@@ -1515,7 +1515,7 @@ export default function OverviewPage() {
                 <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Quick Actions</h3>
               </div>
               <div className="space-y-1.5">
-                <button onClick={() => router.push(`/${workspaceId}`)}
+                <button onClick={() => router.push(`/${workspaceId}/wiki`)}
                   className="flex w-full items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-3 py-2 text-xs text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/15 dark:hover:border-white/15 transition-colors">
                   <FileText className="h-3.5 w-3.5" /> Open Wiki
                 </button>

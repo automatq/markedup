@@ -725,9 +725,9 @@ export function Sidebar({
       {/* Wiki button */}
       <div className="px-3 pb-2">
         <button
-          onClick={() => router.push(`/${params?.workspaceId}`)}
+          onClick={() => router.push(`/${params?.workspaceId}/wiki`)}
           className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all ${
-            pathname === `/${params?.workspaceId}`
+            pathname === `/${params?.workspaceId}/wiki`
               ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white font-medium"
               : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
           }`}
