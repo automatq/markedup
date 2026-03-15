@@ -89,6 +89,17 @@ function DocumentInner({
     layout: "full",
   });
 
+  // Scroll progress
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const max = scrollHeight - clientHeight;
+    setScrollProgress(max > 0 ? (scrollTop / max) * 100 : 0);
+  }, []);
+
   // Dialog/panel open state
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -347,7 +358,18 @@ function DocumentInner({
       {/* Content area — editor + inline agents panel */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor column */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto relative"
+        >
+          {/* Scroll progress indicator */}
+          <div className="sticky top-0 left-0 right-0 h-[2px] z-30 bg-transparent">
+            <div
+              className="h-full bg-black/15 dark:bg-white/15 transition-[width] duration-100"
+              style={{ width: `${scrollProgress}%` }}
+            />
+          </div>
           <div
             className={`mx-auto w-full ${agentsOpen || breakoutsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10`}
           >
