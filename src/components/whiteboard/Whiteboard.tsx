@@ -439,13 +439,8 @@ export function Whiteboard() {
             content: [{ type: "text", text: "Markerboard Snapshot" }],
           },
           {
-            type: "paragraph",
-            content: [
-              {
-                type: "image",
-                attrs: { src: dataUrl, alt: "Markerboard snapshot", title: null },
-              },
-            ],
+            type: "image",
+            attrs: { src: dataUrl, alt: "Markerboard snapshot", title: null },
           },
         ],
       };
