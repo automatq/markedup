@@ -156,8 +156,8 @@ const activityChartConfig = {
 } satisfies ChartConfig;
 
 const signalNoiseChartConfig = {
-  signal: { label: "Signal", color: "#22c55e" },
-  noise: { label: "Noise", color: "#ef4444" },
+  signal: { label: "Signal", color: "var(--chart-1)" },
+  noise: { label: "Noise", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
 const visionChartConfig = {
@@ -180,33 +180,124 @@ function timeAgo(dateStr: string): string {
 }
 
 function ActivityIcon({ type }: { type: ActivityItem["type"] }) {
-  const cls = "h-3.5 w-3.5";
+  const cls = "h-3.5 w-3.5 text-black/40 dark:text-white/40";
   switch (type) {
-    case "doc_created": return <Plus className={`${cls} text-emerald-500`} />;
-    case "doc_updated": return <Edit3 className={`${cls} text-blue-500`} />;
-    case "breakout": return <Sparkles className={`${cls} text-purple-500`} />;
-    case "call": return <Phone className={`${cls} text-amber-500`} />;
-    case "view": return <Eye className={`${cls} text-black/30 dark:text-white/30`} />;
+    case "doc_created": return <Plus className={cls} />;
+    case "doc_updated": return <Edit3 className={cls} />;
+    case "breakout": return <Sparkles className={cls} />;
+    case "call": return <Phone className={cls} />;
+    case "view": return <Eye className={cls} />;
   }
 }
 
-function activityColor(type: ActivityItem["type"]): string {
-  switch (type) {
-    case "doc_created": return "bg-emerald-500/10 border-emerald-500/20";
-    case "doc_updated": return "bg-blue-500/10 border-blue-500/20";
-    case "breakout": return "bg-purple-500/10 border-purple-500/20";
-    case "call": return "bg-amber-500/10 border-amber-500/20";
-    case "view": return "bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10";
-  }
+function activityColor(_type: ActivityItem["type"]): string {
+  return "bg-black/[0.03] dark:bg-white/[0.03] border-black/6 dark:border-white/8";
 }
 
 function impactColor(impact: string) {
   switch (impact) {
-    case "high": return "text-emerald-500 bg-emerald-500/10";
-    case "medium": return "text-amber-500 bg-amber-500/10";
-    case "low": return "text-black/30 dark:text-white/30 bg-black/5 dark:bg-white/5";
-    default: return "text-black/30 dark:text-white/30 bg-black/5 dark:bg-white/5";
+    case "high": return "text-black/60 dark:text-white/60 bg-black/[0.04] dark:bg-white/[0.04]";
+    case "medium": return "text-black/40 dark:text-white/40 bg-black/[0.03] dark:bg-white/[0.03]";
+    case "low": return "text-black/25 dark:text-white/25 bg-black/[0.02] dark:bg-white/[0.02]";
+    default: return "text-black/25 dark:text-white/25 bg-black/[0.02] dark:bg-white/[0.02]";
   }
+}
+
+/** GitHub-style contribution calendar */
+function ContributionCalendar({ timeline }: { timeline: { date: string; commits: number }[] }) {
+  // Build 52 weeks of data ending today
+  const today = new Date();
+  const cells: { date: string; count: number; dayOfWeek: number }[] = [];
+  const countMap = new Map(timeline.map((d) => [d.date, d.commits]));
+
+  // Go back ~364 days to fill 52 weeks
+  for (let i = 363; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    cells.push({ date: key, count: countMap.get(key) || 0, dayOfWeek: d.getDay() });
+  }
+
+  // Group into weeks (columns)
+  const weeks: typeof cells[] = [];
+  let currentWeek: typeof cells = [];
+  for (const cell of cells) {
+    if (cell.dayOfWeek === 0 && currentWeek.length > 0) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+    currentWeek.push(cell);
+  }
+  if (currentWeek.length > 0) weeks.push(currentWeek);
+
+  const max = Math.max(1, ...cells.map((c) => c.count));
+
+  function cellOpacity(count: number): string {
+    if (count === 0) return "bg-black/[0.03] dark:bg-white/[0.04]";
+    const ratio = count / max;
+    if (ratio < 0.25) return "bg-black/[0.10] dark:bg-white/[0.10]";
+    if (ratio < 0.5) return "bg-black/[0.20] dark:bg-white/[0.20]";
+    if (ratio < 0.75) return "bg-black/[0.35] dark:bg-white/[0.35]";
+    return "bg-black/[0.55] dark:bg-white/[0.55]";
+  }
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return (
+    <div className="overflow-x-auto">
+      {/* Month labels */}
+      <div className="flex gap-[3px] mb-1 ml-[18px]">
+        {weeks.map((week, wi) => {
+          const firstDay = week[0];
+          const d = new Date(firstDay.date);
+          const showLabel = d.getDate() <= 7 && wi > 0;
+          return (
+            <div key={wi} className="w-[11px] shrink-0">
+              {showLabel && (
+                <span className="text-[8px] text-black/25 dark:text-white/25">{months[d.getMonth()]}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-[3px]">
+        {/* Day labels */}
+        <div className="flex flex-col gap-[3px] mr-[2px]">
+          {["","M","","W","","F",""].map((label, i) => (
+            <div key={i} className="h-[11px] flex items-center">
+              <span className="text-[8px] text-black/20 dark:text-white/20 w-3">{label}</span>
+            </div>
+          ))}
+        </div>
+        {/* Weeks grid */}
+        {weeks.map((week, wi) => (
+          <div key={wi} className="flex flex-col gap-[3px]">
+            {Array.from({ length: 7 }, (_, dayIdx) => {
+              const cell = week.find((c) => c.dayOfWeek === dayIdx);
+              if (!cell) return <div key={dayIdx} className="h-[11px] w-[11px]" />;
+              return (
+                <div
+                  key={dayIdx}
+                  className={`h-[11px] w-[11px] rounded-[2px] ${cellOpacity(cell.count)} transition-colors`}
+                  title={`${cell.date}: ${cell.count} commit${cell.count !== 1 ? "s" : ""}`}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      {/* Legend */}
+      <div className="flex items-center gap-1 mt-2 justify-end">
+        <span className="text-[8px] text-black/20 dark:text-white/20 mr-0.5">Less</span>
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.03] dark:bg-white/[0.04]" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.10] dark:bg-white/[0.10]" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.20] dark:bg-white/[0.20]" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.35] dark:bg-white/[0.35]" />
+        <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.55] dark:bg-white/[0.55]" />
+        <span className="text-[8px] text-black/20 dark:text-white/20 ml-0.5">More</span>
+      </div>
+    </div>
+  );
 }
 
 function workflowIcon(type: string) {
@@ -476,16 +567,13 @@ export default function OverviewPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <StatCard icon={FileText} label="Total Pages" value={data.stats.totalDocs}
-            sub={data.stats.docsCreatedThisWeek > 0 ? `+${data.stats.docsCreatedThisWeek} this week` : undefined}
-            color="text-black/50 dark:text-white/50" />
+            sub={data.stats.docsCreatedThisWeek > 0 ? `+${data.stats.docsCreatedThisWeek} this week` : undefined} />
           <StatCard icon={TrendingUp} label="Active This Week" value={data.stats.docsEditedThisWeek}
-            sub="pages edited" color="text-blue-500" />
+            sub="pages edited" />
           <StatCard icon={Users} label="Contributors" value={data.stats.uniqueContributors}
-            sub={data.stats.agentCount > 0 ? `${data.stats.agentCount} AI agent${data.stats.agentCount > 1 ? "s" : ""}` : undefined}
-            color="text-indigo-500" />
+            sub={data.stats.agentCount > 0 ? `${data.stats.agentCount} AI agent${data.stats.agentCount > 1 ? "s" : ""}` : undefined} />
           <StatCard icon={Activity} label="This Week" value={data.stats.totalBreakouts + data.stats.totalCalls}
-            sub={`${data.stats.totalBreakouts} breakouts, ${data.stats.totalCalls} calls`}
-            color="text-purple-500" />
+            sub={`${data.stats.totalBreakouts} breakouts, ${data.stats.totalCalls} calls`} />
         </div>
 
         {/* ═══════ SIGNAL / NOISE + VISION TRACKER ROW ═══════ */}
@@ -496,7 +584,7 @@ export default function OverviewPage() {
             <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
               <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
                 <div className="flex items-center gap-2">
-                  <Signal className="h-4 w-4 text-emerald-500" />
+                  <Signal className="h-4 w-4 text-black/40 dark:text-white/40" />
                   <CardTitle className="text-sm font-semibold text-black dark:text-white">
                     Signal vs Noise
                   </CardTitle>
@@ -515,11 +603,11 @@ export default function OverviewPage() {
                     </div>
                     <div className="h-3 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
                       <div
-                        className="h-full rounded-l-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
+                        className="h-full rounded-l-full bg-black/30 dark:bg-white/40 transition-all"
                         style={{ width: `${sn.overall.signal}%` }}
                       />
                       <div
-                        className="h-full rounded-r-full bg-gradient-to-r from-red-400 to-red-500 transition-all"
+                        className="h-full rounded-r-full bg-black/10 dark:bg-white/10 transition-all"
                         style={{ width: `${sn.overall.noise}%` }}
                       />
                     </div>
@@ -543,8 +631,8 @@ export default function OverviewPage() {
                     />
                     <XAxis type="number" domain={[0, 100]} hide />
                     <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
-                    <Bar dataKey="signal" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
-                    <Bar dataKey="noise" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                    <Bar dataKey="signal" fill="var(--chart-1)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                    <Bar dataKey="noise" fill="var(--chart-3)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
                   </BarChart>
                 </ChartContainer>
 
@@ -557,8 +645,8 @@ export default function OverviewPage() {
                           {m.name}
                         </span>
                         <div className="flex-1 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
-                          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${m.signal}%` }} />
-                          <div className="h-full bg-red-500 transition-all" style={{ width: `${m.noise}%` }} />
+                          <div className="h-full bg-black/30 dark:bg-white/40 transition-all" style={{ width: `${m.signal}%` }} />
+                          <div className="h-full bg-black/10 dark:bg-white/10 transition-all" style={{ width: `${m.noise}%` }} />
                         </div>
                         <span className="text-[9px] text-black/30 dark:text-white/30 w-8 text-right shrink-0">
                           {m.signal}%
@@ -574,7 +662,7 @@ export default function OverviewPage() {
             <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
               <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
                 <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-indigo-500" />
+                  <Target className="h-4 w-4 text-black/40 dark:text-white/40" />
                   <CardTitle className="text-sm font-semibold text-black dark:text-white">
                     Vision Tracker
                   </CardTitle>
@@ -614,7 +702,7 @@ export default function OverviewPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg border border-black/6 dark:border-white/8 p-3">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <Zap className="h-3 w-3 text-indigo-500" />
+                      <Zap className="h-3 w-3 text-black/30 dark:text-white/30" />
                       <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
                         Short-term
                       </span>
@@ -624,7 +712,7 @@ export default function OverviewPage() {
                     <ul className="space-y-0.5">
                       {vt.shortTerm.items.map((item, i) => (
                         <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
-                          <span className="mt-0.5 h-1 w-1 rounded-full bg-indigo-500 shrink-0" />
+                          <span className="mt-0.5 h-1 w-1 rounded-full bg-black/30 dark:bg-white/30 shrink-0" />
                           {item}
                         </li>
                       ))}
@@ -632,7 +720,7 @@ export default function OverviewPage() {
                   </div>
                   <div className="rounded-lg border border-black/6 dark:border-white/8 p-3">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <Target className="h-3 w-3 text-purple-500" />
+                      <Target className="h-3 w-3 text-black/30 dark:text-white/30" />
                       <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
                         Long-term
                       </span>
@@ -642,7 +730,7 @@ export default function OverviewPage() {
                     <ul className="space-y-0.5">
                       {vt.longTerm.items.map((item, i) => (
                         <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
-                          <span className="mt-0.5 h-1 w-1 rounded-full bg-purple-500 shrink-0" />
+                          <span className="mt-0.5 h-1 w-1 rounded-full bg-black/30 dark:bg-white/30 shrink-0" />
                           {item}
                         </li>
                       ))}
@@ -661,10 +749,10 @@ export default function OverviewPage() {
 
         {/* Recommendations */}
         {insights?.recommendations && insights.recommendations.length > 0 && (
-          <div className="mb-6 rounded-xl border border-indigo-500/15 bg-indigo-500/[0.03] p-4">
+          <div className="mb-6 rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.01] dark:bg-white/[0.01] p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Brain className="h-3.5 w-3.5 text-indigo-500" />
-              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">AI Recommendations</span>
+              <Brain className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
+              <span className="text-xs font-semibold text-black/70 dark:text-white/70">AI Recommendations</span>
               {insights.generatedAt && (
                 <span className="text-[9px] text-black/25 dark:text-white/25 ml-auto">
                   Generated {timeAgo(insights.generatedAt)}
@@ -674,7 +762,7 @@ export default function OverviewPage() {
             <ul className="space-y-1.5">
               {insights.recommendations.map((rec, i) => (
                 <li key={i} className="flex items-start gap-2 text-[12px] text-black/60 dark:text-white/55 leading-relaxed">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-500/60 shrink-0" />
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black/20 dark:bg-white/20 shrink-0" />
                   {rec}
                 </li>
               ))}
@@ -830,6 +918,13 @@ export default function OverviewPage() {
                     </div>
                   )}
 
+                  {/* Contribution calendar */}
+                  {github.timeline && github.timeline.length > 0 && (
+                    <div className="mb-4 rounded-lg border border-black/6 dark:border-white/8 p-3">
+                      <ContributionCalendar timeline={github.timeline} />
+                    </div>
+                  )}
+
                   {/* Recent commits */}
                   <div className="max-h-[280px] overflow-y-auto space-y-0.5">
                     {github.commits?.slice(0, githubExpanded ? 50 : 10).map((c) => (
@@ -840,7 +935,7 @@ export default function OverviewPage() {
                         rel="noopener noreferrer"
                         className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group"
                       >
-                        <code className="text-[10px] text-indigo-500 font-mono mt-0.5 shrink-0">{c.sha}</code>
+                        <code className="text-[10px] text-black/40 dark:text-white/40 font-mono mt-0.5 shrink-0">{c.sha}</code>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
                             {c.message}
@@ -855,7 +950,7 @@ export default function OverviewPage() {
                   {github.commits && github.commits.length > 10 && (
                     <button
                       onClick={() => setGithubExpanded(!githubExpanded)}
-                      className="mt-2 text-[10px] text-indigo-500 hover:text-indigo-600 transition-colors"
+                      className="mt-2 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
                     >
                       {githubExpanded ? "Show less" : `Show all ${github.commits.length} commits`}
                     </button>
@@ -887,7 +982,7 @@ export default function OverviewPage() {
                         value={ghOwner}
                         onChange={(e) => setGhOwner(e.target.value)}
                         placeholder="e.g. automatq"
-                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
+                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
                       />
                     </div>
                     <div>
@@ -896,7 +991,7 @@ export default function OverviewPage() {
                         value={ghRepo}
                         onChange={(e) => setGhRepo(e.target.value)}
                         placeholder="e.g. markedup"
-                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
+                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
                       />
                     </div>
                   </div>
@@ -909,7 +1004,7 @@ export default function OverviewPage() {
                       onChange={(e) => setGhToken(e.target.value)}
                       type="password"
                       placeholder="ghp_..."
-                      className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
+                      className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
                     />
                   </div>
                   {ghError && (
@@ -968,7 +1063,7 @@ export default function OverviewPage() {
               </span>
               <button
                 onClick={() => setShowAddKpi(!showAddKpi)}
-                className="ml-auto flex items-center gap-1 text-[10px] text-indigo-500 hover:text-indigo-600 transition-colors"
+                className="ml-auto flex items-center gap-1 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
               >
                 <Plus className="h-3 w-3" />
                 Add KPI
@@ -981,7 +1076,7 @@ export default function OverviewPage() {
           <CardContent className="pt-4">
             {/* Add KPI form */}
             {showAddKpi && (
-              <div className="mb-4 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.03] p-3">
+              <div className="mb-4 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] p-3">
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
                   <div>
                     <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Member</label>
@@ -1013,7 +1108,7 @@ export default function OverviewPage() {
                   </div>
                   <div className="flex items-end">
                     <button onClick={addKpi} disabled={!kpiName || !kpiTarget || !kpiUserId}
-                      className="w-full rounded-md bg-indigo-500 px-3 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 transition-colors disabled:opacity-40">
+                      className="w-full rounded-md bg-black dark:bg-white px-3 py-1 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-40">
                       Add
                     </button>
                   </div>
@@ -1054,21 +1149,21 @@ export default function OverviewPage() {
                           <div className="flex items-center gap-2 shrink-0">
                             <div className="text-right">
                               <div className="flex items-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                                <div className="h-2 w-2 rounded-full bg-black/30 dark:bg-white/40" />
                                 <span className="text-[10px] text-black/40 dark:text-white/40">{snMember.signal}%</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-red-500" />
+                                <div className="h-2 w-2 rounded-full bg-black/10 dark:bg-white/10" />
                                 <span className="text-[10px] text-black/40 dark:text-white/40">{snMember.noise}%</span>
                               </div>
                             </div>
                             <div className="w-16 h-8">
                               <div className="h-full flex flex-col justify-center gap-0.5">
                                 <div className="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
-                                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${snMember.signal}%` }} />
+                                  <div className="h-full bg-black/30 dark:bg-white/40 rounded-full transition-all" style={{ width: `${snMember.signal}%` }} />
                                 </div>
                                 <div className="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
-                                  <div className="h-full bg-red-500 rounded-full transition-all" style={{ width: `${snMember.noise}%` }} />
+                                  <div className="h-full bg-black/10 dark:bg-white/10 rounded-full transition-all" style={{ width: `${snMember.noise}%` }} />
                                 </div>
                               </div>
                             </div>
@@ -1079,14 +1174,14 @@ export default function OverviewPage() {
                         {overallProgress !== null && (
                           <div className="flex items-center gap-1.5 shrink-0">
                             {overallProgress >= 80 ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              <CheckCircle2 className="h-4 w-4 text-black/50 dark:text-white/50" />
                             ) : overallProgress >= 50 ? (
-                              <AlertTriangle className="h-4 w-4 text-amber-500" />
+                              <AlertTriangle className="h-4 w-4 text-black/30 dark:text-white/30" />
                             ) : (
-                              <AlertTriangle className="h-4 w-4 text-red-500" />
+                              <AlertTriangle className="h-4 w-4 text-black/20 dark:text-white/20" />
                             )}
                             <span className={`text-sm font-bold ${
-                              overallProgress >= 80 ? "text-emerald-500" : overallProgress >= 50 ? "text-amber-500" : "text-red-500"
+                              overallProgress >= 80 ? "text-black/70 dark:text-white/70" : overallProgress >= 50 ? "text-black/40 dark:text-white/40" : "text-black/25 dark:text-white/25"
                             }`}>
                               {overallProgress}%
                             </span>
@@ -1099,7 +1194,7 @@ export default function OverviewPage() {
                         <div className="space-y-2">
                           {memberKpis.map((kpi) => {
                             const pct = kpi.target > 0 ? Math.min(100, Math.round((kpi.actual / kpi.target) * 100)) : 0;
-                            const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+                            const color = pct >= 80 ? "bg-black/40 dark:bg-white/50" : pct >= 50 ? "bg-black/20 dark:bg-white/25" : "bg-black/10 dark:bg-white/10";
                             return (
                               <div key={kpi.id} className="flex items-center gap-3">
                                 <span className="text-[11px] text-black/50 dark:text-white/50 w-28 truncate shrink-0">{kpi.name}</span>
@@ -1111,7 +1206,7 @@ export default function OverviewPage() {
                                     type="number"
                                     value={kpi.actual}
                                     onChange={(e) => updateKpiActual(kpi.id, parseFloat(e.target.value) || 0)}
-                                    className="w-12 rounded border border-black/10 dark:border-white/10 bg-transparent px-1.5 py-0.5 text-[10px] text-black dark:text-white text-center outline-none focus:border-indigo-500"
+                                    className="w-12 rounded border border-black/10 dark:border-white/10 bg-transparent px-1.5 py-0.5 text-[10px] text-black dark:text-white text-center outline-none focus:border-black/30 dark:focus:border-white/30"
                                   />
                                   <span className="text-[10px] text-black/25 dark:text-white/25">/ {kpi.target} {kpi.unit}</span>
                                   <button onClick={() => deleteKpi(kpi.id)} className="text-black/15 dark:text-white/15 hover:text-red-500 transition-colors">
@@ -1151,7 +1246,7 @@ export default function OverviewPage() {
           <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
             <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
               <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-purple-500" />
+                <Brain className="h-4 w-4 text-black/40 dark:text-white/40" />
                 <CardTitle className="text-sm font-semibold text-black dark:text-white">
                   Active Agent Monitoring
                 </CardTitle>
@@ -1184,7 +1279,7 @@ export default function OverviewPage() {
 
                       {/* Frequency badge */}
                       {monitor?.enabled && (
-                        <span className="text-[9px] text-purple-500 bg-purple-500/10 rounded-full px-2 py-0.5 font-medium shrink-0">
+                        <span className="text-[9px] text-black/40 dark:text-white/40 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5 font-medium shrink-0">
                           {monitor.frequency}
                         </span>
                       )}
@@ -1199,10 +1294,10 @@ export default function OverviewPage() {
                       {/* Toggle */}
                       <button
                         onClick={() => toggleAgentMonitor(agent.id, !monitor?.enabled)}
-                        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-medium transition-all shrink-0 ${
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-medium transition-all shrink-0 border ${
                           monitor?.enabled
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            : "bg-black/5 dark:bg-white/5 text-black/30 dark:text-white/30 border border-black/8 dark:border-white/8"
+                            ? "bg-black/[0.06] dark:bg-white/[0.06] text-black/60 dark:text-white/60 border-black/15 dark:border-white/15"
+                            : "bg-black/[0.02] dark:bg-white/[0.02] text-black/25 dark:text-white/25 border-black/6 dark:border-white/8"
                         }`}
                       >
                         <Power className="h-3 w-3" />
@@ -1302,7 +1397,7 @@ export default function OverviewPage() {
                         <p className="text-xs font-medium text-black/70 dark:text-white/70 truncate">{member.name}</p>
                         <p className="text-[10px] text-black/30 dark:text-white/30">
                           {member.docs} page{member.docs !== 1 ? "s" : ""}
-                          {member.edits > 0 && <span className="text-blue-500"> · {member.edits} edit{member.edits !== 1 ? "s" : ""} this week</span>}
+                          {member.edits > 0 && <span className="text-black/50 dark:text-white/50"> · {member.edits} edit{member.edits !== 1 ? "s" : ""} this week</span>}
                         </p>
                       </div>
                     </div>
@@ -1355,13 +1450,13 @@ export default function OverviewPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub, color }: {
-  icon: React.ElementType; label: string; value: number | string; sub?: string; color?: string;
+function StatCard({ icon: Icon, label, value, sub }: {
+  icon: React.ElementType; label: string; value: number | string; sub?: string;
 }) {
   return (
     <div className="rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.01] dark:bg-white/[0.01] px-4 py-3.5">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className={`h-3.5 w-3.5 ${color || "text-black/30 dark:text-white/30"}`} />
+        <Icon className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
         <span className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium">{label}</span>
       </div>
       <p className="text-2xl font-bold text-black dark:text-white tracking-tight">{value}</p>

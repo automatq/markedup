@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const days = parseInt(request.nextUrl.searchParams.get("days") || "30", 10);
+    const days = parseInt(request.nextUrl.searchParams.get("days") || "365", 10);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     // Get GitHub integration config
@@ -60,19 +60,28 @@ export async function GET(request: NextRequest) {
       headers.Authorization = `${prefix} ${token}`;
     }
 
-    const url = `https://api.github.com/repos/${owner}/${repo}/commits?since=${since}&per_page=100`;
-    const res = await fetch(url, { headers, next: { revalidate: 300 } });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("GitHub API error:", res.status, text);
-      return NextResponse.json(
-        { error: "Failed to fetch from GitHub", detail: res.status },
-        { status: 502 }
-      );
+    // Fetch up to 3 pages to get more commit history for the calendar
+    const allRaw: any[] = [];
+    for (let page = 1; page <= 3; page++) {
+      const url = `https://api.github.com/repos/${owner}/${repo}/commits?since=${since}&per_page=100&page=${page}`;
+      const res = await fetch(url, { headers, next: { revalidate: 300 } });
+      if (!res.ok) {
+        if (page === 1) {
+          const text = await res.text();
+          console.error("GitHub API error:", res.status, text);
+          return NextResponse.json(
+            { error: "Failed to fetch from GitHub", detail: res.status },
+            { status: 502 }
+          );
+        }
+        break;
+      }
+      const batch = await res.json();
+      allRaw.push(...batch);
+      if (batch.length < 100) break; // no more pages
     }
 
-    const raw = await res.json();
+    const raw = allRaw;
 
     const commits: GitHubCommit[] = raw.map((c: any) => ({
       sha: c.sha?.slice(0, 7) || "",
