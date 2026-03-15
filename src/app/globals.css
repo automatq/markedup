@@ -523,3 +523,134 @@
 .ProseMirror mark[style*="background-color"] {
   color: rgba(0, 0, 0, 0.85) !important;
 }
+
+/* ── Presentation mode slide styles ── */
+
+.presentation-slide {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.presentation-slide h1 {
+  font-size: 3rem;
+  line-height: 1.2;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: #fff;
+}
+
+.presentation-slide h2 {
+  font-size: 2.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  color: #fff;
+}
+
+.presentation-slide h3 {
+  font-size: 1.75rem;
+  line-height: 1.4;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.presentation-slide p {
+  font-size: 1.375rem;
+  line-height: 1.8;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.presentation-slide ul,
+.presentation-slide ol {
+  font-size: 1.375rem;
+  line-height: 1.8;
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.presentation-slide li {
+  margin-bottom: 0.5rem;
+}
+
+.presentation-slide li::marker {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.presentation-slide blockquote {
+  border-left: 3px solid rgba(255, 255, 255, 0.15);
+  padding-left: 1.25rem;
+  font-size: 1.25rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 1rem;
+}
+
+.presentation-slide code {
+  font-size: 1.1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.presentation-slide pre {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.presentation-slide pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.presentation-slide img {
+  max-height: 60vh;
+  border-radius: 0.5rem;
+  margin: 1rem auto;
+  display: block;
+}
+
+.presentation-slide table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.125rem;
+  margin-bottom: 1rem;
+}
+
+.presentation-slide th,
+.presentation-slide td {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.625rem 1rem;
+  text-align: left;
+}
+
+.presentation-slide th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.presentation-slide strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.presentation-slide a {
+  color: rgba(129, 140, 248, 0.9);
+  text-decoration: underline;
+  text-decoration-color: rgba(129, 140, 248, 0.3);
+}
+
+.presentation-slide hr {
+  display: none;
+}

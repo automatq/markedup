@@ -35,6 +35,7 @@ import { ConnectionsPanel } from "@/components/panels/ConnectionsPanel";
 import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
 import { AgentsPanel } from "@/components/panels/AgentsPanel";
 import { BreakoutPanel } from "@/components/panels/BreakoutPanel";
+import { PresentationMode } from "@/components/PresentationMode";
 
 /**
  * Inner document content — rendered inside RoomProvider.
@@ -116,6 +117,7 @@ function DocumentInner({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [breakoutsOpen, setBreakoutsOpen] = useState(false);
+  const [presentationOpen, setPresentationOpen] = useState(false);
 
   // Record document view
   useEffect(() => {
@@ -235,7 +237,7 @@ function DocumentInner({
         }
 
         case "present":
-          document.documentElement.requestFullscreen?.();
+          setPresentationOpen(true);
           break;
 
         case "small-text":
@@ -545,6 +547,15 @@ function DocumentInner({
         onMarkAllRead={() => markAllRead()}
         onClearAll={() => deleteAllNotifications()}
       />
+
+      {/* Presentation mode overlay */}
+      {presentationOpen && (
+        <PresentationMode
+          html={editorRef.current?.getHTML() ?? ""}
+          title={title}
+          onClose={() => setPresentationOpen(false)}
+        />
+      )}
 
     </div>
   );
