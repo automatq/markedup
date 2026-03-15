@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       agentConfigs,
       githubIntegrations,
       kpis,
+      roleAssignments,
     ] = await Promise.all([
       db.workspace.findUnique({
         where: { id: workspaceId },
@@ -81,6 +82,12 @@ export async function POST(request: NextRequest) {
         where: { workspaceId },
         orderBy: { week: "desc" },
         take: 50,
+      }),
+      db.roleAssignment.findMany({
+        where: { workspaceId },
+        include: {
+          agentConfig: { select: { roleId: true, title: true } },
+        },
       }),
     ]);
 
@@ -201,6 +208,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Role assignments context
+    if (roleAssignments.length > 0) {
+      activitySummary += `\n\n## Team Role Assignments\n`;
+      for (const ra of roleAssignments) {
+        const memberName = userMap[ra.userId] || ra.userId;
+        activitySummary += `- ${memberName} → ${ra.agentConfig.title} (${ra.agentConfig.roleId})\n`;
+      }
+      activitySummary += `\nIMPORTANT: Score each member ONLY against metrics relevant to their assigned role. See role-specific guidance in the system prompt.\n`;
+    }
+
     // Agent analysis prompt
     const completion = await openai.chat.completions.create({
       model: "o4-mini",
@@ -235,11 +252,29 @@ Schema:
 Signal = productive, goal-aligned work that moves things forward.
 Noise = unfocused activity, rework, low-impact tasks, or stagnation.
 
-When KPI data is provided, factor target attainment into signal/noise scoring. Members hitting >80% of their KPI targets have high signal. Members below 50% are generating noise or need support. Reference specific KPI shortfalls in member insights.
+CRITICAL — ROLE-AWARE SCORING:
+When team members have assigned roles, score them ONLY on metrics relevant to their role. Do NOT penalize someone for not doing work outside their role.
+
+Role-specific signal metrics:
+- CEO/Leadership: strategic document creation, breakout quality, vision alignment, team coordination, decision-making
+- CTO/Technical: code commits, technical documentation, development velocity, code review, system architecture work
+- CRO/Sales/Revenue: call volume, call outcomes (win rate), pipeline movement, client engagement, revenue-related KPIs
+
+Examples of WRONG scoring:
+- Penalizing a CTO for not making sales calls = WRONG
+- Penalizing a CRO for no GitHub commits = WRONG
+- Penalizing a CEO for low code output = WRONG
+
+Examples of CORRECT scoring:
+- CTO with high commit volume + good docs = high signal
+- CRO with many positive calls + pipeline KPIs on track = high signal
+- CEO with strategic docs + high alignment score = high signal
+
+When KPI data is provided, factor target attainment into signal/noise scoring. Members hitting >80% of their KPI targets have high signal. Members below 50% may need support. Reference specific KPI shortfalls in member insights.
 
 For the workflowLog, combine GitHub commits, document activity, breakouts, and calls into a unified timeline of the most significant 15-20 events, sorted by date desc.
 
-Be specific and data-driven. Reference actual document titles, commit messages, call outcomes, and KPI attainment.`,
+Be specific and data-driven. Reference actual document titles, commit messages, call outcomes, and KPI attainment. In each member's insight, reference their assigned role and assess them against role-appropriate criteria.`,
         },
         {
           role: "user",

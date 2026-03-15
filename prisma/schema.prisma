@@ -193,6 +193,7 @@ model AgentConfig {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   trainingDocs AgentTrainingDoc[]
+  assignments  RoleAssignment[]
 
   @@unique([workspaceId, roleId])
   @@index([workspaceId])
@@ -328,4 +329,22 @@ model ShareLink {
 
   @@index([token])
   @@index([documentId])
+}
+
+/// Maps team members to agent roles (e.g. Chris = CTO, Dylan = CEO)
+model RoleAssignment {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  /// Clerk user ID of the team member
+  userId        String
+  /// Which agent role this member holds
+  agentConfigId String
+  agentConfig   AgentConfig @relation(fields: [agentConfigId], references: [id], onDelete: Cascade)
+  /// Who made the assignment
+  assignedBy    String
+  createdAt     DateTime    @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([agentConfigId])
 }

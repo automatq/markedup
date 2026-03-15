@@ -153,6 +153,13 @@ interface AgentMonitorItem {
   monitor: { id: string; enabled: boolean; watchList: string[]; frequency: string; lastRunAt: string | null } | null;
 }
 
+interface RoleAssignmentItem {
+  id: string;
+  userId: string;
+  agentConfigId: string;
+  agentConfig: { id: string; roleId: string; name: string; title: string; color: string; avatar: string };
+}
+
 /* ──────────────────── Chart configs ──────────────────── */
 
 const activityChartConfig = {
@@ -389,6 +396,9 @@ export default function OverviewPage() {
   // Agent monitors
   const [agentMonitors, setAgentMonitors] = useState<AgentMonitorItem[]>([]);
 
+  // Role assignments
+  const [roleAssignments, setRoleAssignments] = useState<RoleAssignmentItem[]>([]);
+
   /* ── Data fetchers ── */
 
   const fetchOverview = useCallback(async () => {
@@ -474,6 +484,27 @@ export default function OverviewPage() {
     } catch {}
   }, [workspaceId]);
 
+  const fetchRoleAssignments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agents/assignments?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const d = await res.json();
+        setRoleAssignments(d.assignments || []);
+      }
+    } catch {}
+  }, [workspaceId]);
+
+  const assignRole = useCallback(async (memberUserId: string, agentConfigId: string) => {
+    try {
+      await fetch("/api/agents/assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, userId: memberUserId, agentConfigId }),
+      });
+      fetchRoleAssignments();
+    } catch {}
+  }, [workspaceId, fetchRoleAssignments]);
+
   const addKpi = useCallback(async () => {
     if (!kpiName || !kpiTarget || !kpiUserId) return;
     try {
@@ -546,9 +577,10 @@ export default function OverviewPage() {
     fetchGitHub();
     fetchKpis();
     fetchAgentMonitors();
+    fetchRoleAssignments();
     const interval = setInterval(fetchOverview, 30000);
     return () => clearInterval(interval);
-  }, [fetchOverview, fetchInsights, fetchGitHub, fetchKpis, fetchAgentMonitors]);
+  }, [fetchOverview, fetchInsights, fetchGitHub, fetchKpis, fetchAgentMonitors, fetchRoleAssignments]);
 
   /* ── Derived data ── */
 
@@ -899,6 +931,7 @@ export default function OverviewPage() {
                   const mTotal = memberKpis.reduce((s, k) => s + k.target, 0);
                   const mActual = memberKpis.reduce((s, k) => s + k.actual, 0);
                   const mPct = mTotal > 0 ? Math.min(100, Math.round((mActual / mTotal) * 100)) : null;
+                  const memberRole = roleAssignments.find((ra) => ra.userId === member.userId);
 
                   return (
                     <div key={member.userId} className="rounded-xl border border-black/6 dark:border-white/8 p-4">
@@ -911,7 +944,20 @@ export default function OverviewPage() {
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-black dark:text-white">{member.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-black dark:text-white">{member.name}</p>
+                            {/* Role assignment selector */}
+                            <select
+                              value={memberRole?.agentConfigId || ""}
+                              onChange={(e) => { if (e.target.value) assignRole(member.userId, e.target.value); }}
+                              className="text-[9px] rounded-full border border-black/8 dark:border-white/10 bg-transparent px-2 py-0.5 text-black/40 dark:text-white/40 outline-none cursor-pointer hover:border-black/20 dark:hover:border-white/20 transition-colors"
+                            >
+                              <option value="">Assign role…</option>
+                              {data.agents.map((a) => (
+                                <option key={a.id} value={a.id}>{a.title}</option>
+                              ))}
+                            </select>
+                          </div>
                           <p className="text-[10px] text-black/30 dark:text-white/30">{member.docs} pages · {member.edits} edits</p>
                         </div>
                         {snMember && (
