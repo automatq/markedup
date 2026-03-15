@@ -206,8 +206,8 @@ export default function OverviewPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [generatingInsights, setGeneratingInsights] = useState(false);
 
-  // GitHub state
-  const [github, setGitHub] = useState<GitHubData | null>(null);
+  // GitHub state — default to unconfigured so the connect card shows immediately
+  const [github, setGitHub] = useState<GitHubData>({ configured: false });
   const [githubExpanded, setGithubExpanded] = useState(false);
 
   // GitHub config modal
@@ -216,6 +216,7 @@ export default function OverviewPage() {
   const [ghRepo, setGhRepo] = useState("");
   const [ghToken, setGhToken] = useState("");
   const [ghSaving, setGhSaving] = useState(false);
+  const [ghError, setGhError] = useState("");
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -259,6 +260,7 @@ export default function OverviewPage() {
 
   const saveGitHubConfig = useCallback(async () => {
     setGhSaving(true);
+    setGhError("");
     try {
       const res = await fetch("/api/github/activity", {
         method: "POST",
@@ -268,8 +270,13 @@ export default function OverviewPage() {
       if (res.ok) {
         setShowGitHubConfig(false);
         fetchGitHub();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setGhError(data.error || `Failed to connect (${res.status})`);
       }
-    } catch {}
+    } catch (e) {
+      setGhError("Network error — check your connection and try again.");
+    }
     setGhSaving(false);
   }, [workspaceId, ghOwner, ghRepo, ghToken, fetchGitHub]);
 
@@ -745,7 +752,7 @@ export default function OverviewPage() {
         )}
 
         {/* GitHub Setup Card (when not configured) */}
-        {github && !github.configured && (
+        {!github.configured && (
           <div className="mb-6">
             {showGitHubConfig ? (
               <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
@@ -790,6 +797,9 @@ export default function OverviewPage() {
                       className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
                     />
                   </div>
+                  {ghError && (
+                    <p className="text-[11px] text-red-500 mb-2">{ghError}</p>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={saveGitHubConfig}
@@ -800,7 +810,7 @@ export default function OverviewPage() {
                       Connect
                     </button>
                     <button
-                      onClick={() => setShowGitHubConfig(false)}
+                      onClick={() => { setShowGitHubConfig(false); setGhError(""); }}
                       className="rounded-lg border border-black/8 dark:border-white/10 px-4 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
                     >
                       Cancel
