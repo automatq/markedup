@@ -78,31 +78,31 @@
 }
 
 .dark {
-  --color-white: rgba(255, 255, 255, 0.87);
+  --color-white: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --background: #000000;
-  --foreground: rgba(255, 255, 255, 0.87);
+  --foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --card: #0a0a0a;
-  --card-foreground: rgba(255, 255, 255, 0.87);
+  --card-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --popover: #0a0a0a;
-  --popover-foreground: rgba(255, 255, 255, 0.87);
-  --primary: rgba(255, 255, 255, 0.87);
+  --popover-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
+  --primary: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --primary-foreground: #0a0a0a;
   --secondary: #171717;
-  --secondary-foreground: rgba(255, 255, 255, 0.87);
+  --secondary-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --muted: #171717;
-  --muted-foreground: #a3a3a3;
+  --muted-foreground: rgba(255, 255, 255, calc(var(--text-intensity, 0.87) - 0.23));
   --accent: #171717;
-  --accent-foreground: rgba(255, 255, 255, 0.87);
+  --accent-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --destructive: #ef4444;
   --border: rgba(255, 255, 255, 0.10);
   --input: rgba(255, 255, 255, 0.15);
   --ring: rgba(255, 255, 255, 0.20);
   --sidebar: #0a0a0a;
-  --sidebar-foreground: rgba(255, 255, 255, 0.87);
-  --sidebar-primary: rgba(255, 255, 255, 0.87);
+  --sidebar-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
+  --sidebar-primary: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --sidebar-primary-foreground: #0a0a0a;
   --sidebar-accent: #171717;
-  --sidebar-accent-foreground: rgba(255, 255, 255, 0.87);
+  --sidebar-accent-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --sidebar-border: rgba(255, 255, 255, 0.10);
   --sidebar-ring: rgba(255, 255, 255, 0.20);
 }
@@ -238,6 +238,10 @@
 }
 
 /* ── Accessibility: high contrast ── */
+
+.high-contrast.dark {
+  --text-intensity: 1;
+}
 
 .high-contrast.dark .prose {
   --tw-prose-body: rgba(255, 255, 255, 1);
