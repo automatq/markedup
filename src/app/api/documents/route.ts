@@ -56,6 +56,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Backfill: assign orphaned docs (null createdBy) to workspace owner
+    const ws = await db.workspace.findUnique({ where: { id: workspaceId }, select: { ownerId: true } });
+    if (ws) {
+      await db.document.updateMany({
+        where: { workspaceId, createdBy: null },
+        data: { createdBy: ws.ownerId },
+      });
+    }
+
     const showTrash = request.nextUrl.searchParams.get("trash") === "true";
 
     const documents = await db.document.findMany({
