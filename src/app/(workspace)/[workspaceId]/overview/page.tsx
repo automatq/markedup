@@ -608,6 +608,18 @@ export default function OverviewPage() {
     ? Math.floor((Date.now() - new Date(insights.generatedAt).getTime()) / 86400000)
     : null;
 
+  const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
+
+  const chartData = useMemo(
+    () => (data?.dailyTimeline || []).slice(-daysToShow),
+    [data?.dailyTimeline, daysToShow]
+  );
+
+  const callChartData = useMemo(
+    () => (data?.dailyCalls || []).slice(-daysToShow),
+    [data?.dailyCalls, daysToShow]
+  );
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -623,18 +635,6 @@ export default function OverviewPage() {
       </div>
     );
   }
-
-  const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
-
-  const chartData = useMemo(
-    () => (data.dailyTimeline || []).slice(-daysToShow),
-    [data.dailyTimeline, daysToShow]
-  );
-
-  const callChartData = useMemo(
-    () => (data.dailyCalls || []).slice(-daysToShow),
-    [data.dailyCalls, daysToShow]
-  );
 
   return (
     <div className="h-full overflow-y-auto">
