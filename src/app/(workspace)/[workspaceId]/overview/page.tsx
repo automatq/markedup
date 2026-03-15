@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
   Activity,
   FileText,
@@ -13,11 +14,32 @@ import {
   Edit3,
   Loader2,
   TrendingUp,
-  Clock,
   BarChart3,
   ArrowRight,
   RefreshCw,
 } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface OverviewData {
   workspace: { name: string; isPersonal: boolean; createdAt: string };
@@ -35,6 +57,7 @@ interface OverviewData {
   popularDocs: { id: string; title: string; views: number }[];
   memberActivity: { userId: string; name: string; avatar?: string; docs: number; edits: number }[];
   agents: { id: string; name: string; title: string; color: string; avatar: string }[];
+  dailyTimeline: { date: string; edits: number; created: number; breakouts: number }[];
 }
 
 interface ActivityItem {
@@ -47,6 +70,21 @@ interface ActivityItem {
   timestamp: string;
   meta?: Record<string, any>;
 }
+
+const chartConfig = {
+  edits: {
+    label: "Edits",
+    color: "var(--chart-1)",
+  },
+  created: {
+    label: "Created",
+    color: "var(--chart-5)",
+  },
+  breakouts: {
+    label: "Breakouts",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -87,6 +125,7 @@ export default function OverviewPage() {
   const workspaceId = params?.workspaceId ?? "";
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState("30d");
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -98,7 +137,6 @@ export default function OverviewPage() {
 
   useEffect(() => {
     fetchOverview();
-    // Auto-refresh every 30 seconds
     const interval = setInterval(fetchOverview, 30000);
     return () => clearInterval(interval);
   }, [fetchOverview]);
@@ -118,6 +156,13 @@ export default function OverviewPage() {
       </div>
     );
   }
+
+  // Filter chart data by selected range
+  const chartData = (() => {
+    const timeline = data.dailyTimeline || [];
+    const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
+    return timeline.slice(-daysToShow);
+  })();
 
   return (
     <div className="h-full overflow-y-auto">
@@ -146,7 +191,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <StatCard
             icon={FileText}
             label="Total Pages"
@@ -177,6 +222,105 @@ export default function OverviewPage() {
           />
         </div>
 
+        {/* Activity Chart */}
+        <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+          <CardHeader className="flex items-center gap-2 space-y-0 border-b border-black/6 dark:border-white/8 py-4 sm:flex-row">
+            <div className="grid flex-1 gap-1">
+              <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                Workspace Activity
+              </CardTitle>
+              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                Document edits, pages created, and AI breakouts over time
+              </CardDescription>
+            </div>
+            <Select value={timeRange} onValueChange={(v) => { if (v) setTimeRange(v); }}>
+              <SelectTrigger
+                className="hidden w-[140px] rounded-lg text-xs sm:ml-auto sm:flex border-black/8 dark:border-white/10"
+                aria-label="Select time range"
+              >
+                <SelectValue placeholder="Last 30 days" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="30d" className="rounded-lg text-xs">Last 30 days</SelectItem>
+                <SelectItem value="14d" className="rounded-lg text-xs">Last 14 days</SelectItem>
+                <SelectItem value="7d" className="rounded-lg text-xs">Last 7 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-auto h-[220px] w-full"
+            >
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="fillEdits" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-edits)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-edits)" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="fillCreated" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-created)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-created)" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="fillBreakouts" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-breakouts)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-breakouts)" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-black/[0.06] dark:stroke-white/[0.06]" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={32}
+                  className="text-[10px] fill-black/30 dark:fill-white/30"
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  }}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(value) =>
+                        new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                      }
+                      indicator="dot"
+                    />
+                  }
+                />
+                <Area
+                  dataKey="created"
+                  type="natural"
+                  fill="url(#fillCreated)"
+                  stroke="var(--color-created)"
+                  strokeWidth={2}
+                  stackId="a"
+                />
+                <Area
+                  dataKey="edits"
+                  type="natural"
+                  fill="url(#fillEdits)"
+                  stroke="var(--color-edits)"
+                  strokeWidth={2}
+                  stackId="a"
+                />
+                <Area
+                  dataKey="breakouts"
+                  type="natural"
+                  fill="url(#fillBreakouts)"
+                  stroke="var(--color-breakouts)"
+                  strokeWidth={2}
+                  stackId="a"
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Activity Feed — takes 2 columns */}
           <div className="lg:col-span-2">
@@ -203,12 +347,9 @@ export default function OverviewPage() {
                     key={i}
                     className="group flex items-start gap-3 rounded-xl px-3.5 py-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-default"
                   >
-                    {/* Icon */}
                     <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${activityColor(item.type)}`}>
                       <ActivityIcon type={item.type} />
                     </div>
-
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] text-black/70 dark:text-white/70 leading-snug">
                         {item.userName && (
@@ -220,8 +361,6 @@ export default function OverviewPage() {
                         <p className="text-[11px] text-black/35 dark:text-white/35 mt-0.5">{item.subtitle}</p>
                       )}
                     </div>
-
-                    {/* Timestamp */}
                     <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 mt-0.5">
                       {timeAgo(item.timestamp)}
                     </span>
@@ -279,11 +418,7 @@ export default function OverviewPage() {
                       className="flex items-center gap-2.5 px-3.5 py-2.5 first:rounded-t-xl last:rounded-b-xl"
                     >
                       {member.avatar ? (
-                        <img
-                          src={member.avatar}
-                          alt=""
-                          className="h-6 w-6 rounded-full shrink-0"
-                        />
+                        <img src={member.avatar} alt="" className="h-6 w-6 rounded-full shrink-0" />
                       ) : (
                         <div className="h-6 w-6 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center shrink-0">
                           <span className="text-[9px] font-bold text-black/40 dark:text-white/40">

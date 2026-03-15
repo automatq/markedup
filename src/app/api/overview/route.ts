@@ -214,6 +214,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Build daily timeline for the last 30 days (for chart)
+    const dailyTimeline: { date: string; edits: number; created: number; breakouts: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const day = new Date(now);
+      day.setDate(day.getDate() - i);
+      const dayStr = day.toISOString().slice(0, 10);
+      dailyTimeline.push({ date: dayStr, edits: 0, created: 0, breakouts: 0 });
+    }
+    const dayMap = new Map(dailyTimeline.map((d) => [d.date, d]));
+    for (const doc of allDocs) {
+      const createdDay = doc.createdAt.toISOString().slice(0, 10);
+      const editedDay = doc.updatedAt.toISOString().slice(0, 10);
+      const cd = dayMap.get(createdDay);
+      if (cd) cd.created++;
+      if (editedDay !== createdDay || doc.updatedAt.getTime() - doc.createdAt.getTime() > 60000) {
+        const ed = dayMap.get(editedDay);
+        if (ed) ed.edits++;
+      }
+    }
+    for (const b of recentBreakouts) {
+      const day = b.createdAt.toISOString().slice(0, 10);
+      const bd = dayMap.get(day);
+      if (bd) bd.breakouts++;
+    }
+
     return NextResponse.json({
       workspace: {
         name: workspace?.name || "Workspace",
@@ -236,6 +261,7 @@ export async function GET(request: NextRequest) {
         .map(([id, data]) => ({ userId: id, ...data }))
         .sort((a, b) => b.edits - a.edits || b.docs - a.docs),
       agents: agentConfigs,
+      dailyTimeline,
     });
   } catch (err) {
     console.error("GET /api/overview error:", err);

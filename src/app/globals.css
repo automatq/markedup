@@ -75,6 +75,11 @@
   --sidebar-accent-foreground: #0a0a0a;
   --sidebar-border: rgba(0, 0, 0, 0.08);
   --sidebar-ring: rgba(0, 0, 0, 0.15);
+  --chart-1: #6366f1;
+  --chart-2: #8b5cf6;
+  --chart-3: #ec4899;
+  --chart-4: #f97316;
+  --chart-5: #22c55e;
 }
 
 .dark {
@@ -105,6 +110,11 @@
   --sidebar-accent-foreground: rgba(255, 255, 255, var(--text-intensity, 0.87));
   --sidebar-border: rgba(255, 255, 255, 0.10);
   --sidebar-ring: rgba(255, 255, 255, 0.20);
+  --chart-1: #818cf8;
+  --chart-2: #a78bfa;
+  --chart-3: #f472b6;
+  --chart-4: #fb923c;
+  --chart-5: #4ade80;
 }
 
 /* ── Linktree-inspired animations ── */
