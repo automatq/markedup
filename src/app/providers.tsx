@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { ThemeProvider } from "next-themes";
 import { LiveblocksProvider } from "@liveblocks/react/suspense";
 
@@ -14,6 +15,14 @@ interface UserInfo {
 const userCache = new Map<string, UserInfo>();
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  // Load saved text intensity preference
+  useEffect(() => {
+    const saved = localStorage.getItem("textIntensity");
+    if (saved) {
+      document.documentElement.style.setProperty("--text-intensity", saved);
+    }
+  }, []);
+
   return (
     <LiveblocksProvider
       authEndpoint="/api/liveblocks-auth"

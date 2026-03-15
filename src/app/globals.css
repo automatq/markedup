@@ -179,16 +179,21 @@
 }
 
 /* ── Editor prose overrides for dark mode ── */
+/* --text-intensity controls white text brightness (0–1, default 0.85) */
 
 .dark .prose {
-  --tw-prose-body: rgba(255, 255, 255, 0.85);
-  --tw-prose-headings: rgba(255, 255, 255, 0.9);
-  --tw-prose-links: rgba(255, 255, 255, 0.9);
-  --tw-prose-bold: rgba(255, 255, 255, 0.9);
-  --tw-prose-code: rgba(255, 255, 255, 0.8);
-  --tw-prose-quotes: rgba(255, 255, 255, 0.5);
+  --tw-prose-body: rgba(255, 255, 255, var(--text-intensity, 0.85));
+  --tw-prose-headings: rgba(255, 255, 255, calc(var(--text-intensity, 0.85) + 0.05));
+  --tw-prose-links: rgba(255, 255, 255, calc(var(--text-intensity, 0.85) + 0.05));
+  --tw-prose-bold: rgba(255, 255, 255, calc(var(--text-intensity, 0.85) + 0.05));
+  --tw-prose-code: rgba(255, 255, 255, calc(var(--text-intensity, 0.85) - 0.05));
+  --tw-prose-quotes: rgba(255, 255, 255, calc(var(--text-intensity, 0.85) - 0.35));
   --tw-prose-quote-borders: rgba(255, 255, 255, 0.15);
   --tw-prose-hr: rgba(255, 255, 255, 0.10);
+}
+
+.dark .ProseMirror {
+  color: rgba(255, 255, 255, var(--text-intensity, 0.85));
 }
 
 /* ── Selection styling ── */

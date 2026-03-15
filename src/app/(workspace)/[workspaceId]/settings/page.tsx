@@ -14,6 +14,7 @@ import {
   Sparkles,
   X,
   Check,
+  Sun,
 } from "lucide-react";
 
 interface Member {
@@ -192,8 +193,21 @@ export default function SettingsPage() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [textIntensity, setTextIntensity] = useState(0.85);
 
   const isOwner = user?.id === ownerId;
+
+  // Load saved text intensity
+  useEffect(() => {
+    const saved = localStorage.getItem("textIntensity");
+    if (saved) setTextIntensity(parseFloat(saved));
+  }, []);
+
+  const handleTextIntensityChange = useCallback((value: number) => {
+    setTextIntensity(value);
+    document.documentElement.style.setProperty("--text-intensity", String(value));
+    localStorage.setItem("textIntensity", String(value));
+  }, []);
 
   // Fetch workspace info + members in one flow
   useEffect(() => {
@@ -327,7 +341,39 @@ export default function SettingsPage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Back
           </button>
           <h1 className="text-2xl font-bold text-black dark:text-white mb-2">Personal Space</h1>
-          <p className="text-sm text-black/40 dark:text-white/40">This is your personal workspace. Group settings are available on team workspaces.</p>
+          <p className="text-sm text-black/40 dark:text-white/40 mb-8">This is your personal workspace. Group settings are available on team workspaces.</p>
+
+          {/* Appearance */}
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Sun className="h-4 w-4 text-black/40 dark:text-white/40" />
+              <h2 className="text-lg font-semibold text-black dark:text-white">Appearance</h2>
+            </div>
+            <div className="rounded-xl border border-black/8 dark:border-white/10 p-5">
+              <label className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
+                Text Brightness
+              </label>
+              <p className="text-xs text-black/30 dark:text-white/30 mt-0.5 mb-3">
+                Adjust the intensity of text in dark mode
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-black/30 dark:text-white/30 w-8">Dim</span>
+                <input
+                  type="range"
+                  min="0.4"
+                  max="1"
+                  step="0.05"
+                  value={textIntensity}
+                  onChange={(e) => handleTextIntensityChange(parseFloat(e.target.value))}
+                  className="flex-1 h-1.5 rounded-full appearance-none bg-black/10 dark:bg-white/10 accent-black dark:accent-white cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
+                />
+                <span className="text-xs text-black/30 dark:text-white/30 w-10 text-right">Bright</span>
+              </div>
+              <p className="text-[11px] text-black/20 dark:text-white/20 mt-2 text-center">
+                {Math.round(textIntensity * 100)}%
+              </p>
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -394,6 +440,38 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        {/* Appearance */}
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Sun className="h-4 w-4 text-black/40 dark:text-white/40" />
+            <h2 className="text-lg font-semibold text-black dark:text-white">Appearance</h2>
+          </div>
+          <div className="rounded-xl border border-black/8 dark:border-white/10 p-5">
+            <label className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
+              Text Brightness
+            </label>
+            <p className="text-xs text-black/30 dark:text-white/30 mt-0.5 mb-3">
+              Adjust the intensity of text in dark mode
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-black/30 dark:text-white/30 w-8">Dim</span>
+              <input
+                type="range"
+                min="0.4"
+                max="1"
+                step="0.05"
+                value={textIntensity}
+                onChange={(e) => handleTextIntensityChange(parseFloat(e.target.value))}
+                className="flex-1 h-1.5 rounded-full appearance-none bg-black/10 dark:bg-white/10 accent-black dark:accent-white cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
+              />
+              <span className="text-xs text-black/30 dark:text-white/30 w-10 text-right">Bright</span>
+            </div>
+            <p className="text-[11px] text-black/20 dark:text-white/20 mt-2 text-center">
+              {Math.round(textIntensity * 100)}%
+            </p>
+          </div>
+        </section>
 
         {/* Members Section */}
         <section className="mb-10">
