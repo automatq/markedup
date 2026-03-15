@@ -86,9 +86,10 @@ export async function POST() {
         session.allow(`document:${doc.id}`, session.FULL_ACCESS);
       }
 
-      // Grant access to whiteboard rooms for each workspace
+      // Grant access to whiteboard and spreadsheet rooms for each workspace
       for (const wsId of wsIds) {
         session.allow(`whiteboard:${wsId}`, session.FULL_ACCESS);
+        session.allow(`spreadsheet:${wsId}`, session.FULL_ACCESS);
       }
     }
 
