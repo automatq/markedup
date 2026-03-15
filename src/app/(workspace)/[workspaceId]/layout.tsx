@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { WorkspaceLayout } from "@/components/layout/WorkspaceLayout";
 import { QuickSwitcher } from "@/components/QuickSwitcher";
 import { TemplatePicker } from "@/components/TemplatePicker";
-import { GraphView, GraphNode, GraphEdge } from "@/components/graph/GraphView";
+import { GraphView } from "@/components/graph/GraphView";
 import { TrashDialog } from "@/components/dialogs/TrashDialog";
 import { useRouter, useParams } from "next/navigation";
 
@@ -196,16 +196,6 @@ export default function WorkspaceLayoutPage({
     [params?.documentId, router, workspaceId]
   );
 
-  // Build graph data from documents
-  const graphNodes: GraphNode[] = documents.map((doc, i) => ({
-    id: doc.id,
-    title: doc.title,
-    x: Math.cos((i / Math.max(documents.length, 1)) * Math.PI * 2) * 100,
-    y: Math.sin((i / Math.max(documents.length, 1)) * Math.PI * 2) * 100,
-    vx: 0,
-    vy: 0,
-  }));
-
   return (
     <>
       <WorkspaceLayout
@@ -256,8 +246,7 @@ export default function WorkspaceLayoutPage({
       <GraphView
         open={graphViewOpen}
         onClose={() => setGraphViewOpen(false)}
-        nodes={graphNodes}
-        edges={[]}
+        workspaceId={workspaceId}
         activeNodeId={params?.documentId}
         onNodeClick={(id) => {
           handleSelectDocument(id);
