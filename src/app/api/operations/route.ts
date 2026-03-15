@@ -209,14 +209,30 @@ Respond ONLY with valid JSON matching this exact schema:
     "callWinRate": <0-100>,
     "avgCallScore": <0-100>,
     "kpiAttainment": <0-100 or null>,
-    "momentum": "<accelerating|steady|decelerating|stalled>"
+    "momentum": "<accelerating|steady|decelerating|stalled>",
+    "activityScore": <0-100>
   },
   "highlights": [
     { "type": "<milestone|win|decision|risk|insight>", "text": "<what happened>", "date": "<YYYY-MM-DD>" }
   ],
+  "goldenGems": [
+    { "gem": "<A reusable business lesson or strategy extracted from what happened — something another founder could apply>", "context": "<What specifically happened that revealed this lesson>", "category": "<strategy|sales|product|team|operations>" }
+  ],
+  "playbookPatterns": [
+    { "pattern": "<A recurring pattern the AI detected across this and previous periods>", "evidence": "<Specific data points supporting this pattern>", "actionable": "<How to leverage or address this pattern>" }
+  ],
+  "decisions": [
+    { "decision": "<A key decision inferred from document titles, call outcomes, or activity shifts>", "date": "<YYYY-MM-DD>", "impact": "<high|medium|low>" }
+  ],
   "docRefs": ["<documentId1>", "<documentId2>"],
   "trajectory": "<1-2 sentences on whether the company is trending up, plateauing, or needs course correction compared to previous period>"
 }
+
+GOLDEN GEMS: Extract 1-3 genuinely reusable business lessons — the kind of insight that, if another founder read it, would save them time or money. Look for what worked, what didn't, and why. Be specific, not generic. Bad: "Communication is important." Good: "Scheduling breakout analysis before sales calls led to a 20% higher close rate this week."
+
+PLAYBOOK PATTERNS: Identify recurring correlations across periods. E.g., "Weeks with >3 new strategic docs consistently precede positive call outcome spikes" or "Monthly KPI attainment drops when breakout generation falls below 5/week."
+
+DECISIONS: Infer key decisions from activity shifts, new documents, or call outcomes. If a new strategic doc appears or call patterns change, that likely reflects a decision.
 
 Be honest and data-driven. If activity is low, say so. If results are strong, celebrate them. This chronicle should read as a truthful history when looked back on years later.`,
       },

@@ -53,23 +53,30 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Generate daily operations digests for all active workspaces
-  const digestResults: { workspaceId: string; status: string }[] = [];
+  // Generate operations digests for all active workspaces
+  // Daily: every run | Weekly: Mondays | Monthly: 1st of month
+  const digestResults: { workspaceId: string; period: string; status: string }[] = [];
   try {
     const activeWorkspaces = await db.workspace.findMany({
       select: { id: true },
     });
 
+    const isMonday = now.getUTCDay() === 1;
+    const isFirstOfMonth = now.getUTCDate() === 1;
+    const periods = ["daily", ...(isMonday ? ["weekly"] : []), ...(isFirstOfMonth ? ["monthly"] : [])];
+
     await Promise.all(
-      activeWorkspaces.map(async (ws) => {
-        try {
-          await generateOperationsDigest(openai, ws.id, "daily");
-          digestResults.push({ workspaceId: ws.id, status: "success" });
-        } catch (err) {
-          console.error(`Operations digest failed for ${ws.id}:`, err);
-          digestResults.push({ workspaceId: ws.id, status: "error" });
-        }
-      })
+      activeWorkspaces.flatMap((ws) =>
+        periods.map(async (p) => {
+          try {
+            await generateOperationsDigest(openai, ws.id, p);
+            digestResults.push({ workspaceId: ws.id, period: p, status: "success" });
+          } catch (err) {
+            console.error(`Operations digest (${p}) failed for ${ws.id}:`, err);
+            digestResults.push({ workspaceId: ws.id, period: p, status: "error" });
+          }
+        })
+      )
     );
   } catch (err) {
     console.error("Failed to generate operations digests:", err);
