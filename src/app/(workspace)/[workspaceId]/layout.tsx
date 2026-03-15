@@ -11,6 +11,7 @@ import { useRouter, useParams } from "next/navigation";
 interface DocEntry {
   id: string;
   title: string;
+  parentId?: string | null;
   createdBy?: string | null;
   authorName?: string | null;
 }
@@ -124,6 +125,7 @@ export default function WorkspaceLayoutPage({
             workspaceId,
             title: template.title || "Untitled",
             content: template.content || undefined,
+            parentId: template.parentId || undefined,
           }),
         });
         if (res.ok) {
@@ -136,6 +138,46 @@ export default function WorkspaceLayoutPage({
       }
     },
     [router, workspaceId]
+  );
+
+  const handleCreateSubPage = useCallback(
+    async (parentId: string) => {
+      try {
+        const res = await fetch("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceId,
+            title: "Untitled",
+            parentId,
+          }),
+        });
+        if (res.ok) {
+          const doc = await res.json();
+          await refreshDocuments();
+          router.push(`/${workspaceId}/${doc.id}`);
+        }
+      } catch (err) {
+        console.error("Failed to create sub-page:", err);
+      }
+    },
+    [router, workspaceId, refreshDocuments]
+  );
+
+  const handleMoveDocument = useCallback(
+    async (docId: string, newParentId: string | null) => {
+      try {
+        await fetch(`/api/documents/${docId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parentId: newParentId }),
+        });
+        await refreshDocuments();
+      } catch (err) {
+        console.error("Failed to move document:", err);
+      }
+    },
+    [refreshDocuments]
   );
 
   const handleTrashDocument = useCallback(
@@ -171,6 +213,8 @@ export default function WorkspaceLayoutPage({
         activeDocumentId={params?.documentId}
         onSelectDocument={handleSelectDocument}
         onCreateDocument={handleCreateDocument}
+        onCreateSubPage={handleCreateSubPage}
+        onMoveDocument={handleMoveDocument}
         onOpenTrash={() => setTrashOpen(true)}
         onTrashDocument={handleTrashDocument}
         presence={presence}

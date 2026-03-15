@@ -40,6 +40,11 @@ model Document {
   /// Clerk user ID of who created this document
   createdBy   String?
 
+  /// Self-relation for nested pages / folders
+  parentId    String?
+  parent      Document?  @relation("DocumentChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Document[] @relation("DocumentChildren")
+
   /// TipTap JSONContent stored as JSON
   content Json?
 
@@ -66,6 +71,7 @@ model Document {
   views         DocumentView[]
 
   @@index([workspaceId])
+  @@index([parentId])
 }
 
 model Node {

@@ -34,6 +34,7 @@ import { ScribbleIcon } from "@/components/ScribbleIcon";
 export interface SidebarDocument {
   id: string;
   title: string;
+  parentId?: string | null;
   createdBy?: string | null;
   authorName?: string | null;
 }
@@ -48,11 +49,198 @@ interface SidebarProps {
   activeDocumentId?: string;
   onSelectDocument: (id: string) => void;
   onCreateDocument: () => void;
+  onCreateSubPage?: (parentId: string) => void;
+  onMoveDocument?: (docId: string, newParentId: string | null) => void;
   onOpenTrash: () => void;
   onTrashDocument: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   presence?: Record<string, PresenceInfo>;
+}
+
+interface TreeNode extends SidebarDocument {
+  children: TreeNode[];
+}
+
+function buildTree(docs: SidebarDocument[]): TreeNode[] {
+  const map = new Map<string, TreeNode>();
+  for (const doc of docs) {
+    map.set(doc.id, { ...doc, children: [] });
+  }
+  const roots: TreeNode[] = [];
+  for (const node of map.values()) {
+    if (node.parentId && map.has(node.parentId)) {
+      map.get(node.parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+}
+
+function DocTreeItem({
+  node,
+  depth,
+  activeDocumentId,
+  onSelectDocument,
+  onCreateSubPage,
+  onMoveDocument,
+  draggingId,
+  setDraggingId,
+  presence,
+  expandedIds,
+  toggleExpanded,
+}: {
+  node: TreeNode;
+  depth: number;
+  activeDocumentId?: string;
+  onSelectDocument: (id: string) => void;
+  onCreateSubPage?: (parentId: string) => void;
+  onMoveDocument?: (docId: string, newParentId: string | null) => void;
+  draggingId: string | null;
+  setDraggingId: (id: string | null) => void;
+  presence?: Record<string, PresenceInfo>;
+  expandedIds: Set<string>;
+  toggleExpanded: (id: string) => void;
+}) {
+  const [dropTarget, setDropTarget] = useState(false);
+  const hasChildren = node.children.length > 0;
+  const isExpanded = expandedIds.has(node.id);
+  const isActive = node.id === activeDocumentId;
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", node.id);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingId(node.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const draggedId = draggingId;
+    if (draggedId && draggedId !== node.id) {
+      e.dataTransfer.dropEffect = "move";
+      setDropTarget(true);
+    }
+  };
+
+  const handleDragLeave = () => setDropTarget(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(false);
+    const draggedId = e.dataTransfer.getData("text/plain");
+    if (draggedId && draggedId !== node.id && onMoveDocument) {
+      onMoveDocument(draggedId, node.id);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+  };
+
+  return (
+    <div>
+      <div
+        className={`group flex w-full items-center rounded-lg text-left text-sm transition-all duration-150 ${
+          dropTarget
+            ? "bg-indigo-500/10 ring-1 ring-indigo-500/30"
+            : draggingId === node.id
+              ? "opacity-40"
+              : isActive
+                ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
+                : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
+        }`}
+        style={{ paddingLeft: `${depth * 16 + 4}px` }}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Expand/collapse toggle */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleExpanded(node.id);
+          }}
+          className={`flex h-5 w-5 items-center justify-center shrink-0 rounded transition-colors ${
+            hasChildren || isExpanded
+              ? "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"
+              : "text-transparent group-hover:text-black/20 dark:group-hover:text-white/20"
+          }`}
+        >
+          <ChevronRight
+            className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          />
+        </button>
+
+        {/* Document button */}
+        <button
+          onClick={() => onSelectDocument(node.id)}
+          className="flex flex-1 items-center gap-2 py-2 pr-1 min-w-0 cursor-grab active:cursor-grabbing"
+        >
+          <FileText className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate flex-1">{node.title || "Untitled"}</span>
+          {presence?.[node.id] && (
+            <span
+              className="flex -space-x-1 shrink-0"
+              title={presence[node.id].users.map((u) => u.name).join(", ")}
+            >
+              {presence[node.id].users.slice(0, 3).map((u, i) => (
+                <span
+                  key={i}
+                  className="h-4 w-4 rounded-full border border-white dark:border-black flex items-center justify-center text-[7px] font-bold text-white"
+                  style={{ backgroundColor: u.color, zIndex: 3 - i }}
+                >
+                  {u.name[0]}
+                </span>
+              ))}
+            </span>
+          )}
+        </button>
+
+        {/* Add sub-page button */}
+        {onCreateSubPage && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateSubPage(node.id);
+              if (!isExpanded) toggleExpanded(node.id);
+            }}
+            className="hidden group-hover:flex h-5 w-5 items-center justify-center shrink-0 rounded text-black/25 dark:text-white/25 hover:text-black/60 dark:hover:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 mr-1 transition-colors"
+            title="Add sub-page"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Children */}
+      {isExpanded && node.children.length > 0 && (
+        <div>
+          {node.children.map((child) => (
+            <DocTreeItem
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              activeDocumentId={activeDocumentId}
+              onSelectDocument={onSelectDocument}
+              onCreateSubPage={onCreateSubPage}
+              onMoveDocument={onMoveDocument}
+              draggingId={draggingId}
+              setDraggingId={setDraggingId}
+              presence={presence}
+              expandedIds={expandedIds}
+              toggleExpanded={toggleExpanded}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
@@ -181,6 +369,8 @@ export function Sidebar({
   activeDocumentId,
   onSelectDocument,
   onCreateDocument,
+  onCreateSubPage,
+  onMoveDocument,
   onOpenTrash,
   onTrashDocument,
   collapsed,
@@ -203,6 +393,7 @@ export function Sidebar({
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [a11yOpen, setA11yOpen] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedAuthors, setCollapsedAuthors] = useState<Set<string>>(new Set());
   const [selectedAuthor, setSelectedAuthor] = useState<string>("all");
   const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false);
@@ -318,6 +509,37 @@ export function Sidebar({
       };
       el.style.setProperty("--ui-font", fontMap[value] || fontMap["geist-sans"]);
     }
+  }, []);
+
+  // Auto-expand ancestors of the active document
+  useEffect(() => {
+    if (!activeDocumentId) return;
+    const parentMap = new Map<string, string>();
+    for (const doc of documents) {
+      if (doc.parentId) parentMap.set(doc.id, doc.parentId);
+    }
+    const toExpand: string[] = [];
+    let current = parentMap.get(activeDocumentId);
+    while (current) {
+      toExpand.push(current);
+      current = parentMap.get(current);
+    }
+    if (toExpand.length > 0) {
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of toExpand) next.add(id);
+        return next;
+      });
+    }
+  }, [activeDocumentId, documents]);
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
   const currentWorkspace = workspaces.find((w) => w.id === params?.workspaceId);
@@ -678,7 +900,26 @@ export function Sidebar({
       })()}
 
       {/* Document List */}
-      <div className="flex-1 overflow-y-auto px-2 py-1">
+      <div
+        className="flex-1 overflow-y-auto px-2 py-1"
+        onDragOver={(e) => {
+          // Allow dropping at root to un-nest
+          if (draggingId) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={(e) => {
+          const docId = e.dataTransfer.getData("text/plain");
+          if (docId && onMoveDocument) {
+            // Only un-nest if dropped on the container itself (not a child)
+            if (e.target === e.currentTarget) {
+              onMoveDocument(docId, null);
+            }
+          }
+          setDraggingId(null);
+        }}
+      >
         {(() => {
           const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
           const currentUserId = user?.id;
@@ -737,38 +978,29 @@ export function Sidebar({
                         <span className="truncate">{authorName}</span>
                         <span className="text-black/20 dark:text-white/20 ml-auto">{docs.length}</span>
                       </button>
-                      {!isCollapsed && (
-                        <div className="space-y-0.5">
-                          {docs.map((doc) => (
-                            <button
-                              key={doc.id}
-                              onClick={() => onSelectDocument(doc.id)}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, doc.id)}
-                              onDragEnd={handleDragEnd}
-                              className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 pl-6 py-2 text-left text-sm transition-all duration-150 cursor-grab active:cursor-grabbing ${
-                                draggingId === doc.id
-                                  ? "opacity-40"
-                                  : doc.id === activeDocumentId
-                                    ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
-                                    : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
-                              }`}
-                            >
-                              <FileText className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate flex-1">{doc.title || "Untitled"}</span>
-                              {presence?.[doc.id] && (
-                                <span className="flex -space-x-1 shrink-0" title={presence[doc.id].users.map((u) => u.name).join(", ")}>
-                                  {presence[doc.id].users.slice(0, 3).map((u, i) => (
-                                    <span key={i} className="h-4 w-4 rounded-full border border-white dark:border-black flex items-center justify-center text-[7px] font-bold text-white" style={{ backgroundColor: u.color, zIndex: 3 - i }}>
-                                      {u.name[0]}
-                                    </span>
-                                  ))}
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      {!isCollapsed && (() => {
+                        const authorTree = buildTree(docs);
+                        return (
+                          <div className="space-y-0.5">
+                            {authorTree.map((node) => (
+                              <DocTreeItem
+                                key={node.id}
+                                node={node}
+                                depth={1}
+                                activeDocumentId={activeDocumentId}
+                                onSelectDocument={onSelectDocument}
+                                onCreateSubPage={onCreateSubPage}
+                                onMoveDocument={onMoveDocument}
+                                draggingId={draggingId}
+                                setDraggingId={setDraggingId}
+                                presence={presence}
+                                expandedIds={expandedIds}
+                                toggleExpanded={toggleExpanded}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -776,36 +1008,25 @@ export function Sidebar({
             );
           }
 
-          // Flat list — for personal workspaces, or filtered to a single author
+          // Tree list — for personal workspaces, or filtered to a single author
+          const tree = buildTree(visibleDocs);
           return (
             <div className="space-y-0.5">
-              {visibleDocs.map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={() => onSelectDocument(doc.id)}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, doc.id)}
-                  onDragEnd={handleDragEnd}
-                  className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 cursor-grab active:cursor-grabbing ${
-                    draggingId === doc.id
-                      ? "opacity-40"
-                      : doc.id === activeDocumentId
-                        ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
-                        : "text-black/50 dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-black/80 dark:hover:text-white/80"
-                  }`}
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate flex-1">{doc.title || "Untitled"}</span>
-                  {presence?.[doc.id] && (
-                    <span className="flex -space-x-1 shrink-0" title={presence[doc.id].users.map((u) => u.name).join(", ")}>
-                      {presence[doc.id].users.slice(0, 3).map((u, i) => (
-                        <span key={i} className="h-4 w-4 rounded-full border border-white dark:border-black flex items-center justify-center text-[7px] font-bold text-white" style={{ backgroundColor: u.color, zIndex: 3 - i }}>
-                          {u.name[0]}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </button>
+              {tree.map((node) => (
+                <DocTreeItem
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  activeDocumentId={activeDocumentId}
+                  onSelectDocument={onSelectDocument}
+                  onCreateSubPage={onCreateSubPage}
+                  onMoveDocument={onMoveDocument}
+                  draggingId={draggingId}
+                  setDraggingId={setDraggingId}
+                  presence={presence}
+                  expandedIds={expandedIds}
+                  toggleExpanded={toggleExpanded}
+                />
               ))}
               {visibleDocs.length === 0 && (
                 <p className="px-2 py-6 text-center text-xs text-black/30 dark:text-white/30">

@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         workspaceId,
         deletedAt: showTrash ? { not: null } : null,
       },
-      select: { id: true, title: true, updatedAt: true, deletedAt: true, createdBy: true, deletedBy: true },
+      select: { id: true, title: true, parentId: true, updatedAt: true, deletedAt: true, createdBy: true, deletedBy: true },
       orderBy: showTrash ? { deletedAt: "desc" } : { updatedAt: "desc" },
     });
 
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { workspaceId, title, content, sourceType } = body;
+    const { workspaceId, title, content, sourceType, parentId } = body;
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
         content: content ?? undefined,
         createdBy: userId,
         sourceType: sourceType ?? undefined,
+        parentId: parentId ?? undefined,
       },
     });
 

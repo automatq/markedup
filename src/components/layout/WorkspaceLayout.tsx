@@ -8,6 +8,8 @@ interface WorkspaceLayoutProps {
   activeDocumentId?: string;
   onSelectDocument: (id: string) => void;
   onCreateDocument: () => void;
+  onCreateSubPage?: (parentId: string) => void;
+  onMoveDocument?: (docId: string, newParentId: string | null) => void;
   onOpenTrash: () => void;
   onTrashDocument: (id: string) => void;
   presence?: Record<string, { count: number; users: { name: string; avatar?: string; color: string }[] }>;
@@ -19,6 +21,8 @@ export function WorkspaceLayout({
   activeDocumentId,
   onSelectDocument,
   onCreateDocument,
+  onCreateSubPage,
+  onMoveDocument,
   onOpenTrash,
   onTrashDocument,
   presence,
@@ -33,6 +37,8 @@ export function WorkspaceLayout({
         activeDocumentId={activeDocumentId}
         onSelectDocument={onSelectDocument}
         onCreateDocument={onCreateDocument}
+        onCreateSubPage={onCreateSubPage}
+        onMoveDocument={onMoveDocument}
         onOpenTrash={onOpenTrash}
         onTrashDocument={onTrashDocument}
         collapsed={sidebarCollapsed}

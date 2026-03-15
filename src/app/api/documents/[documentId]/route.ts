@@ -67,11 +67,12 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, content } = body;
+    const { title, content, parentId } = body;
 
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (content !== undefined) data.content = content;
+    if (parentId !== undefined) data.parentId = parentId ?? null;
 
     const document = await db.document.update({
       where: { id: documentId },
