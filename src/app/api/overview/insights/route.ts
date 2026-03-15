@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       }),
       db.document.findMany({
         where: { workspaceId, deletedAt: null },
-        select: { id: true, title: true, createdBy: true, createdAt: true, updatedAt: true, content: true },
+        select: { id: true, title: true, createdBy: true, createdAt: true, updatedAt: true },
       }),
       db.document.findMany({
         where: { workspaceId, deletedAt: null, updatedAt: { gte: sevenDaysAgo } },

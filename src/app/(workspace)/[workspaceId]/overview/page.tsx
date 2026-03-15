@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Area,
@@ -74,6 +74,7 @@ interface OverviewData {
     totalCalls: number;
     agentCount: number;
     trashedCount: number;
+    wow?: { docsCreated: number; breakouts: number; calls: number };
   };
   callStats: {
     total: number;
@@ -584,21 +585,23 @@ export default function OverviewPage() {
 
   /* ── Derived data ── */
 
-  const findAgent = (roleId: string) => data?.agents.find((a) => a.roleId === roleId);
-  const findMonitor = (agentId: string) => agentMonitors.find((m) => m.agent.id === agentId);
+  const findAgent = useCallback((roleId: string) => data?.agents.find((a) => a.roleId === roleId), [data?.agents]);
+  const findMonitor = useCallback((agentId: string) => agentMonitors.find((m) => m.agent.id === agentId), [agentMonitors]);
 
-  const ceoAgent = findAgent("ceo");
-  const ctoAgent = findAgent("cto");
-  const croAgent = findAgent("cro");
+  const ceoAgent = useMemo(() => findAgent("ceo"), [findAgent]);
+  const ctoAgent = useMemo(() => findAgent("cto"), [findAgent]);
+  const croAgent = useMemo(() => findAgent("cro"), [findAgent]);
 
   const sn = insights?.signalNoise;
   const vt = insights?.visionTracker;
 
   // KPI attainment
-  const allKpis = kpiData?.all || [];
-  const totalTarget = allKpis.reduce((s, k) => s + k.target, 0);
-  const totalActual = allKpis.reduce((s, k) => s + k.actual, 0);
-  const kpiAttainment = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : null;
+  const allKpis = useMemo(() => kpiData?.all || [], [kpiData?.all]);
+  const kpiAttainment = useMemo(() => {
+    const totalTarget = allKpis.reduce((s, k) => s + k.target, 0);
+    const totalActual = allKpis.reduce((s, k) => s + k.actual, 0);
+    return totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : null;
+  }, [allKpis]);
 
   // Days since last insight
   const daysSinceInsight = insights?.generatedAt
@@ -621,17 +624,17 @@ export default function OverviewPage() {
     );
   }
 
-  const chartData = (() => {
-    const timeline = data.dailyTimeline || [];
-    const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
-    return timeline.slice(-daysToShow);
-  })();
+  const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
 
-  const callChartData = (() => {
-    const timeline = data.dailyCalls || [];
-    const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
-    return timeline.slice(-daysToShow);
-  })();
+  const chartData = useMemo(
+    () => (data.dailyTimeline || []).slice(-daysToShow),
+    [data.dailyTimeline, daysToShow]
+  );
+
+  const callChartData = useMemo(
+    () => (data.dailyCalls || []).slice(-daysToShow),
+    [data.dailyCalls, daysToShow]
+  );
 
   return (
     <div className="h-full overflow-y-auto">
@@ -679,6 +682,7 @@ export default function OverviewPage() {
             label="Active This Week"
             value={data.stats.docsEditedThisWeek}
             sub={`${data.stats.docsCreatedThisWeek} new pages`}
+            delta={data.stats.wow?.docsCreated}
           />
           <PulseItem
             label="Contributors"
@@ -689,6 +693,7 @@ export default function OverviewPage() {
             label="Calls This Week"
             value={data.callStats?.thisWeek ?? data.stats.totalCalls}
             sub={data.callStats?.avgScore ? `Avg score: ${data.callStats.avgScore}` : undefined}
+            delta={data.stats.wow?.calls}
           />
         </div>
 
@@ -1040,7 +1045,7 @@ export default function OverviewPage() {
                 </CardDescription>
               </div>
               <Select value={timeRange} onValueChange={(v) => { if (v) setTimeRange(v); }}>
-                <SelectTrigger className="hidden w-[140px] rounded-lg text-xs sm:ml-auto sm:flex border-black/8 dark:border-white/10" aria-label="Select time range">
+                <SelectTrigger className="w-[130px] rounded-lg text-xs ml-auto border-black/8 dark:border-white/10" aria-label="Select time range">
                   <SelectValue placeholder="Last 30 days" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -1366,24 +1371,35 @@ export default function OverviewPage() {
               <div className="rounded-xl border border-dashed border-black/10 dark:border-white/10 p-10 text-center">
                 <Activity className="h-6 w-6 text-black/10 dark:text-white/10 mx-auto mb-3" />
                 <p className="text-sm text-black/30 dark:text-white/30">No recent activity</p>
+                <p className="text-[11px] text-black/20 dark:text-white/20 mt-1">
+                  Create documents, log calls, or generate breakouts to see activity here
+                </p>
               </div>
             ) : (
               <div className="space-y-1">
-                {data.activity.map((item, i) => (
-                  <div key={i} className="group flex items-start gap-3 rounded-xl px-3.5 py-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-default">
-                    <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-black/[0.03] dark:bg-white/[0.03] border-black/6 dark:border-white/8">
-                      <ActivityIcon type={item.type} />
+                {data.activity.map((item, i) => {
+                  const docId = item.meta?.docId;
+                  const isClickable = !!docId;
+                  return (
+                    <div
+                      key={i}
+                      onClick={isClickable ? () => router.push(`/${workspaceId}/${docId}`) : undefined}
+                      className={`group flex items-start gap-3 rounded-xl px-3.5 py-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${isClickable ? "cursor-pointer" : "cursor-default"}`}
+                    >
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-black/[0.03] dark:bg-white/[0.03] border-black/6 dark:border-white/8">
+                        <ActivityIcon type={item.type} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-[13px] text-black/70 dark:text-white/70 leading-snug ${isClickable ? "group-hover:text-black dark:group-hover:text-white transition-colors" : ""}`}>
+                          {item.userName && <span className="font-medium text-black dark:text-white">{item.userName} </span>}
+                          {item.title}
+                        </p>
+                        {item.subtitle && <p className="text-[11px] text-black/35 dark:text-white/35 mt-0.5">{item.subtitle}</p>}
+                      </div>
+                      <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 mt-0.5">{timeAgo(item.timestamp)}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-black/70 dark:text-white/70 leading-snug">
-                        {item.userName && <span className="font-medium text-black dark:text-white">{item.userName} </span>}
-                        {item.title}
-                      </p>
-                      {item.subtitle && <p className="text-[11px] text-black/35 dark:text-white/35 mt-0.5">{item.subtitle}</p>}
-                    </div>
-                    <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 mt-0.5">{timeAgo(item.timestamp)}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1477,13 +1493,20 @@ export default function OverviewPage() {
 
 /* ──────────────────── Sub-components ──────────────────── */
 
-function PulseItem({ label, value, sub, accent }: {
-  label: string; value: number | string; sub?: string; accent?: boolean;
+function PulseItem({ label, value, sub, accent, delta }: {
+  label: string; value: number | string; sub?: string; accent?: boolean; delta?: number;
 }) {
   return (
     <div className="rounded-xl border border-black/6 dark:border-white/8 px-4 py-3">
       <p className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium mb-1">{label}</p>
-      <p className={`text-2xl font-bold tracking-tight ${accent ? "text-[#c9a84c] dark:text-[#d4af37]" : "text-black dark:text-white"}`}>{value}</p>
+      <div className="flex items-baseline gap-1.5">
+        <p className={`text-2xl font-bold tracking-tight ${accent ? "text-[#c9a84c] dark:text-[#d4af37]" : "text-black dark:text-white"}`}>{value}</p>
+        {delta !== undefined && delta !== 0 && (
+          <span className={`text-[10px] font-medium ${delta > 0 ? "text-[#c9a84c] dark:text-[#d4af37]" : "text-black/30 dark:text-white/30"}`}>
+            {delta > 0 ? `+${delta}` : delta}
+          </span>
+        )}
+      </div>
       {sub && <p className="text-[10px] text-black/30 dark:text-white/30 mt-0.5">{sub}</p>}
     </div>
   );

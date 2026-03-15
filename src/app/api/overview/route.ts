@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Parallel data fetches
@@ -38,6 +39,9 @@ export async function GET(request: NextRequest) {
       agentConfigs,
       recentViews,
       trashedCount,
+      prevWeekDocsCreated,
+      prevWeekBreakouts,
+      prevWeekCalls,
     ] = await Promise.all([
       db.workspace.findUnique({
         where: { id: workspaceId },
@@ -82,6 +86,16 @@ export async function GET(request: NextRequest) {
       }),
       db.document.count({
         where: { workspaceId, deletedAt: { not: null } },
+      }),
+      // Previous week counts for week-over-week comparison
+      db.document.count({
+        where: { workspaceId, deletedAt: null, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
+      }),
+      db.breakout.count({
+        where: { document: { workspaceId, deletedAt: null }, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
+      }),
+      db.callLog.count({
+        where: { workspaceId, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
       }),
     ]);
 
@@ -290,6 +304,12 @@ export async function GET(request: NextRequest) {
         totalCalls: recentCallLogs.length,
         agentCount: agentConfigs.length,
         trashedCount,
+        // Week-over-week deltas (current week vs previous week)
+        wow: {
+          docsCreated: docsCreatedThisWeek - prevWeekDocsCreated,
+          breakouts: recentBreakouts.length - prevWeekBreakouts,
+          calls: recentCallLogs.length - prevWeekCalls,
+        },
       },
       callStats,
       dailyCalls,
