@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
       "User-Agent": "MarkedUp",
     };
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      const prefix = token.startsWith("github_pat_") ? "Bearer" : "token";
+      headers.Authorization = `${prefix} ${token}`;
     }
 
     const url = `https://api.github.com/repos/${owner}/${repo}/commits?since=${since}&per_page=100`;
@@ -161,12 +162,18 @@ export async function POST(request: NextRequest) {
       Accept: "application/vnd.github.v3+json",
       "User-Agent": "MarkedUp",
     };
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      // Classic tokens (ghp_) use "token" prefix, fine-grained (github_pat_) use "Bearer"
+      const prefix = token.startsWith("github_pat_") ? "Bearer" : "token";
+      headers.Authorization = `${prefix} ${token}`;
+    }
 
     const testRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
     if (!testRes.ok) {
+      const detail = await testRes.text().catch(() => "");
+      console.error("GitHub repo verify failed:", testRes.status, detail);
       return NextResponse.json(
-        { error: "Could not access repository. Check owner/repo and token." },
+        { error: `Could not access ${owner}/${repo} (${testRes.status}). Check owner/repo and token.` },
         { status: 400 }
       );
     }
