@@ -213,6 +213,40 @@ model AgentTrainingDoc {
   @@index([documentId])
 }
 
+/// Agent-generated insight reports (signal/noise, vision tracking, workflow logs)
+model AgentReport {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Which agent config generated this (nullable for system-level reports)
+  agentId     String?
+  /// Report type: "signal_noise" | "vision_tracker" | "workflow_log" | "digest"
+  type        String
+  /// JSON payload — structure varies by type
+  payload     Json
+  /// Who triggered the generation (or "system" for auto)
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, type])
+  @@index([workspaceId, createdAt])
+}
+
+/// Workspace integrations (GitHub repo, etc.)
+model WorkspaceIntegration {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Integration type: "github"
+  type        String
+  /// JSON config — e.g. { owner, repo, token? }
+  config      Json
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, type])
+  @@index([workspaceId])
+}
+
 /// Track who viewed a document and when
 model DocumentView {
   id         String   @id @default(cuid())

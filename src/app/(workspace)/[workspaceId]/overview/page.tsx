@@ -2,7 +2,18 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  RadialBar,
+  RadialBarChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   Activity,
   FileText,
@@ -17,6 +28,13 @@ import {
   BarChart3,
   ArrowRight,
   RefreshCw,
+  Brain,
+  GitCommit,
+  Target,
+  Signal,
+  Zap,
+  Clock,
+  Settings,
 } from "lucide-react";
 import {
   Card,
@@ -40,6 +58,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+/* ──────────────────── Types ──────────────────── */
 
 interface OverviewData {
   workspace: { name: string; isPersonal: boolean; createdAt: string };
@@ -71,20 +91,52 @@ interface ActivityItem {
   meta?: Record<string, any>;
 }
 
-const chartConfig = {
-  edits: {
-    label: "Edits",
-    color: "var(--chart-1)",
-  },
-  created: {
-    label: "Created",
-    color: "var(--chart-5)",
-  },
-  breakouts: {
-    label: "Breakouts",
-    color: "var(--chart-2)",
-  },
+interface InsightsData {
+  signalNoise?: {
+    overall: { signal: number; noise: number; summary: string };
+    members: { name: string; signal: number; noise: number; insight: string }[];
+    categories: { category: string; signal: number; noise: number }[];
+  };
+  visionTracker?: {
+    shortTerm: { score: number; label: string; items: string[] };
+    longTerm: { score: number; label: string; items: string[] };
+    alignment: number;
+    insight: string;
+  };
+  workflowLog?: { date: string; author: string; type: string; summary: string; impact: string }[];
+  recommendations?: string[];
+  generatedAt?: string;
+  empty?: boolean;
+}
+
+interface GitHubData {
+  configured: boolean;
+  repo?: string;
+  totalCommits?: number;
+  commits?: { sha: string; message: string; author: string; authorAvatar?: string; date: string; url: string }[];
+  timeline?: { date: string; commits: number; authors: number }[];
+  authors?: { name: string; avatar?: string; commits: number }[];
+}
+
+/* ──────────────────── Chart configs ──────────────────── */
+
+const activityChartConfig = {
+  edits: { label: "Edits", color: "var(--chart-1)" },
+  created: { label: "Created", color: "var(--chart-5)" },
+  breakouts: { label: "Breakouts", color: "var(--chart-2)" },
 } satisfies ChartConfig;
+
+const signalNoiseChartConfig = {
+  signal: { label: "Signal", color: "#22c55e" },
+  noise: { label: "Noise", color: "#ef4444" },
+} satisfies ChartConfig;
+
+const visionChartConfig = {
+  shortTerm: { label: "Short-term", color: "var(--chart-1)" },
+  longTerm: { label: "Long-term", color: "var(--chart-2)" },
+} satisfies ChartConfig;
+
+/* ──────────────────── Helpers ──────────────────── */
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -119,13 +171,51 @@ function activityColor(type: ActivityItem["type"]): string {
   }
 }
 
+function impactColor(impact: string) {
+  switch (impact) {
+    case "high": return "text-emerald-500 bg-emerald-500/10";
+    case "medium": return "text-amber-500 bg-amber-500/10";
+    case "low": return "text-black/30 dark:text-white/30 bg-black/5 dark:bg-white/5";
+    default: return "text-black/30 dark:text-white/30 bg-black/5 dark:bg-white/5";
+  }
+}
+
+function workflowIcon(type: string) {
+  switch (type) {
+    case "commit": return <GitCommit className="h-3 w-3" />;
+    case "doc": return <FileText className="h-3 w-3" />;
+    case "breakout": return <Sparkles className="h-3 w-3" />;
+    case "call": return <Phone className="h-3 w-3" />;
+    default: return <Activity className="h-3 w-3" />;
+  }
+}
+
+/* ──────────────────── Main Component ──────────────────── */
+
 export default function OverviewPage() {
   const params = useParams<{ workspaceId: string }>();
   const router = useRouter();
   const workspaceId = params?.workspaceId ?? "";
+
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("30d");
+
+  // Insights state
+  const [insights, setInsights] = useState<InsightsData | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [generatingInsights, setGeneratingInsights] = useState(false);
+
+  // GitHub state
+  const [github, setGitHub] = useState<GitHubData | null>(null);
+  const [githubExpanded, setGithubExpanded] = useState(false);
+
+  // GitHub config modal
+  const [showGitHubConfig, setShowGitHubConfig] = useState(false);
+  const [ghOwner, setGhOwner] = useState("");
+  const [ghRepo, setGhRepo] = useState("");
+  const [ghToken, setGhToken] = useState("");
+  const [ghSaving, setGhSaving] = useState(false);
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -135,11 +225,61 @@ export default function OverviewPage() {
     setLoading(false);
   }, [workspaceId]);
 
+  const fetchInsights = useCallback(async () => {
+    setInsightsLoading(true);
+    try {
+      const res = await fetch(`/api/overview/insights?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const result = await res.json();
+        if (!result.empty) setInsights(result);
+      }
+    } catch {}
+    setInsightsLoading(false);
+  }, [workspaceId]);
+
+  const fetchGitHub = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/github/activity?workspaceId=${workspaceId}`);
+      if (res.ok) setGitHub(await res.json());
+    } catch {}
+  }, [workspaceId]);
+
+  const generateInsights = useCallback(async () => {
+    setGeneratingInsights(true);
+    try {
+      const res = await fetch("/api/overview/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      if (res.ok) setInsights(await res.json());
+    } catch {}
+    setGeneratingInsights(false);
+  }, [workspaceId]);
+
+  const saveGitHubConfig = useCallback(async () => {
+    setGhSaving(true);
+    try {
+      const res = await fetch("/api/github/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, owner: ghOwner, repo: ghRepo, token: ghToken || undefined }),
+      });
+      if (res.ok) {
+        setShowGitHubConfig(false);
+        fetchGitHub();
+      }
+    } catch {}
+    setGhSaving(false);
+  }, [workspaceId, ghOwner, ghRepo, ghToken, fetchGitHub]);
+
   useEffect(() => {
     fetchOverview();
+    fetchInsights();
+    fetchGitHub();
     const interval = setInterval(fetchOverview, 30000);
     return () => clearInterval(interval);
-  }, [fetchOverview]);
+  }, [fetchOverview, fetchInsights, fetchGitHub]);
 
   if (loading) {
     return (
@@ -157,12 +297,14 @@ export default function OverviewPage() {
     );
   }
 
-  // Filter chart data by selected range
   const chartData = (() => {
     const timeline = data.dailyTimeline || [];
     const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
     return timeline.slice(-daysToShow);
   })();
+
+  const sn = insights?.signalNoise;
+  const vt = insights?.visionTracker;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -181,46 +323,242 @@ export default function OverviewPage() {
               Live activity dashboard — everything happening across your workspace.
             </p>
           </div>
-          <button
-            onClick={() => { setLoading(true); fetchOverview(); }}
-            className="flex items-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 px-3 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-colors"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={generateInsights}
+              disabled={generatingInsights}
+              className="flex items-center gap-1.5 rounded-lg bg-black dark:bg-white px-3 py-1.5 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50"
+            >
+              {generatingInsights ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  <Brain className="h-3 w-3" />
+                  {insights ? "Refresh Insights" : "Generate Insights"}
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => { setLoading(true); fetchOverview(); }}
+              className="flex items-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 px-3 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <StatCard
-            icon={FileText}
-            label="Total Pages"
-            value={data.stats.totalDocs}
+          <StatCard icon={FileText} label="Total Pages" value={data.stats.totalDocs}
             sub={data.stats.docsCreatedThisWeek > 0 ? `+${data.stats.docsCreatedThisWeek} this week` : undefined}
-            color="text-black/50 dark:text-white/50"
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Active This Week"
-            value={data.stats.docsEditedThisWeek}
-            sub="pages edited"
-            color="text-blue-500"
-          />
-          <StatCard
-            icon={Users}
-            label="Contributors"
-            value={data.stats.uniqueContributors}
+            color="text-black/50 dark:text-white/50" />
+          <StatCard icon={TrendingUp} label="Active This Week" value={data.stats.docsEditedThisWeek}
+            sub="pages edited" color="text-blue-500" />
+          <StatCard icon={Users} label="Contributors" value={data.stats.uniqueContributors}
             sub={data.stats.agentCount > 0 ? `${data.stats.agentCount} AI agent${data.stats.agentCount > 1 ? "s" : ""}` : undefined}
-            color="text-indigo-500"
-          />
-          <StatCard
-            icon={Activity}
-            label="This Week"
-            value={data.stats.totalBreakouts + data.stats.totalCalls}
+            color="text-indigo-500" />
+          <StatCard icon={Activity} label="This Week" value={data.stats.totalBreakouts + data.stats.totalCalls}
             sub={`${data.stats.totalBreakouts} breakouts, ${data.stats.totalCalls} calls`}
-            color="text-purple-500"
-          />
+            color="text-purple-500" />
         </div>
+
+        {/* ═══════ SIGNAL / NOISE + VISION TRACKER ROW ═══════ */}
+        {sn && vt && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+
+            {/* Signal vs Noise */}
+            <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                <div className="flex items-center gap-2">
+                  <Signal className="h-4 w-4 text-emerald-500" />
+                  <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                    Signal vs Noise
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                  {sn.overall.summary}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {/* Overall gauge */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex-1">
+                    <div className="flex justify-between text-[10px] text-black/40 dark:text-white/40 mb-1">
+                      <span>Signal {sn.overall.signal}%</span>
+                      <span>Noise {sn.overall.noise}%</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
+                      <div
+                        className="h-full rounded-l-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
+                        style={{ width: `${sn.overall.signal}%` }}
+                      />
+                      <div
+                        className="h-full rounded-r-full bg-gradient-to-r from-red-400 to-red-500 transition-all"
+                        style={{ width: `${sn.overall.noise}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Category breakdown */}
+                <ChartContainer config={signalNoiseChartConfig} className="h-[160px] w-full">
+                  <BarChart
+                    data={sn.categories}
+                    layout="vertical"
+                    margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+                  >
+                    <YAxis
+                      dataKey="category"
+                      type="category"
+                      tickLine={false}
+                      axisLine={false}
+                      width={90}
+                      className="text-[10px] fill-black/40 dark:fill-white/40"
+                    />
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
+                    <Bar dataKey="signal" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                    <Bar dataKey="noise" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                  </BarChart>
+                </ChartContainer>
+
+                {/* Member signal/noise */}
+                {sn.members.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {sn.members.map((m) => (
+                      <div key={m.name} className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium text-black/60 dark:text-white/60 w-20 truncate shrink-0">
+                          {m.name}
+                        </span>
+                        <div className="flex-1 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
+                          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${m.signal}%` }} />
+                          <div className="h-full bg-red-500 transition-all" style={{ width: `${m.noise}%` }} />
+                        </div>
+                        <span className="text-[9px] text-black/30 dark:text-white/30 w-8 text-right shrink-0">
+                          {m.signal}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Vision Tracker */}
+            <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-indigo-500" />
+                  <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                    Vision Tracker
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                  Short-term execution vs long-term strategic alignment
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {/* Radial alignment gauge */}
+                <div className="flex items-center justify-center mb-4">
+                  <ChartContainer config={visionChartConfig} className="h-[120px] w-[120px]">
+                    <RadialBarChart
+                      innerRadius="60%"
+                      outerRadius="100%"
+                      data={[
+                        { name: "Long-term", value: vt.longTerm.score, fill: "var(--chart-2)" },
+                        { name: "Short-term", value: vt.shortTerm.score, fill: "var(--chart-1)" },
+                      ]}
+                      startAngle={180}
+                      endAngle={0}
+                    >
+                      <RadialBar
+                        background={{ fill: "rgba(0,0,0,0.03)" }}
+                        dataKey="value"
+                        cornerRadius={6}
+                      />
+                    </RadialBarChart>
+                  </ChartContainer>
+                  <div className="ml-4">
+                    <div className="text-3xl font-bold text-black dark:text-white">{vt.alignment}%</div>
+                    <div className="text-[10px] text-black/40 dark:text-white/40">alignment</div>
+                  </div>
+                </div>
+
+                {/* Short-term / Long-term breakdown */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-black/6 dark:border-white/8 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Zap className="h-3 w-3 text-indigo-500" />
+                      <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
+                        Short-term
+                      </span>
+                      <span className="ml-auto text-sm font-bold text-black dark:text-white">{vt.shortTerm.score}%</span>
+                    </div>
+                    <p className="text-[11px] text-black/50 dark:text-white/50 font-medium mb-1.5">{vt.shortTerm.label}</p>
+                    <ul className="space-y-0.5">
+                      {vt.shortTerm.items.map((item, i) => (
+                        <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
+                          <span className="mt-0.5 h-1 w-1 rounded-full bg-indigo-500 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-lg border border-black/6 dark:border-white/8 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Target className="h-3 w-3 text-purple-500" />
+                      <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
+                        Long-term
+                      </span>
+                      <span className="ml-auto text-sm font-bold text-black dark:text-white">{vt.longTerm.score}%</span>
+                    </div>
+                    <p className="text-[11px] text-black/50 dark:text-white/50 font-medium mb-1.5">{vt.longTerm.label}</p>
+                    <ul className="space-y-0.5">
+                      {vt.longTerm.items.map((item, i) => (
+                        <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
+                          <span className="mt-0.5 h-1 w-1 rounded-full bg-purple-500 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Insight */}
+                <p className="mt-3 text-[11px] text-black/50 dark:text-white/50 leading-relaxed italic">
+                  {vt.insight}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Recommendations */}
+        {insights?.recommendations && insights.recommendations.length > 0 && (
+          <div className="mb-6 rounded-xl border border-indigo-500/15 bg-indigo-500/[0.03] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Brain className="h-3.5 w-3.5 text-indigo-500" />
+              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">AI Recommendations</span>
+              {insights.generatedAt && (
+                <span className="text-[9px] text-black/25 dark:text-white/25 ml-auto">
+                  Generated {timeAgo(insights.generatedAt)}
+                </span>
+              )}
+            </div>
+            <ul className="space-y-1.5">
+              {insights.recommendations.map((rec, i) => (
+                <li key={i} className="flex items-start gap-2 text-[12px] text-black/60 dark:text-white/55 leading-relaxed">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-500/60 shrink-0" />
+                  {rec}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Activity Chart */}
         <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
@@ -248,10 +586,7 @@ export default function OverviewPage() {
             </Select>
           </CardHeader>
           <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-            <ChartContainer
-              config={chartConfig}
-              className="aspect-auto h-[220px] w-full"
-            >
+            <ChartContainer config={activityChartConfig} className="aspect-auto h-[220px] w-full">
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="fillEdits" x1="0" y1="0" x2="0" y2="1">
@@ -269,133 +604,284 @@ export default function OverviewPage() {
                 </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-black/[0.06] dark:stroke-white/[0.06]" />
                 <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  minTickGap={32}
+                  dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32}
                   className="text-[10px] fill-black/30 dark:fill-white/30"
-                  tickFormatter={(value) => {
-                    const date = new Date(value);
-                    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                  }}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 />
                 <ChartTooltip
                   cursor={false}
                   content={
                     <ChartTooltipContent
-                      labelFormatter={(value) =>
-                        new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                      }
+                      labelFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       indicator="dot"
                     />
                   }
                 />
-                <Area
-                  dataKey="created"
-                  type="natural"
-                  fill="url(#fillCreated)"
-                  stroke="var(--color-created)"
-                  strokeWidth={2}
-                  stackId="a"
-                />
-                <Area
-                  dataKey="edits"
-                  type="natural"
-                  fill="url(#fillEdits)"
-                  stroke="var(--color-edits)"
-                  strokeWidth={2}
-                  stackId="a"
-                />
-                <Area
-                  dataKey="breakouts"
-                  type="natural"
-                  fill="url(#fillBreakouts)"
-                  stroke="var(--color-breakouts)"
-                  strokeWidth={2}
-                  stackId="a"
-                />
+                <Area dataKey="created" type="natural" fill="url(#fillCreated)" stroke="var(--color-created)" strokeWidth={2} stackId="a" />
+                <Area dataKey="edits" type="natural" fill="url(#fillEdits)" stroke="var(--color-edits)" strokeWidth={2} stackId="a" />
+                <Area dataKey="breakouts" type="natural" fill="url(#fillBreakouts)" stroke="var(--color-breakouts)" strokeWidth={2} stackId="a" />
                 <ChartLegend content={<ChartLegendContent />} />
               </AreaChart>
             </ChartContainer>
           </CardContent>
         </Card>
 
+        {/* ═══════ WORKFLOW LOG + GITHUB ═══════ */}
+        {(insights?.workflowLog || github?.configured) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* Unified Workflow Log */}
+            {insights?.workflowLog && insights.workflowLog.length > 0 && (
+              <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+                <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-black/40 dark:text-white/40" />
+                    <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                      Workflow Log
+                    </CardTitle>
+                  </div>
+                  <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                    AI-tracked activity across all team members
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-0.5">
+                    {insights.workflowLog.map((entry, i) => (
+                      <div key={i} className="flex items-start gap-2.5 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                        <div className="mt-0.5 text-black/25 dark:text-white/25">
+                          {workflowIcon(entry.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-black/60 dark:text-white/60 leading-snug">
+                            <span className="font-medium text-black/80 dark:text-white/80">{entry.author}</span>
+                            {" "}{entry.summary}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${impactColor(entry.impact)}`}>
+                            {entry.impact}
+                          </span>
+                          <span className="text-[9px] text-black/20 dark:text-white/20">
+                            {entry.date}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* GitHub Activity */}
+            {github?.configured && (
+              <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+                <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                  <div className="flex items-center gap-2">
+                    <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
+                    <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                      GitHub Activity
+                    </CardTitle>
+                    <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5 ml-auto">
+                      {github.repo}
+                    </span>
+                  </div>
+                  <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                    {github.totalCommits} commits in the last 30 days
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-3">
+                  {/* Author breakdown */}
+                  {github.authors && github.authors.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {github.authors.map((a) => (
+                        <div key={a.name} className="flex items-center gap-1.5 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-2.5 py-0.5">
+                          {a.avatar ? (
+                            <img src={a.avatar} alt="" className="h-4 w-4 rounded-full" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center">
+                              <span className="text-[8px] font-bold text-black/40 dark:text-white/40">{a.name.charAt(0)}</span>
+                            </div>
+                          )}
+                          <span className="text-[10px] text-black/50 dark:text-white/50">{a.name}</span>
+                          <span className="text-[9px] text-black/25 dark:text-white/25">{a.commits}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Recent commits */}
+                  <div className="max-h-[280px] overflow-y-auto space-y-0.5">
+                    {github.commits?.slice(0, githubExpanded ? 50 : 10).map((c) => (
+                      <a
+                        key={c.sha}
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group"
+                      >
+                        <code className="text-[10px] text-indigo-500 font-mono mt-0.5 shrink-0">{c.sha}</code>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
+                            {c.message}
+                          </p>
+                          <p className="text-[9px] text-black/25 dark:text-white/25">
+                            {c.author} · {new Date(c.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                  {github.commits && github.commits.length > 10 && (
+                    <button
+                      onClick={() => setGithubExpanded(!githubExpanded)}
+                      className="mt-2 text-[10px] text-indigo-500 hover:text-indigo-600 transition-colors"
+                    >
+                      {githubExpanded ? "Show less" : `Show all ${github.commits.length} commits`}
+                    </button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* GitHub Setup Card (when not configured) */}
+        {github && !github.configured && (
+          <div className="mb-6">
+            {showGitHubConfig ? (
+              <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+                <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                  <div className="flex items-center gap-2">
+                    <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
+                    <CardTitle className="text-sm font-semibold text-black dark:text-white">
+                      Connect GitHub Repository
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">Owner</label>
+                      <input
+                        value={ghOwner}
+                        onChange={(e) => setGhOwner(e.target.value)}
+                        placeholder="e.g. automatq"
+                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">Repository</label>
+                      <input
+                        value={ghRepo}
+                        onChange={(e) => setGhRepo(e.target.value)}
+                        placeholder="e.g. markedup"
+                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">
+                      Personal Access Token <span className="normal-case">(optional, for private repos)</span>
+                    </label>
+                    <input
+                      value={ghToken}
+                      onChange={(e) => setGhToken(e.target.value)}
+                      type="password"
+                      placeholder="ghp_..."
+                      className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveGitHubConfig}
+                      disabled={ghSaving || !ghOwner || !ghRepo}
+                      className="flex items-center gap-1.5 rounded-lg bg-black dark:bg-white px-4 py-1.5 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50"
+                    >
+                      {ghSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitCommit className="h-3 w-3" />}
+                      Connect
+                    </button>
+                    <button
+                      onClick={() => setShowGitHubConfig(false)}
+                      className="rounded-lg border border-black/8 dark:border-white/10 px-4 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <button
+                onClick={() => setShowGitHubConfig(true)}
+                className="flex w-full items-center gap-3 rounded-xl border border-dashed border-black/10 dark:border-white/10 p-4 hover:border-black/20 dark:hover:border-white/20 transition-colors group"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5 group-hover:bg-black/8 dark:group-hover:bg-white/8 transition-colors">
+                  <GitCommit className="h-4 w-4 text-black/30 dark:text-white/30" />
+                </div>
+                <div className="text-left">
+                  <p className="text-xs font-medium text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">
+                    Connect GitHub Repository
+                  </p>
+                  <p className="text-[10px] text-black/30 dark:text-white/30">
+                    Track commits and let your CTO agent analyze development workflow automatically
+                  </p>
+                </div>
+                <Settings className="h-3.5 w-3.5 text-black/15 dark:text-white/15 ml-auto group-hover:text-black/40 dark:group-hover:text-white/40 transition-colors" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ═══════ ACTIVITY FEED + SIDEBAR ═══════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Activity Feed — takes 2 columns */}
+          {/* Activity Feed */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="h-4 w-4 text-black/30 dark:text-white/30" />
               <h2 className="text-sm font-semibold text-black dark:text-white">Activity Feed</h2>
-              <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5">
-                Last 7 days
-              </span>
+              <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5">Last 7 days</span>
             </div>
-
             {data.activity.length === 0 ? (
               <div className="rounded-xl border border-dashed border-black/10 dark:border-white/10 p-10 text-center">
                 <Activity className="h-6 w-6 text-black/10 dark:text-white/10 mx-auto mb-3" />
                 <p className="text-sm text-black/30 dark:text-white/30">No recent activity</p>
-                <p className="text-[11px] text-black/20 dark:text-white/20 mt-1">
-                  Activity from the last 7 days will appear here
-                </p>
+                <p className="text-[11px] text-black/20 dark:text-white/20 mt-1">Activity from the last 7 days will appear here</p>
               </div>
             ) : (
               <div className="space-y-1">
                 {data.activity.map((item, i) => (
-                  <div
-                    key={i}
-                    className="group flex items-start gap-3 rounded-xl px-3.5 py-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-default"
-                  >
+                  <div key={i} className="group flex items-start gap-3 rounded-xl px-3.5 py-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-default">
                     <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${activityColor(item.type)}`}>
                       <ActivityIcon type={item.type} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] text-black/70 dark:text-white/70 leading-snug">
-                        {item.userName && (
-                          <span className="font-medium text-black dark:text-white">{item.userName} </span>
-                        )}
+                        {item.userName && <span className="font-medium text-black dark:text-white">{item.userName} </span>}
                         {item.title}
                       </p>
-                      {item.subtitle && (
-                        <p className="text-[11px] text-black/35 dark:text-white/35 mt-0.5">{item.subtitle}</p>
-                      )}
+                      {item.subtitle && <p className="text-[11px] text-black/35 dark:text-white/35 mt-0.5">{item.subtitle}</p>}
                     </div>
-                    <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 mt-0.5">
-                      {timeAgo(item.timestamp)}
-                    </span>
+                    <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 mt-0.5">{timeAgo(item.timestamp)}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Right Column */}
+          {/* Right Sidebar */}
           <div className="space-y-6">
             {/* Popular Pages */}
             {data.popularDocs.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Eye className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">
-                    Most Viewed
-                  </h3>
+                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Most Viewed</h3>
                 </div>
                 <div className="rounded-xl border border-black/6 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5">
                   {data.popularDocs.map((doc) => (
-                    <button
-                      key={doc.id}
-                      onClick={() => router.push(`/${workspaceId}/${doc.id}`)}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group first:rounded-t-xl last:rounded-b-xl"
-                    >
+                    <button key={doc.id} onClick={() => router.push(`/${workspaceId}/${doc.id}`)}
+                      className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group first:rounded-t-xl last:rounded-b-xl">
                       <FileText className="h-3.5 w-3.5 shrink-0 text-black/20 dark:text-white/20" />
-                      <span className="flex-1 truncate text-xs text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">
-                        {doc.title || "Untitled"}
-                      </span>
-                      <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 flex items-center gap-0.5">
-                        <Eye className="h-2.5 w-2.5" />
-                        {doc.views}
-                      </span>
+                      <span className="flex-1 truncate text-xs text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">{doc.title || "Untitled"}</span>
+                      <span className="text-[10px] text-black/25 dark:text-white/25 shrink-0 flex items-center gap-0.5"><Eye className="h-2.5 w-2.5" />{doc.views}</span>
                     </button>
                   ))}
                 </div>
@@ -407,34 +893,23 @@ export default function OverviewPage() {
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">
-                    Team Activity
-                  </h3>
+                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Team Activity</h3>
                 </div>
                 <div className="rounded-xl border border-black/6 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5">
                   {data.memberActivity.slice(0, 8).map((member) => (
-                    <div
-                      key={member.userId}
-                      className="flex items-center gap-2.5 px-3.5 py-2.5 first:rounded-t-xl last:rounded-b-xl"
-                    >
+                    <div key={member.userId} className="flex items-center gap-2.5 px-3.5 py-2.5 first:rounded-t-xl last:rounded-b-xl">
                       {member.avatar ? (
                         <img src={member.avatar} alt="" className="h-6 w-6 rounded-full shrink-0" />
                       ) : (
                         <div className="h-6 w-6 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center shrink-0">
-                          <span className="text-[9px] font-bold text-black/40 dark:text-white/40">
-                            {member.name.charAt(0).toUpperCase()}
-                          </span>
+                          <span className="text-[9px] font-bold text-black/40 dark:text-white/40">{member.name.charAt(0).toUpperCase()}</span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-black/70 dark:text-white/70 truncate">
-                          {member.name}
-                        </p>
+                        <p className="text-xs font-medium text-black/70 dark:text-white/70 truncate">{member.name}</p>
                         <p className="text-[10px] text-black/30 dark:text-white/30">
                           {member.docs} page{member.docs !== 1 ? "s" : ""}
-                          {member.edits > 0 && (
-                            <span className="text-blue-500"> · {member.edits} edit{member.edits !== 1 ? "s" : ""} this week</span>
-                          )}
+                          {member.edits > 0 && <span className="text-blue-500"> · {member.edits} edit{member.edits !== 1 ? "s" : ""} this week</span>}
                         </p>
                       </div>
                     </div>
@@ -448,25 +923,15 @@ export default function OverviewPage() {
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">
-                    AI Agents
-                  </h3>
+                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">AI Agents</h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {data.agents.map((agent) => (
-                    <div
-                      key={agent.id}
-                      className="flex items-center gap-2 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-3 py-1"
-                    >
-                      <div
-                        className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        style={{ backgroundColor: agent.color }}
-                      >
+                    <div key={agent.id} className="flex items-center gap-2 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-3 py-1">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: agent.color }}>
                         {agent.avatar}
                       </div>
-                      <span className="text-[11px] text-black/60 dark:text-white/60">
-                        {agent.name}
-                      </span>
+                      <span className="text-[11px] text-black/60 dark:text-white/60">{agent.name}</span>
                     </div>
                   ))}
                 </div>
@@ -477,24 +942,16 @@ export default function OverviewPage() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <ArrowRight className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-                <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">
-                  Quick Actions
-                </h3>
+                <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Quick Actions</h3>
               </div>
               <div className="space-y-1.5">
-                <button
-                  onClick={() => router.push(`/${workspaceId}`)}
-                  className="flex w-full items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-3 py-2 text-xs text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/15 dark:hover:border-white/15 transition-colors"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  Open Wiki
+                <button onClick={() => router.push(`/${workspaceId}`)}
+                  className="flex w-full items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-3 py-2 text-xs text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/15 dark:hover:border-white/15 transition-colors">
+                  <FileText className="h-3.5 w-3.5" /> Open Wiki
                 </button>
-                <button
-                  onClick={() => router.push(`/${workspaceId}/calls`)}
-                  className="flex w-full items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-3 py-2 text-xs text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/15 dark:hover:border-white/15 transition-colors"
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                  Call Log
+                <button onClick={() => router.push(`/${workspaceId}/calls`)}
+                  className="flex w-full items-center gap-2 rounded-lg border border-black/6 dark:border-white/8 px-3 py-2 text-xs text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/15 dark:hover:border-white/15 transition-colors">
+                  <Phone className="h-3.5 w-3.5" /> Call Log
                 </button>
               </div>
             </div>
@@ -505,31 +962,17 @@ export default function OverviewPage() {
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  color,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: number | string;
-  sub?: string;
-  color?: string;
+function StatCard({ icon: Icon, label, value, sub, color }: {
+  icon: React.ElementType; label: string; value: number | string; sub?: string; color?: string;
 }) {
   return (
     <div className="rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.01] dark:bg-white/[0.01] px-4 py-3.5">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Icon className={`h-3.5 w-3.5 ${color || "text-black/30 dark:text-white/30"}`} />
-        <span className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium">
-          {label}
-        </span>
+        <span className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium">{label}</span>
       </div>
       <p className="text-2xl font-bold text-black dark:text-white tracking-tight">{value}</p>
-      {sub && (
-        <p className="text-[10px] text-black/30 dark:text-white/30 mt-0.5">{sub}</p>
-      )}
+      {sub && <p className="text-[10px] text-black/30 dark:text-white/30 mt-0.5">{sub}</p>}
     </div>
   );
 }
