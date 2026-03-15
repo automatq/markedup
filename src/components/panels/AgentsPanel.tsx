@@ -11,6 +11,7 @@ import {
   Plus,
   UserPlus,
   Check,
+  BookOpen,
 } from "lucide-react";
 import { AgentRole, AgentAssignment } from "@/lib/agents";
 
@@ -245,6 +246,7 @@ export function AgentsPanel({
   const [loading, setLoading] = useState(false);
   const [assignments, setAssignments] = useState<Record<string, AgentAssignment>>({});
   const [assigningAgent, setAssigningAgent] = useState<AgentRole | null>(null);
+  const [trainingCounts, setTrainingCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -269,6 +271,26 @@ export function AgentsPanel({
       } catch {}
     })();
   }, [open, workspaceId]);
+
+  // Fetch training doc counts for each agent
+  useEffect(() => {
+    if (agents.length === 0) return;
+    (async () => {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            const res = await fetch(`/api/agents/training?agentId=${agent.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              counts[agent.id] = data.length;
+            }
+          } catch {}
+        })
+      );
+      setTrainingCounts(counts);
+    })();
+  }, [agents]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -386,10 +408,16 @@ export function AgentsPanel({
                 <h2 className="text-sm font-semibold text-black dark:text-white">
                   {activeAgent.name}
                 </h2>
-                <p className="text-[10px] text-black/40 dark:text-white/40 -mt-0.5">
+                <p className="text-[10px] text-black/40 dark:text-white/40 -mt-0.5 flex items-center gap-1.5">
                   {activeAgent.title}
                   {assignments[activeAgent.id] && (
                     <span> · Assigned to {assignments[activeAgent.id].userName.split(" ")[0]}</span>
+                  )}
+                  {(trainingCounts[activeAgent.id] || 0) > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] text-indigo-500 dark:text-indigo-400 bg-indigo-500/10 rounded-full px-1.5 py-0.5" title={`${trainingCounts[activeAgent.id]} training doc(s)`}>
+                      <BookOpen className="h-2.5 w-2.5" />
+                      {trainingCounts[activeAgent.id]}
+                    </span>
                   )}
                 </p>
               </div>

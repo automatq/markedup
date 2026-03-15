@@ -69,6 +69,7 @@ model Document {
   shareLinks    ShareLink[]
   breakouts     Breakout[]
   views         DocumentView[]
+  agentTraining AgentTrainingDoc[]
 
   @@index([workspaceId])
   @@index([parentId])
@@ -191,9 +192,25 @@ model AgentConfig {
   createdBy   String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  trainingDocs AgentTrainingDoc[]
 
   @@unique([workspaceId, roleId])
   @@index([workspaceId])
+}
+
+/// Links documents as training material for an AI agent
+model AgentTrainingDoc {
+  id        String      @id @default(cuid())
+  agentId   String
+  agent     AgentConfig @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  addedBy   String
+  addedAt   DateTime    @default(now())
+
+  @@unique([agentId, documentId])
+  @@index([agentId])
+  @@index([documentId])
 }
 
 /// Track who viewed a document and when

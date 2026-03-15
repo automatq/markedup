@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { db } from "@/lib/db";
 import type { AgentRole } from "@/lib/agents";
 import { canAccessDocument, canAccessWorkspace } from "@/lib/auth";
+import { getTrainingContext } from "@/lib/agent-training";
 
 /**
  * GET /api/breakouts?documentId=...
@@ -80,7 +81,10 @@ export async function POST(request: NextRequest) {
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const systemPrompt = `${agent.systemPrompt}
+    // Inject training material
+    const trainingContext = await getTrainingContext(agentConfig.id);
+
+    const systemPrompt = `${agent.systemPrompt}${trainingContext}
 
 You are creating a BREAKOUT ACTION FILE for this document. This is a focused, actionable companion document that helps the person assigned to your role (${agent.title}) understand:
 

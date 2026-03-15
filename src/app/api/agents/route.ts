@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { canAccessWorkspace } from "@/lib/auth";
+import { getTrainingContext } from "@/lib/agent-training";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,9 +34,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const systemPrompt = documentContent
-      ? `${agent.systemPrompt}\n\nHere is the current document content for context:\n\n${documentContent}`
-      : agent.systemPrompt;
+    // Inject training material into system prompt
+    const trainingContext = await getTrainingContext(agent.id);
+
+    let systemPrompt = agent.systemPrompt + trainingContext;
+    if (documentContent) {
+      systemPrompt += `\n\nHere is the current document content for context:\n\n${documentContent}`;
+    }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
