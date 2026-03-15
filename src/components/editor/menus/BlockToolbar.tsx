@@ -185,10 +185,10 @@ export function BlockToolbar({ editor }: BlockToolbarProps) {
             <Rows2 className="h-3.5 w-3.5" />
           </ToolbarButton>
           <div className="w-px h-4 bg-black/8 dark:bg-white/10 mx-0.5" />
-          <ToolbarButton onClick={deleteColumn} title="Delete column">
+          <ToolbarButton onClick={deleteColumn} title="Delete column" destructive>
             <span className="text-[9px] font-bold leading-none">−Col</span>
           </ToolbarButton>
-          <ToolbarButton onClick={deleteRow} title="Delete row">
+          <ToolbarButton onClick={deleteRow} title="Delete row" destructive>
             <span className="text-[9px] font-bold leading-none">−Row</span>
           </ToolbarButton>
           <div className="w-px h-4 bg-black/8 dark:bg-white/10 mx-0.5" />
