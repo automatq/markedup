@@ -168,12 +168,14 @@ export async function POST(request: NextRequest) {
       headers.Authorization = `${prefix} ${token}`;
     }
 
-    const testRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+    const testUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+    console.log("GitHub verify URL:", testUrl, "Auth prefix:", token ? headers.Authorization?.split(" ")[0] : "none");
+    const testRes = await fetch(testUrl, { headers });
     if (!testRes.ok) {
       const detail = await testRes.text().catch(() => "");
       console.error("GitHub repo verify failed:", testRes.status, detail);
       return NextResponse.json(
-        { error: `Could not access ${owner}/${repo} (${testRes.status}). Check owner/repo and token.` },
+        { error: `Could not access ${owner}/${repo} (${testRes.status}). GitHub says: ${detail.slice(0, 200)}` },
         { status: 400 }
       );
     }
