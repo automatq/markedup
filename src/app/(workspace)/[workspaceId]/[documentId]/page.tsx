@@ -318,7 +318,7 @@ function DocumentInner({
   const activeFontClass = fontClass(customization.font);
 
   return (
-    <div className={`flex flex-col h-full animate-fade-in-up ${activeFontClass}`}>
+    <div className="flex flex-col h-full animate-fade-in-up">
       {/* Cover image */}
       {customization.coverUrl && (
         <div
@@ -382,7 +382,7 @@ function DocumentInner({
             />
           </div>
           <div
-            className={`mx-auto w-full ${agentsOpen || breakoutsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10`}
+            className={`mx-auto w-full ${agentsOpen || breakoutsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10 ${activeFontClass}`}
           >
             {/* Icon + Title */}
             <div className="mb-6 px-4">
