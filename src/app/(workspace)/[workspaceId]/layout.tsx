@@ -25,6 +25,7 @@ export default function WorkspaceLayoutPage({
   const workspaceId = params?.workspaceId ?? "";
 
   const [documents, setDocuments] = useState<DocEntry[]>([]);
+  const [presence, setPresence] = useState<Record<string, { count: number; users: { name: string; avatar?: string; color: string }[] }>>({});
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [graphViewOpen, setGraphViewOpen] = useState(false);
@@ -69,6 +70,22 @@ export default function WorkspaceLayoutPage({
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [refreshDocuments]);
+
+  // Poll presence for document list (every 10s)
+  const presencePollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  useEffect(() => {
+    const fetchPresence = async () => {
+      if (documents.length === 0) return;
+      try {
+        const ids = documents.map((d) => d.id).join(",");
+        const res = await fetch(`/api/presence?documentIds=${ids}`);
+        if (res.ok) setPresence(await res.json());
+      } catch {}
+    };
+    fetchPresence();
+    presencePollRef.current = setInterval(fetchPresence, 10000);
+    return () => clearInterval(presencePollRef.current);
+  }, [documents]);
 
   // Cmd+K to open Quick Switcher, Cmd+G for graph
   useEffect(() => {
@@ -156,6 +173,7 @@ export default function WorkspaceLayoutPage({
         onCreateDocument={handleCreateDocument}
         onOpenTrash={() => setTrashOpen(true)}
         onTrashDocument={handleTrashDocument}
+        presence={presence}
       >
         {children}
       </WorkspaceLayout>

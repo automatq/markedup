@@ -1,17 +1,25 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { X, BarChart3, Type, Hash, Clock, FileText, Users } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { X, BarChart3, Type, Hash, Clock, FileText, Users, Eye } from "lucide-react";
 import { Editor } from "@tiptap/core";
 
 interface AnalyticsPanelProps {
   open: boolean;
   onClose: () => void;
   documentTitle: string;
+  documentId?: string;
   editor: Editor | null;
   lastEdited?: Date;
   createdAt?: Date;
   activeUsers?: number;
+}
+
+interface ViewEntry {
+  userId: string;
+  name: string;
+  avatar?: string;
+  viewedAt: string;
 }
 
 function countWords(text: string): number {
@@ -36,15 +44,31 @@ function formatReadingTime(words: number): string {
   return `${mins} min`;
 }
 
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function AnalyticsPanel({
   open,
   onClose,
   documentTitle,
+  documentId,
   editor,
   lastEdited,
   createdAt,
   activeUsers,
 }: AnalyticsPanelProps) {
+  const [views, setViews] = useState<ViewEntry[]>([]);
+
   const stats = useMemo(() => {
     if (!editor) return null;
 
@@ -79,6 +103,15 @@ export function AnalyticsPanel({
       readingTime: formatReadingTime(words),
     };
   }, [editor, open]); // recalculate when panel opens
+
+  // Fetch views when panel opens
+  useEffect(() => {
+    if (!open || !documentId) return;
+    fetch(`/api/documents/${documentId}/views`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setViews)
+      .catch(() => {});
+  }, [open, documentId]);
 
   if (!open) return null;
 
@@ -196,6 +229,39 @@ export function AnalyticsPanel({
                       No content yet
                     </div>
                   )}
+              </div>
+            </div>
+          )}
+
+          {/* Viewed by */}
+          {views.length > 0 && (
+            <div className="px-4 pb-4">
+              <p className="text-[10px] uppercase tracking-widest text-black/30 dark:text-white/30 mb-2">
+                <Eye className="inline h-3 w-3 mr-1 -mt-0.5" />
+                Viewed by ({views.length})
+              </p>
+              <div className="rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.02] divide-y divide-black/6 dark:divide-white/8">
+                {views.map((v) => (
+                  <div key={v.userId} className="flex items-center gap-2.5 px-3 py-2">
+                    {v.avatar ? (
+                      <img
+                        src={v.avatar}
+                        alt={v.name}
+                        className="h-5 w-5 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[9px] font-medium text-black/50 dark:text-white/50">
+                        {v.name[0]}
+                      </div>
+                    )}
+                    <span className="text-xs text-black/70 dark:text-white/70 flex-1 truncate">
+                      {v.name}
+                    </span>
+                    <span className="text-[10px] text-black/30 dark:text-white/30 shrink-0">
+                      {timeAgo(v.viewedAt)}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

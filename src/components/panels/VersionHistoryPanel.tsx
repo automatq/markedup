@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, RotateCcw, Eye, Clock } from "lucide-react";
-import { useHistoryVersions } from "@liveblocks/react/suspense";
+import { X, RotateCcw } from "lucide-react";
+import { useHistoryVersions, useRoom } from "@liveblocks/react/suspense";
 import {
   HistoryVersionSummaryList,
   HistoryVersionSummary,
@@ -30,9 +30,35 @@ interface VersionHistoryPanelProps {
 
 export function VersionHistoryPanel({ open, onClose, documentId, onRestore, onPreview }: VersionHistoryPanelProps) {
   const { versions } = useHistoryVersions();
+  const room = useRoom();
   const [selected, setSelected] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   if (!open) return null;
+
+  const handleRestore = async (version: any) => {
+    if (!confirm("Restore this version? Current content will be replaced.")) return;
+    setRestoring(true);
+    try {
+      // Use Liveblocks REST API via our backend to restore the Yjs version
+      const res = await fetch(`/api/documents/${documentId}/restore-version`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: room.id,
+          createdAt: version.createdAt.toISOString(),
+        }),
+      });
+      if (res.ok) {
+        onRestore(version.createdAt.toISOString());
+        // Reload the page to pick up the restored version
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("Failed to restore version:", err);
+    }
+    setRestoring(false);
+  };
 
   return (
     <div className="fixed right-0 top-0 bottom-0 z-50 flex">
@@ -59,16 +85,30 @@ export function VersionHistoryPanel({ open, onClose, documentId, onRestore, onPr
             </div>
           ) : (
             <HistoryVersionSummaryList>
-              {versions.map((version) => (
-                <HistoryVersionSummary
-                  key={version.createdAt.toISOString()}
-                  version={version}
-                  onClick={() => {
-                    const id = version.createdAt.toISOString();
-                    setSelected(id === selected ? null : id);
-                  }}
-                />
-              ))}
+              {versions.map((version) => {
+                const id = version.createdAt.toISOString();
+                const isSelected = selected === id;
+                return (
+                  <div key={id} className="relative">
+                    <HistoryVersionSummary
+                      version={version}
+                      onClick={() => setSelected(isSelected ? null : id)}
+                    />
+                    {isSelected && (
+                      <div className="px-3 pb-2 flex gap-2">
+                        <button
+                          onClick={() => handleRestore(version)}
+                          disabled={restoring}
+                          className="flex items-center gap-1.5 rounded-lg bg-black dark:bg-white px-3 py-1.5 text-[11px] font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          {restoring ? "Restoring..." : "Restore this version"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </HistoryVersionSummaryList>
           )}
         </div>

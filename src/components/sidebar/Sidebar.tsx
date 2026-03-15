@@ -36,6 +36,11 @@ export interface SidebarDocument {
   authorName?: string | null;
 }
 
+interface PresenceInfo {
+  count: number;
+  users: { name: string; avatar?: string; color: string }[];
+}
+
 interface SidebarProps {
   documents: SidebarDocument[];
   activeDocumentId?: string;
@@ -45,6 +50,7 @@ interface SidebarProps {
   onTrashDocument: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  presence?: Record<string, PresenceInfo>;
 }
 
 function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
@@ -176,6 +182,7 @@ export function Sidebar({
   onTrashDocument,
   collapsed,
   onToggleCollapse,
+  presence,
 }: SidebarProps) {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
@@ -550,7 +557,16 @@ export function Sidebar({
                               }`}
                             >
                               <FileText className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{doc.title || "Untitled"}</span>
+                              <span className="truncate flex-1">{doc.title || "Untitled"}</span>
+                              {presence?.[doc.id] && (
+                                <span className="flex -space-x-1 shrink-0" title={presence[doc.id].users.map((u) => u.name).join(", ")}>
+                                  {presence[doc.id].users.slice(0, 3).map((u, i) => (
+                                    <span key={i} className="h-4 w-4 rounded-full border border-white dark:border-black flex items-center justify-center text-[7px] font-bold text-white" style={{ backgroundColor: u.color, zIndex: 3 - i }}>
+                                      {u.name[0]}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
                             </button>
                           ))}
                         </div>
@@ -581,7 +597,16 @@ export function Sidebar({
                   }`}
                 >
                   <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{doc.title || "Untitled"}</span>
+                  <span className="truncate flex-1">{doc.title || "Untitled"}</span>
+                  {presence?.[doc.id] && (
+                    <span className="flex -space-x-1 shrink-0" title={presence[doc.id].users.map((u) => u.name).join(", ")}>
+                      {presence[doc.id].users.slice(0, 3).map((u, i) => (
+                        <span key={i} className="h-4 w-4 rounded-full border border-white dark:border-black flex items-center justify-center text-[7px] font-bold text-white" style={{ backgroundColor: u.color, zIndex: 3 - i }}>
+                          {u.name[0]}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </button>
               ))}
               {filtered.length === 0 && (

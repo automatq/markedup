@@ -69,6 +69,12 @@ function DocumentInner({
 
   const others = useOthers();
 
+  // Typing indicator: check who has recently been active (cursor moving)
+  const typingUsers = others
+    .filter((o) => o.presence?.cursor != null)
+    .map((o) => o.info?.name)
+    .filter(Boolean);
+
   const synced = syncStatus === "synchronized";
   const commentCount = threads?.filter((t) => !t.resolved).length ?? 0;
   const unreadNotifCount = inboxNotifications?.filter((n) => n.readAt === null).length ?? 0;
@@ -110,6 +116,11 @@ function DocumentInner({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [breakoutsOpen, setBreakoutsOpen] = useState(false);
+
+  // Record document view
+  useEffect(() => {
+    fetch(`/api/documents/${documentId}/views`, { method: "POST" }).catch(() => {});
+  }, [documentId]);
 
   // Update lastEdited when sync completes
   useEffect(() => {
@@ -419,6 +430,22 @@ function DocumentInner({
               </div>
             </div>
 
+            {/* Typing indicator */}
+            {typingUsers.length > 0 && (
+              <div className="mx-4 mb-2 flex items-center gap-2 text-[11px] text-black/35 dark:text-white/35 animate-fade-in-up">
+                <span className="flex gap-0.5">
+                  <span className="h-1 w-1 rounded-full bg-current animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-1 w-1 rounded-full bg-current animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-1 w-1 rounded-full bg-current animate-bounce" style={{ animationDelay: "300ms" }} />
+                </span>
+                {typingUsers.length === 1
+                  ? `${typingUsers[0]} is editing`
+                  : typingUsers.length === 2
+                    ? `${typingUsers[0]} and ${typingUsers[1]} are editing`
+                    : `${typingUsers[0]} and ${typingUsers.length - 1} others are editing`}
+              </div>
+            )}
+
             {/* Divider */}
             <div className="mx-4 mb-2 border-t border-black/8 dark:border-white/10" />
 
@@ -499,6 +526,7 @@ function DocumentInner({
         open={analyticsOpen}
         onClose={() => setAnalyticsOpen(false)}
         documentTitle={title}
+        documentId={documentId}
         editor={editorRef.current}
         lastEdited={lastEdited}
         createdAt={initialCreatedAt}

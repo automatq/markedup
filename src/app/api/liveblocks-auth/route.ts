@@ -39,7 +39,10 @@ export async function POST() {
       },
     });
 
-    // Grant full access to all document rooms
+    // Grant access to all document rooms for authenticated users.
+    // Document-level access is enforced at the API layer (/api/documents).
+    // TODO: For stricter isolation, scope to specific document IDs per workspace
+    // and re-authenticate when new documents are created.
     session.allow("document:*", session.FULL_ACCESS);
 
     const { status, body } = await session.authorize();

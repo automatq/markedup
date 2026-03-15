@@ -427,21 +427,40 @@
   border-left: 2px solid;
   word-break: normal;
   pointer-events: none;
+  animation: cursorPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes cursorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .collaboration-cursor__label {
   position: absolute;
-  top: -1.4em;
+  top: -1.6em;
   left: -1px;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  padding: 1px 4px;
-  border-radius: 3px 3px 3px 0;
+  padding: 2px 6px;
+  border-radius: 4px 4px 4px 0;
   white-space: nowrap;
   color: #fff;
   user-select: none;
   pointer-events: none;
+  opacity: 0;
+  animation: cursorLabelIn 0.2s ease forwards;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes cursorLabelIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Selection highlight matching cursor color */
+.collaboration-cursor__selection {
+  opacity: 0.15;
 }
 
 /* ── Placeholder styles ── */

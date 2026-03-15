@@ -57,6 +57,7 @@ model Document {
   incomingLinks Node[]      @relation("TargetDocument")
   shareLinks    ShareLink[]
   breakouts     Breakout[]
+  views         DocumentView[]
 
   @@index([workspaceId])
 }
@@ -181,6 +182,18 @@ model AgentConfig {
 
   @@unique([workspaceId, roleId])
   @@index([workspaceId])
+}
+
+/// Track who viewed a document and when
+model DocumentView {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  viewedAt   DateTime @default(now())
+
+  @@unique([documentId, userId])
+  @@index([documentId])
 }
 
 /// Public/private share links for documents

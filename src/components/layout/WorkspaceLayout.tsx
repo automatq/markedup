@@ -10,6 +10,7 @@ interface WorkspaceLayoutProps {
   onCreateDocument: () => void;
   onOpenTrash: () => void;
   onTrashDocument: (id: string) => void;
+  presence?: Record<string, { count: number; users: { name: string; avatar?: string; color: string }[] }>;
   children: React.ReactNode;
 }
 
@@ -20,6 +21,7 @@ export function WorkspaceLayout({
   onCreateDocument,
   onOpenTrash,
   onTrashDocument,
+  presence,
   children,
 }: WorkspaceLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -35,6 +37,7 @@ export function WorkspaceLayout({
         onTrashDocument={onTrashDocument}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
+        presence={presence}
       />
       <main className="flex flex-1 flex-col overflow-hidden">
         {children}

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useState, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser, useOrganizationList } from "@clerk/nextjs";
 import {
   ArrowRight,
@@ -17,7 +17,23 @@ import {
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 
 export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black">
+          <div className="h-6 w-6 rounded-full border-2 border-black/20 dark:border-white/20 border-t-black dark:border-t-white animate-spin" />
+        </div>
+      }
+    >
+      <OnboardingInner />
+    </Suspense>
+  );
+}
+
+function OnboardingInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams?.get("returnUrl");
   const { user, isLoaded } = useUser();
   const { setActive } = useOrganizationList();
 
@@ -160,7 +176,7 @@ export default function OnboardingPage() {
         await setActive({ organization: orgId });
       }
 
-      router.push(`/${workspaceId}`);
+      router.push(returnUrl || `/${workspaceId}`);
     } catch (err: any) {
       console.error("Create group error:", err);
       setError(err?.message || "Something went wrong");
@@ -201,7 +217,7 @@ export default function OnboardingPage() {
         await setActive({ organization: orgId });
       }
 
-      router.push(`/${workspace.id}`);
+      router.push(returnUrl || `/${workspace.id}`);
     } catch (err: any) {
       console.error("Join group error:", err);
       setError(err?.message || "Something went wrong");
