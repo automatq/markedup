@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -202,6 +202,20 @@ export function Sidebar({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [a11yOpen, setA11yOpen] = useState(false);
   const [collapsedAuthors, setCollapsedAuthors] = useState<Set<string>>(new Set());
+  const [selectedAuthor, setSelectedAuthor] = useState<string>("all");
+  const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false);
+  const authorDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!authorDropdownOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (authorDropdownRef.current && !authorDropdownRef.current.contains(e.target as Node)) {
+        setAuthorDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [authorDropdownOpen]);
   const [textIntensity, setTextIntensity] = useState(0.85);
   const [fontScale, setFontScale] = useState(1);
   const [lineSpacing, setLineSpacing] = useState(1);
@@ -493,22 +507,100 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* Author Filter Dropdown (team workspaces only) */}
+      {(() => {
+        const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
+        const hasAuthors = isTeam && filtered.some((d) => d.authorName);
+        if (!hasAuthors) return null;
+
+        const currentUserId = user?.id;
+        const authorMap: Record<string, string> = {};
+        for (const doc of filtered) {
+          if (doc.createdBy && doc.authorName) {
+            authorMap[doc.createdBy] = doc.createdBy === currentUserId ? "You" : doc.authorName;
+          }
+        }
+        const sortedAuthors = Object.entries(authorMap).sort((a, b) => {
+          if (a[0] === currentUserId) return -1;
+          if (b[0] === currentUserId) return 1;
+          return a[1].localeCompare(b[1]);
+        });
+        const selectedLabel = selectedAuthor === "all"
+          ? "All Members"
+          : authorMap[selectedAuthor] || "All Members";
+
+        return (
+          <div className="px-3 pb-2 relative" ref={authorDropdownRef}>
+            <button
+              onClick={() => setAuthorDropdownOpen((p) => !p)}
+              className="flex w-full items-center justify-between rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-black/70 dark:text-white/70 hover:border-black/20 dark:hover:border-white/25 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Users className="h-3 w-3 text-black/40 dark:text-white/40" />
+                {selectedLabel}
+              </span>
+              <ChevronDown className={`h-3 w-3 text-black/30 dark:text-white/30 transition-transform ${authorDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {authorDropdownOpen && (
+              <div className="absolute left-3 right-3 top-full z-20 mt-1 rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-[#0a0a0a] shadow-lg py-1">
+                <button
+                  onClick={() => { setSelectedAuthor("all"); setAuthorDropdownOpen(false); }}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
+                    selectedAuthor === "all"
+                      ? "text-black dark:text-white bg-black/[0.04] dark:bg-white/[0.06]"
+                      : "text-black/60 dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <Users className="h-3 w-3" />
+                  All Members
+                  <span className="ml-auto text-black/30 dark:text-white/30">{filtered.length}</span>
+                </button>
+                {sortedAuthors.map(([authorId, name]) => {
+                  const count = filtered.filter((d) => d.createdBy === authorId).length;
+                  return (
+                    <button
+                      key={authorId}
+                      onClick={() => { setSelectedAuthor(authorId); setAuthorDropdownOpen(false); }}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
+                        selectedAuthor === authorId
+                          ? "text-black dark:text-white bg-black/[0.04] dark:bg-white/[0.06]"
+                          : "text-black/60 dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <span className="h-4 w-4 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[8px] font-bold shrink-0">
+                        {name === "You" ? "Y" : name[0]?.toUpperCase()}
+                      </span>
+                      {name}
+                      <span className="ml-auto text-black/30 dark:text-white/30">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Document List */}
       <div className="flex-1 overflow-y-auto px-2 py-1">
         {(() => {
           const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
           const hasAuthors = isTeam && filtered.some((d) => d.authorName);
+          const currentUserId = user?.id;
 
-          if (hasAuthors) {
+          // Apply author filter for team workspaces
+          const visibleDocs = hasAuthors && selectedAuthor !== "all"
+            ? filtered.filter((d) => d.createdBy === selectedAuthor)
+            : filtered;
+
+          if (hasAuthors && selectedAuthor === "all") {
             // Group documents by author
             const groups: Record<string, SidebarDocument[]> = {};
-            const currentUserId = user?.id;
-            for (const doc of filtered) {
+            for (const doc of visibleDocs) {
               const key = doc.createdBy || "_unknown";
               if (!groups[key]) groups[key] = [];
               groups[key].push(doc);
             }
-            // Sort: current user first, then alphabetically by author name
             const sortedKeys = Object.keys(groups).sort((a, b) => {
               if (a === currentUserId) return -1;
               if (b === currentUserId) return 1;
@@ -584,10 +676,10 @@ export function Sidebar({
             );
           }
 
-          // Flat list for personal workspaces or when no author data
+          // Flat list — for personal workspaces, or filtered to a single author
           return (
             <div className="space-y-0.5">
-              {filtered.map((doc) => (
+              {visibleDocs.map((doc) => (
                 <button
                   key={doc.id}
                   onClick={() => onSelectDocument(doc.id)}
@@ -615,7 +707,7 @@ export function Sidebar({
                   )}
                 </button>
               ))}
-              {filtered.length === 0 && (
+              {visibleDocs.length === 0 && (
                 <p className="px-2 py-6 text-center text-xs text-black/30 dark:text-white/30">
                   No documents found
                 </p>
