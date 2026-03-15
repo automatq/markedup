@@ -85,6 +85,11 @@ export async function POST() {
       for (const doc of documents) {
         session.allow(`document:${doc.id}`, session.FULL_ACCESS);
       }
+
+      // Grant access to whiteboard rooms for each workspace
+      for (const wsId of wsIds) {
+        session.allow(`whiteboard:${wsId}`, session.FULL_ACCESS);
+      }
     }
 
     const { status, body } = await session.authorize();

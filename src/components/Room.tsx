@@ -7,6 +7,8 @@ interface RoomProps {
   roomId: string;
   children: ReactNode;
   fallback?: ReactNode;
+  initialPresence?: Record<string, unknown>;
+  initialStorage?: Record<string, unknown>;
 }
 
 const defaultFallback = (
@@ -18,9 +20,13 @@ const defaultFallback = (
   </div>
 );
 
-export function Room({ roomId, children, fallback }: RoomProps) {
+export function Room({ roomId, children, fallback, initialPresence, initialStorage }: RoomProps) {
   return (
-    <RoomProvider id={roomId}>
+    <RoomProvider
+      id={roomId}
+      initialPresence={initialPresence as any}
+      initialStorage={initialStorage as any}
+    >
       <ClientSideSuspense fallback={fallback ?? defaultFallback}>
         {children}
       </ClientSideSuspense>
