@@ -21,8 +21,10 @@ import {
   Download,
   Undo2,
   Redo2,
+  FileText,
 } from "lucide-react";
 import { useHistory } from "@liveblocks/react";
+import { useParams, useRouter } from "next/navigation";
 
 // ── Types ──
 
@@ -138,6 +140,8 @@ const HEADER_HEIGHT = 32;
 // ── Component ──
 
 export function Spreadsheet() {
+  const params = useParams<{ workspaceId: string }>();
+  const router = useRouter();
   const history = useHistory();
 
   // ── Storage ──
@@ -510,6 +514,89 @@ export function Spreadsheet() {
     URL.revokeObjectURL(url);
   }, [rowCount, colCount, getDisplayValue]);
 
+  // ── Save to Document ──
+  const [saving, setSaving] = useState(false);
+  const saveToDocument = useCallback(async () => {
+    if (!params?.workspaceId) return;
+    setSaving(true);
+    try {
+      // Build data rows (trim trailing empties)
+      const dataRows: string[][] = [];
+      for (let r = 0; r < rowCount; r++) {
+        const row: string[] = [];
+        for (let c = 0; c < colCount; c++) {
+          row.push(getDisplayValue(cellKey(c, r)));
+        }
+        dataRows.push(row);
+      }
+      while (dataRows.length > 0 && dataRows[dataRows.length - 1].every((v) => !v)) dataRows.pop();
+      // Trim trailing empty columns
+      let maxCol = 0;
+      for (const row of dataRows) {
+        for (let c = row.length - 1; c >= 0; c--) {
+          if (row[c]) { maxCol = Math.max(maxCol, c); break; }
+        }
+      }
+      const trimmedRows = dataRows.map((row) => row.slice(0, maxCol + 1));
+
+      // Build TipTap table node
+      const headerRow = trimmedRows[0] || [];
+      const bodyRows = trimmedRows.slice(1);
+
+      const makeCell = (text: string, isHeader: boolean) => ({
+        type: isHeader ? "tableHeader" : "tableCell",
+        content: text ? [{ type: "paragraph", content: [{ type: "text", text }] }] : [{ type: "paragraph" }],
+      });
+
+      const tableContent = [];
+      if (headerRow.length > 0) {
+        tableContent.push({
+          type: "tableRow",
+          content: headerRow.map((v) => makeCell(v, true)),
+        });
+      }
+      for (const row of bodyRows) {
+        // Pad row to match header length
+        while (row.length < headerRow.length) row.push("");
+        tableContent.push({
+          type: "tableRow",
+          content: row.map((v) => makeCell(v, false)),
+        });
+      }
+
+      const content = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "Spreadsheet Export" }],
+          },
+          ...(tableContent.length > 0
+            ? [{ type: "table", content: tableContent }]
+            : [{ type: "paragraph", content: [{ type: "text", text: "(Empty spreadsheet)" }] }]),
+        ],
+      };
+
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId: params.workspaceId,
+          title: `Spreadsheet — ${new Date().toLocaleDateString()}`,
+          content,
+        }),
+      });
+      if (res.ok) {
+        const doc = await res.json();
+        router.push(`/${params.workspaceId}/${doc.id}`);
+      }
+    } catch {
+      // silently handle
+    }
+    setSaving(false);
+  }, [params?.workspaceId, router, rowCount, colCount, getDisplayValue]);
+
   // ── Total width for grid ──
   const totalWidth = useMemo(
     () => ROW_HEADER_WIDTH + colWidths.reduce((sum, w) => sum + w, 0),
@@ -590,6 +677,10 @@ export function Spreadsheet() {
 
         <button onClick={exportCSV} className="toolbar-btn" title="Export CSV">
           <Download className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={saveToDocument} disabled={saving} className="toolbar-btn" title="Save to document">
+          <FileText className="h-3.5 w-3.5" />
+          <span className="text-[10px] ml-1 font-medium">{saving ? "Saving…" : "To Doc"}</span>
         </button>
       </div>
 

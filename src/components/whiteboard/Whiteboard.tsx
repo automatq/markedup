@@ -25,7 +25,9 @@ import {
   ZoomOut,
   Sun,
   Moon,
+  FileText,
 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 
 /* ── Types ── */
 
@@ -62,6 +64,8 @@ const STROKE_WIDTHS = [2, 4, 8, 16];
 /* ── Whiteboard Component ── */
 
 export function Whiteboard() {
+  const params = useParams<{ workspaceId: string }>();
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -418,6 +422,52 @@ export function Whiteboard() {
     link.click();
   }, []);
 
+  /* ── Save to Document ── */
+  const [saving, setSaving] = useState(false);
+  const saveToDocument = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !params?.workspaceId) return;
+    setSaving(true);
+    try {
+      const dataUrl = canvas.toDataURL("image/png");
+      const content = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "Markerboard Snapshot" }],
+          },
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "image",
+                attrs: { src: dataUrl, alt: "Markerboard snapshot", title: null },
+              },
+            ],
+          },
+        ],
+      };
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId: params.workspaceId,
+          title: `Markerboard — ${new Date().toLocaleDateString()}`,
+          content,
+        }),
+      });
+      if (res.ok) {
+        const doc = await res.json();
+        router.push(`/${params.workspaceId}/${doc.id}`);
+      }
+    } catch {
+      // silently handle
+    }
+    setSaving(false);
+  }, [params?.workspaceId, router]);
+
   const tools: { key: Tool; icon: React.ReactNode; label: string }[] = [
     { key: "select", icon: <MousePointer2 className="h-4 w-4" />, label: "Select" },
     { key: "pen", icon: <Pencil className="h-4 w-4" />, label: "Pen" },
@@ -500,6 +550,15 @@ export function Whiteboard() {
         </button>
         <button onClick={handleExport} title="Export PNG" className="flex h-8 w-8 items-center justify-center rounded-lg text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
           <Download className="h-4 w-4" />
+        </button>
+        <button
+          onClick={saveToDocument}
+          disabled={saving}
+          title="Save to document"
+          className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+        >
+          <FileText className="h-4 w-4" />
+          <span className="text-[11px] font-medium">{saving ? "Saving…" : "To Doc"}</span>
         </button>
 
         <div className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" />
