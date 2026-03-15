@@ -11,6 +11,7 @@ import {
   UserPlus,
   Loader2,
   Check,
+  User,
 } from "lucide-react";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 
@@ -19,11 +20,18 @@ export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const { setActive } = useOrganizationList();
 
-  // Steps: 0=choose path, 1=create group OR join group
+  const needsProfile = isLoaded && user && !user.firstName;
+
+  // Steps: 0=profile (if needed), 1=choose path, 2=create/join
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
+
+  // Profile state
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // Create path state
   const [path, setPath] = useState<"create" | "join" | null>(null);
@@ -38,6 +46,13 @@ export default function OnboardingPage() {
     orgId: string;
   } | null>(null);
 
+  // Skip profile step if user already has a name
+  useEffect(() => {
+    if (isLoaded && user?.firstName && step === 0) {
+      setStep(1);
+    }
+  }, [isLoaded, user?.firstName, step]);
+
   // Check if user already has workspaces — if so, skip onboarding
   useEffect(() => {
     if (!isLoaded || !user) return;
@@ -47,7 +62,6 @@ export default function OnboardingPage() {
         const res = await fetch("/api/workspaces");
         if (res.ok) {
           const workspaces = await res.json();
-          // Find first non-personal workspace, or any workspace
           const teamWs = workspaces.find((w: any) => !w.isPersonal);
           if (teamWs) {
             router.replace(`/${teamWs.id}`);
@@ -62,6 +76,23 @@ export default function OnboardingPage() {
       setCheckingExisting(false);
     })();
   }, [isLoaded, user, router]);
+
+  // Save profile
+  const handleSaveProfile = useCallback(async () => {
+    if (!user || !firstName.trim()) return;
+    setSavingProfile(true);
+    setError(null);
+    try {
+      await user.update({
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || undefined,
+      });
+      setStep(1);
+    } catch (err: any) {
+      setError(err?.message || "Failed to save profile");
+    }
+    setSavingProfile(false);
+  }, [user, firstName, lastName]);
 
   // Validate invite code as user types
   const validateInvite = useCallback(async (code: string) => {
@@ -111,7 +142,6 @@ export default function OnboardingPage() {
 
       const { orgId, workspaceId } = await orgRes.json();
 
-      // Save onboarding complete
       await user.update({
         unsafeMetadata: {
           ...((user.unsafeMetadata as Record<string, unknown>) || {}),
@@ -119,7 +149,6 @@ export default function OnboardingPage() {
         },
       });
 
-      // Set active org in Clerk
       if (setActive) {
         await setActive({ organization: orgId });
       }
@@ -154,7 +183,6 @@ export default function OnboardingPage() {
 
       const { workspace, orgId } = await redeemRes.json();
 
-      // Save onboarding complete
       await user.update({
         unsafeMetadata: {
           ...((user.unsafeMetadata as Record<string, unknown>) || {}),
@@ -162,7 +190,6 @@ export default function OnboardingPage() {
         },
       });
 
-      // Set active org in Clerk
       if (setActive) {
         await setActive({ organization: orgId });
       }
@@ -174,6 +201,10 @@ export default function OnboardingPage() {
       setLoading(false);
     }
   }, [user, inviteInfo, inviteCode, router, setActive]);
+
+  // Progress calculation
+  const totalSteps = needsProfile ? 3 : 2;
+  const progressPercent = ((step + 1) / totalSteps) * 100;
 
   if (!isLoaded || checkingExisting) {
     return (
@@ -192,7 +223,7 @@ export default function OnboardingPage() {
         <div className="fixed top-0 left-0 right-0 h-1 bg-black/5 dark:bg-white/5">
           <div
             className="h-full bg-black dark:bg-white transition-all duration-500"
-            style={{ width: step === 0 ? "50%" : "100%" }}
+            style={{ width: `${progressPercent}%` }}
           />
         </div>
 
@@ -203,8 +234,68 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 0: Choose path — Create or Join */}
-        {step === 0 && (
+        {/* Step 0: Profile setup (only for email signups with no name) */}
+        {step === 0 && needsProfile && (
+          <div className="flex flex-col items-center gap-6 animate-fade-in-up w-full">
+            <div className="flex items-center gap-2.5 mb-2">
+              <ScribbleIcon size={22} className="text-black dark:text-white/90" />
+              <span className="text-sm font-semibold text-black dark:text-white tracking-tight">
+                MarkedUp
+              </span>
+            </div>
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
+              <User className="h-6 w-6 text-black/60 dark:text-white/60" />
+            </div>
+
+            <h1 className="text-2xl font-semibold text-black dark:text-white tracking-tight text-center">
+              What should we call you?
+            </h1>
+            <p className="text-sm text-black/40 dark:text-white/40 -mt-3">
+              This is how your team will see you
+            </p>
+
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+              <input
+                autoFocus
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name"
+                className="h-12 w-full rounded-xl border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-4 text-base text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors text-center"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && firstName.trim()) handleSaveProfile();
+                }}
+              />
+              <input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Last name (optional)"
+                className="h-12 w-full rounded-xl border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-4 text-base text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/25 dark:focus:border-white/25 transition-colors text-center"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && firstName.trim()) handleSaveProfile();
+                }}
+              />
+            </div>
+
+            <button
+              onClick={handleSaveProfile}
+              disabled={savingProfile || !firstName.trim()}
+              className="flex h-10 items-center gap-2 rounded-xl bg-black dark:bg-white px-6 text-sm font-medium text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-40"
+            >
+              {savingProfile ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Step 1: Choose path — Create or Join */}
+        {step === 1 && (
           <div className="flex flex-col items-center gap-6 animate-fade-in-up w-full">
             <div className="flex items-center gap-2.5 mb-2">
               <ScribbleIcon size={22} className="text-black dark:text-white/90" />
@@ -224,7 +315,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => {
                   setPath("create");
-                  setStep(1);
+                  setStep(2);
                 }}
                 className="group flex items-center gap-4 rounded-xl border border-black/8 dark:border-white/10 px-5 py-4 text-left transition-all hover:border-black/20 dark:hover:border-white/25 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
               >
@@ -245,7 +336,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => {
                   setPath("join");
-                  setStep(1);
+                  setStep(2);
                 }}
                 className="group flex items-center gap-4 rounded-xl border border-black/8 dark:border-white/10 px-5 py-4 text-left transition-all hover:border-black/20 dark:hover:border-white/25 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
               >
@@ -266,8 +357,8 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 1: Create Group */}
-        {step === 1 && path === "create" && (
+        {/* Step 2: Create Group */}
+        {step === 2 && path === "create" && (
           <div className="flex flex-col items-center gap-6 animate-fade-in-up w-full">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
               <Building2 className="h-6 w-6 text-black/60 dark:text-white/60" />
@@ -299,7 +390,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => {
                   setPath(null);
-                  setStep(0);
+                  setStep(1);
                 }}
                 className="flex h-10 items-center gap-1.5 rounded-xl border border-black/8 dark:border-white/10 px-5 text-sm font-medium text-black/60 dark:text-white/60 hover:border-black/20 dark:hover:border-white/25 transition-colors"
               >
@@ -324,8 +415,8 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 1: Join Group */}
-        {step === 1 && path === "join" && (
+        {/* Step 2: Join Group */}
+        {step === 2 && path === "join" && (
           <div className="flex flex-col items-center gap-6 animate-fade-in-up w-full">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
               <UserPlus className="h-6 w-6 text-black/60 dark:text-white/60" />
@@ -376,7 +467,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => {
                   setPath(null);
-                  setStep(0);
+                  setStep(1);
                   setInviteCode("");
                   setInviteInfo(null);
                 }}
