@@ -510,7 +510,7 @@ export function Whiteboard() {
             setBoardMode((m) => m === "blackboard" ? "whiteboard" : "blackboard");
             setColor((c) => c === "#ffffff" ? "#000000" : c === "#000000" ? "#ffffff" : c);
           }}
-          title={boardMode === "blackboard" ? "Switch to whiteboard" : "Switch to blackboard"}
+          title={boardMode === "blackboard" ? "Switch to whiteboard" : "Switch to markerboard"}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
         >
           {boardMode === "blackboard" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
