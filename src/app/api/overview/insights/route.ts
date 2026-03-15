@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       recentCallLogs,
       agentConfigs,
       githubIntegrations,
+      kpis,
     ] = await Promise.all([
       db.workspace.findUnique({
         where: { id: workspaceId },
@@ -75,6 +76,11 @@ export async function POST(request: NextRequest) {
       }),
       db.workspaceIntegration.findMany({
         where: { workspaceId, type: "github" },
+      }),
+      db.kpi.findMany({
+        where: { workspaceId },
+        orderBy: { week: "desc" },
+        take: 50,
       }),
     ]);
 
@@ -185,6 +191,16 @@ export async function POST(request: NextRequest) {
 
     activitySummary += githubContext;
 
+    // KPI context
+    if (kpis.length > 0) {
+      activitySummary += `\n\n## Weekly KPI Targets\n`;
+      for (const k of kpis) {
+        const memberName = userMap[k.userId] || k.userId;
+        const pct = k.target > 0 ? Math.round((k.actual / k.target) * 100) : 0;
+        activitySummary += `- ${memberName}: ${k.name} — ${k.actual}/${k.target} ${k.unit} (${pct}%) [${k.week}]\n`;
+      }
+    }
+
     // Agent analysis prompt
     const completion = await openai.chat.completions.create({
       model: "o4-mini",
@@ -219,9 +235,11 @@ Schema:
 Signal = productive, goal-aligned work that moves things forward.
 Noise = unfocused activity, rework, low-impact tasks, or stagnation.
 
+When KPI data is provided, factor target attainment into signal/noise scoring. Members hitting >80% of their KPI targets have high signal. Members below 50% are generating noise or need support. Reference specific KPI shortfalls in member insights.
+
 For the workflowLog, combine GitHub commits, document activity, breakouts, and calls into a unified timeline of the most significant 15-20 events, sorted by date desc.
 
-Be specific and data-driven. Reference actual document titles, commit messages, and call outcomes.`,
+Be specific and data-driven. Reference actual document titles, commit messages, call outcomes, and KPI attainment.`,
         },
         {
           role: "user",

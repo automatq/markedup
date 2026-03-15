@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       recentDocs,
       recentBreakouts,
       recentCallLogs,
+      allCallLogs,
       agentConfigs,
       recentViews,
       trashedCount,
@@ -60,13 +61,18 @@ export async function GET(request: NextRequest) {
       }),
       db.callLog.findMany({
         where: { workspaceId, createdAt: { gte: sevenDaysAgo } },
-        select: { id: true, title: true, createdBy: true, outcome: true, score: true, createdAt: true },
+        select: { id: true, title: true, createdBy: true, outcome: true, score: true, durationSecs: true, tags: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
+      db.callLog.findMany({
+        where: { workspaceId, createdAt: { gte: thirtyDaysAgo } },
+        select: { id: true, outcome: true, score: true, createdAt: true, createdBy: true },
+        orderBy: { createdAt: "desc" },
+      }),
       db.agentConfig.findMany({
         where: { workspaceId },
-        select: { id: true, name: true, title: true, color: true, avatar: true },
+        select: { id: true, name: true, title: true, color: true, avatar: true, roleId: true },
       }),
       db.documentView.findMany({
         where: { document: { workspaceId, deletedAt: null }, viewedAt: { gte: sevenDaysAgo } },
@@ -239,6 +245,36 @@ export async function GET(request: NextRequest) {
       if (bd) bd.breakouts++;
     }
 
+    // Call stats for CRO section (30-day window)
+    const callStats = {
+      total: allCallLogs.length,
+      positive: allCallLogs.filter((c) => c.outcome === "positive").length,
+      neutral: allCallLogs.filter((c) => c.outcome === "neutral").length,
+      negative: allCallLogs.filter((c) => c.outcome === "negative").length,
+      avgScore: allCallLogs.length > 0
+        ? Math.round(allCallLogs.reduce((s, c) => s + (c.score || 0), 0) / allCallLogs.filter((c) => c.score != null).length) || 0
+        : 0,
+      thisWeek: recentCallLogs.length,
+    };
+
+    // Daily call timeline (30 days) for CRO chart
+    const dailyCalls: { date: string; positive: number; neutral: number; negative: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const day = new Date(now);
+      day.setDate(day.getDate() - i);
+      dailyCalls.push({ date: day.toISOString().slice(0, 10), positive: 0, neutral: 0, negative: 0 });
+    }
+    const callDayMap = new Map(dailyCalls.map((d) => [d.date, d]));
+    for (const c of allCallLogs) {
+      const day = c.createdAt.toISOString().slice(0, 10);
+      const entry = callDayMap.get(day);
+      if (entry && c.outcome) {
+        if (c.outcome === "positive") entry.positive++;
+        else if (c.outcome === "neutral") entry.neutral++;
+        else if (c.outcome === "negative") entry.negative++;
+      }
+    }
+
     return NextResponse.json({
       workspace: {
         name: workspace?.name || "Workspace",
@@ -255,6 +291,8 @@ export async function GET(request: NextRequest) {
         agentCount: agentConfigs.length,
         trashedCount,
       },
+      callStats,
+      dailyCalls,
       activity: activity.slice(0, 30),
       popularDocs,
       memberActivity: Object.entries(memberActivity)

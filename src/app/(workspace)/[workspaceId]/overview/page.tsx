@@ -8,7 +8,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   RadialBar,
   RadialBarChart,
   XAxis,
@@ -34,13 +33,10 @@ import {
   Signal,
   Zap,
   Clock,
-  Settings,
   CheckCircle2,
   AlertTriangle,
   Trash2,
   Power,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import {
   Card,
@@ -79,10 +75,19 @@ interface OverviewData {
     agentCount: number;
     trashedCount: number;
   };
+  callStats: {
+    total: number;
+    positive: number;
+    neutral: number;
+    negative: number;
+    avgScore: number;
+    thisWeek: number;
+  };
+  dailyCalls: { date: string; positive: number; neutral: number; negative: number }[];
   activity: ActivityItem[];
   popularDocs: { id: string; title: string; views: number }[];
   memberActivity: { userId: string; name: string; avatar?: string; docs: number; edits: number }[];
-  agents: { id: string; name: string; title: string; color: string; avatar: string }[];
+  agents: { id: string; name: string; title: string; color: string; avatar: string; roleId: string }[];
   dailyTimeline: { date: string; edits: number; created: number; breakouts: number }[];
 }
 
@@ -151,19 +156,25 @@ interface AgentMonitorItem {
 /* ──────────────────── Chart configs ──────────────────── */
 
 const activityChartConfig = {
-  edits: { label: "Edits", color: "var(--chart-1)" },        // gold
-  created: { label: "Created", color: "var(--chart-2)" },    // silver
-  breakouts: { label: "Breakouts", color: "var(--chart-3)" }, // copper
+  edits: { label: "Edits", color: "var(--chart-1)" },
+  created: { label: "Created", color: "var(--chart-2)" },
+  breakouts: { label: "Breakouts", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
 const signalNoiseChartConfig = {
-  signal: { label: "Signal", color: "var(--chart-1)" },  // gold
-  noise: { label: "Noise", color: "var(--chart-5)" },    // muted bronze
+  signal: { label: "Signal", color: "var(--chart-1)" },
+  noise: { label: "Noise", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
 const visionChartConfig = {
   shortTerm: { label: "Short-term", color: "var(--chart-1)" },
   longTerm: { label: "Long-term", color: "var(--chart-2)" },
+} satisfies ChartConfig;
+
+const callChartConfig = {
+  positive: { label: "Positive", color: "var(--chart-1)" },
+  neutral: { label: "Neutral", color: "var(--chart-2)" },
+  negative: { label: "Negative", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
 /* ──────────────────── Helpers ──────────────────── */
@@ -191,27 +202,30 @@ function ActivityIcon({ type }: { type: ActivityItem["type"] }) {
   }
 }
 
-function activityColor(_type: ActivityItem["type"]): string {
-  return "bg-black/[0.03] dark:bg-white/[0.03] border-black/6 dark:border-white/8";
-}
-
 function impactColor(impact: string) {
   switch (impact) {
     case "high": return "text-black/60 dark:text-white/60 bg-black/[0.04] dark:bg-white/[0.04]";
     case "medium": return "text-black/40 dark:text-white/40 bg-black/[0.03] dark:bg-white/[0.03]";
-    case "low": return "text-black/25 dark:text-white/25 bg-black/[0.02] dark:bg-white/[0.02]";
     default: return "text-black/25 dark:text-white/25 bg-black/[0.02] dark:bg-white/[0.02]";
   }
 }
 
-/** GitHub-style contribution calendar */
+function workflowIcon(type: string) {
+  switch (type) {
+    case "commit": return <GitCommit className="h-3 w-3" />;
+    case "doc": return <FileText className="h-3 w-3" />;
+    case "breakout": return <Sparkles className="h-3 w-3" />;
+    case "call": return <Phone className="h-3 w-3" />;
+    default: return <Activity className="h-3 w-3" />;
+  }
+}
+
+/** GitHub-style contribution calendar with gold accents */
 function ContributionCalendar({ timeline }: { timeline: { date: string; commits: number }[] }) {
-  // Build 52 weeks of data ending today
   const today = new Date();
   const cells: { date: string; count: number; dayOfWeek: number }[] = [];
   const countMap = new Map(timeline.map((d) => [d.date, d.commits]));
 
-  // Go back ~364 days to fill 52 weeks
   for (let i = 363; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
@@ -219,7 +233,6 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
     cells.push({ date: key, count: countMap.get(key) || 0, dayOfWeek: d.getDay() });
   }
 
-  // Group into weeks (columns)
   const weeks: typeof cells[] = [];
   let currentWeek: typeof cells = [];
   for (const cell of cells) {
@@ -246,7 +259,6 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
 
   return (
     <div className="overflow-x-auto">
-      {/* Month labels */}
       <div className="flex gap-[3px] mb-1 ml-[18px]">
         {weeks.map((week, wi) => {
           const firstDay = week[0];
@@ -262,7 +274,6 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
         })}
       </div>
       <div className="flex gap-[3px]">
-        {/* Day labels */}
         <div className="flex flex-col gap-[3px] mr-[2px]">
           {["","M","","W","","F",""].map((label, i) => (
             <div key={i} className="h-[11px] flex items-center">
@@ -270,7 +281,6 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
             </div>
           ))}
         </div>
-        {/* Weeks grid */}
         {weeks.map((week, wi) => (
           <div key={wi} className="flex flex-col gap-[3px]">
             {Array.from({ length: 7 }, (_, dayIdx) => {
@@ -287,7 +297,6 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
           </div>
         ))}
       </div>
-      {/* Legend */}
       <div className="flex items-center gap-1 mt-2 justify-end">
         <span className="text-[8px] text-black/20 dark:text-white/20 mr-0.5">Less</span>
         <div className="h-[9px] w-[9px] rounded-[2px] bg-black/[0.03] dark:bg-white/[0.04]" />
@@ -301,14 +310,44 @@ function ContributionCalendar({ timeline }: { timeline: { date: string; commits:
   );
 }
 
-function workflowIcon(type: string) {
-  switch (type) {
-    case "commit": return <GitCommit className="h-3 w-3" />;
-    case "doc": return <FileText className="h-3 w-3" />;
-    case "breakout": return <Sparkles className="h-3 w-3" />;
-    case "call": return <Phone className="h-3 w-3" />;
-    default: return <Activity className="h-3 w-3" />;
-  }
+/** Agent avatar badge */
+function AgentBadge({ agent, monitor, onToggle }: {
+  agent: { name: string; title: string; color: string; avatar: string };
+  monitor?: { enabled: boolean; lastRunAt: string | null } | null;
+  onToggle?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+        style={{ backgroundColor: agent.color }}
+      >
+        {agent.avatar}
+      </div>
+      <div className="min-w-0">
+        <span className="text-[11px] font-semibold text-black/70 dark:text-white/70">{agent.name}</span>
+        <span className="text-[10px] text-black/30 dark:text-white/30 ml-1">{agent.title}</span>
+      </div>
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium transition-all border ml-auto shrink-0 ${
+            monitor?.enabled
+              ? "bg-[#c9a84c]/10 dark:bg-[#d4af37]/10 text-[#c9a84c] dark:text-[#d4af37] border-[#c9a84c]/20 dark:border-[#d4af37]/20"
+              : "bg-black/[0.02] dark:bg-white/[0.02] text-black/25 dark:text-white/25 border-black/6 dark:border-white/8"
+          }`}
+        >
+          <Power className="h-2.5 w-2.5" />
+          {monitor?.enabled ? "Active" : "Off"}
+        </button>
+      )}
+      {monitor?.enabled && monitor.lastRunAt && (
+        <span className="text-[8px] text-black/20 dark:text-white/20 shrink-0">
+          {timeAgo(monitor.lastRunAt)}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /* ──────────────────── Main Component ──────────────────── */
@@ -322,17 +361,15 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("30d");
 
-  // Insights state
+  // Insights
   const [insights, setInsights] = useState<InsightsData | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [generatingInsights, setGeneratingInsights] = useState(false);
 
-  // GitHub state — default to unconfigured so the connect card shows immediately
+  // GitHub
   const [github, setGitHub] = useState<GitHubData>({ configured: false });
   const [githubExpanded, setGithubExpanded] = useState(false);
   const [activeRepo, setActiveRepo] = useState("all");
-
-  // GitHub config modal
   const [showGitHubConfig, setShowGitHubConfig] = useState(false);
   const [ghOwner, setGhOwner] = useState("");
   const [ghRepo, setGhRepo] = useState("");
@@ -340,7 +377,7 @@ export default function OverviewPage() {
   const [ghSaving, setGhSaving] = useState(false);
   const [ghError, setGhError] = useState("");
 
-  // KPI state
+  // KPIs
   const [kpiData, setKpiData] = useState<KpiData | null>(null);
   const [showAddKpi, setShowAddKpi] = useState(false);
   const [kpiName, setKpiName] = useState("");
@@ -349,9 +386,10 @@ export default function OverviewPage() {
   const [kpiUserId, setKpiUserId] = useState("");
   const [kpiCategory, setKpiCategory] = useState("output");
 
-  // Agent monitor state
+  // Agent monitors
   const [agentMonitors, setAgentMonitors] = useState<AgentMonitorItem[]>([]);
-  const [showAgentMonitors, setShowAgentMonitors] = useState(false);
+
+  /* ── Data fetchers ── */
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -512,6 +550,29 @@ export default function OverviewPage() {
     return () => clearInterval(interval);
   }, [fetchOverview, fetchInsights, fetchGitHub, fetchKpis, fetchAgentMonitors]);
 
+  /* ── Derived data ── */
+
+  const findAgent = (roleId: string) => data?.agents.find((a) => a.roleId === roleId);
+  const findMonitor = (agentId: string) => agentMonitors.find((m) => m.agent.id === agentId);
+
+  const ceoAgent = findAgent("ceo");
+  const ctoAgent = findAgent("cto");
+  const croAgent = findAgent("cro");
+
+  const sn = insights?.signalNoise;
+  const vt = insights?.visionTracker;
+
+  // KPI attainment
+  const allKpis = kpiData?.all || [];
+  const totalTarget = allKpis.reduce((s, k) => s + k.target, 0);
+  const totalActual = allKpis.reduce((s, k) => s + k.actual, 0);
+  const kpiAttainment = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : null;
+
+  // Days since last insight
+  const daysSinceInsight = insights?.generatedAt
+    ? Math.floor((Date.now() - new Date(insights.generatedAt).getTime()) / 86400000)
+    : null;
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -534,752 +595,353 @@ export default function OverviewPage() {
     return timeline.slice(-daysToShow);
   })();
 
-  const sn = insights?.signalNoise;
-  const vt = insights?.visionTracker;
+  const callChartData = (() => {
+    const timeline = data.dailyCalls || [];
+    const daysToShow = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
+    return timeline.slice(-daysToShow);
+  })();
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-8 py-10">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+
+        {/* ═══════════════════════════════════════════════════
+            HEADER
+        ═══════════════════════════════════════════════════ */}
+        <div className="flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 text-black/30 dark:text-white/30 mb-3">
               <BarChart3 className="h-4 w-4" />
-              <span className="text-[10px] uppercase tracking-widest font-medium">Overview</span>
+              <span className="text-[10px] uppercase tracking-widest font-medium">Command Center</span>
             </div>
             <h1 className="text-3xl font-bold text-black dark:text-white tracking-tight">
               {data.workspace.name}
             </h1>
-            <p className="text-sm text-black/40 dark:text-white/40 mt-1">
-              Live activity dashboard — everything happening across your workspace.
-            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setLoading(true); fetchOverview(); }}
+            className="flex items-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 px-3 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-colors"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Refresh
+          </button>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════
+            PULSE BAR — single glanceable strip
+        ═══════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          <PulseItem
+            label="Signal"
+            value={sn ? `${sn.overall.signal}%` : "—"}
+            sub={sn ? sn.overall.summary.slice(0, 40) : "Generate insights"}
+            accent={sn ? (sn.overall.signal >= 70) : false}
+          />
+          <PulseItem
+            label="KPI Attainment"
+            value={kpiAttainment !== null ? `${kpiAttainment}%` : "—"}
+            sub={allKpis.length > 0 ? `${allKpis.length} active targets` : "No KPIs set"}
+            accent={kpiAttainment !== null && kpiAttainment >= 80}
+          />
+          <PulseItem
+            label="Active This Week"
+            value={data.stats.docsEditedThisWeek}
+            sub={`${data.stats.docsCreatedThisWeek} new pages`}
+          />
+          <PulseItem
+            label="Contributors"
+            value={data.stats.uniqueContributors}
+            sub={data.stats.agentCount > 0 ? `${data.stats.agentCount} AI agents` : undefined}
+          />
+          <PulseItem
+            label="Calls This Week"
+            value={data.callStats?.thisWeek ?? data.stats.totalCalls}
+            sub={data.callStats?.avgScore ? `Avg score: ${data.callStats.avgScore}` : undefined}
+          />
+        </div>
+
+        {/* ═══════════════════════════════════════════════════
+            SMART CTA — contextual insights prompt
+        ═══════════════════════════════════════════════════ */}
+        <div className="mb-8 rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.01] dark:bg-white/[0.01] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <Brain className="h-5 w-5 text-[#c9a84c] dark:text-[#d4af37] shrink-0" />
+            <div className="flex-1 min-w-0">
+              {insights ? (
+                <p className="text-[12px] text-black/50 dark:text-white/50 leading-relaxed">
+                  Last analysis <span className="font-medium text-black/70 dark:text-white/70">{daysSinceInsight === 0 ? "today" : daysSinceInsight === 1 ? "yesterday" : `${daysSinceInsight} days ago`}</span>.
+                  {" "}Your team has {data.stats.docsEditedThisWeek} page edits, {data.stats.totalCalls} calls, and {github.totalCommits ?? 0} commits since then.
+                </p>
+              ) : (
+                <p className="text-[12px] text-black/50 dark:text-white/50 leading-relaxed">
+                  No AI analysis yet. Generate insights to see signal/noise scores, vision tracking, and personalized recommendations for your CEO, CTO, and CRO agents.
+                </p>
+              )}
+            </div>
             <button
               onClick={generateInsights}
               disabled={generatingInsights}
-              className="flex items-center gap-1.5 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-3 py-1.5 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-4 py-2 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-50 shrink-0"
             >
               {generatingInsights ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Analyzing…
-                </>
+                <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing…</>
               ) : (
-                <>
-                  <Brain className="h-3 w-3" />
-                  {insights ? "Refresh Insights" : "Generate Insights"}
-                </>
+                <><Brain className="h-3 w-3" /> {insights ? "Refresh Analysis" : "Generate Insights"}</>
               )}
             </button>
-            <button
-              onClick={() => { setLoading(true); fetchOverview(); }}
-              className="flex items-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 px-3 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:border-black/20 dark:hover:border-white/20 transition-colors"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Refresh
-            </button>
           </div>
+
+          {/* Recommendations inline */}
+          {insights?.recommendations && insights.recommendations.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-black/5 dark:border-white/5">
+              <ul className="space-y-1">
+                {insights.recommendations.map((rec, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[11px] text-black/50 dark:text-white/45 leading-relaxed">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#c9a84c]/40 dark:bg-[#d4af37]/40 shrink-0" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <StatCard icon={FileText} label="Total Pages" value={data.stats.totalDocs}
-            sub={data.stats.docsCreatedThisWeek > 0 ? `+${data.stats.docsCreatedThisWeek} this week` : undefined} />
-          <StatCard icon={TrendingUp} label="Active This Week" value={data.stats.docsEditedThisWeek}
-            sub="pages edited" />
-          <StatCard icon={Users} label="Contributors" value={data.stats.uniqueContributors}
-            sub={data.stats.agentCount > 0 ? `${data.stats.agentCount} AI agent${data.stats.agentCount > 1 ? "s" : ""}` : undefined} />
-          <StatCard icon={Activity} label="This Week" value={data.stats.totalBreakouts + data.stats.totalCalls}
-            sub={`${data.stats.totalBreakouts} breakouts, ${data.stats.totalCalls} calls`} />
-        </div>
-
-        {/* ═══════ SIGNAL / NOISE + VISION TRACKER ROW ═══════ */}
-        {sn && vt && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-
-            {/* Signal vs Noise */}
-            <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
-                <div className="flex items-center gap-2">
-                  <Signal className="h-4 w-4 text-black/40 dark:text-white/40" />
-                  <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                    Signal vs Noise
-                  </CardTitle>
-                </div>
-                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                  {sn.overall.summary}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {/* Overall gauge */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-[10px] text-black/40 dark:text-white/40 mb-1">
-                      <span>Signal {sn.overall.signal}%</span>
-                      <span>Noise {sn.overall.noise}%</span>
-                    </div>
-                    <div className="h-3 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
-                      <div
-                        className="h-full rounded-l-full bg-black/30 dark:bg-white/40 transition-all"
-                        style={{ width: `${sn.overall.signal}%` }}
-                      />
-                      <div
-                        className="h-full rounded-r-full bg-black/10 dark:bg-white/10 transition-all"
-                        style={{ width: `${sn.overall.noise}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Category breakdown */}
-                <ChartContainer config={signalNoiseChartConfig} className="h-[160px] w-full">
-                  <BarChart
-                    data={sn.categories}
-                    layout="vertical"
-                    margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
-                  >
-                    <YAxis
-                      dataKey="category"
-                      type="category"
-                      tickLine={false}
-                      axisLine={false}
-                      width={90}
-                      className="text-[10px] fill-black/40 dark:fill-white/40"
-                    />
-                    <XAxis type="number" domain={[0, 100]} hide />
-                    <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
-                    <Bar dataKey="signal" fill="var(--chart-1)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
-                    <Bar dataKey="noise" fill="var(--chart-5)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
-                  </BarChart>
-                </ChartContainer>
-
-                {/* Member signal/noise */}
-                {sn.members.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {sn.members.map((m) => (
-                      <div key={m.name} className="flex items-center gap-2">
-                        <span className="text-[11px] font-medium text-black/60 dark:text-white/60 w-20 truncate shrink-0">
-                          {m.name}
-                        </span>
-                        <div className="flex-1 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
-                          <div className="h-full bg-black/30 dark:bg-white/40 transition-all" style={{ width: `${m.signal}%` }} />
-                          <div className="h-full bg-black/10 dark:bg-white/10 transition-all" style={{ width: `${m.noise}%` }} />
-                        </div>
-                        <span className="text-[9px] text-black/30 dark:text-white/30 w-8 text-right shrink-0">
-                          {m.signal}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Vision Tracker */}
-            <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-black/40 dark:text-white/40" />
-                  <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                    Vision Tracker
-                  </CardTitle>
-                </div>
-                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                  Short-term execution vs long-term strategic alignment
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {/* Radial alignment gauge */}
-                <div className="flex items-center justify-center mb-4">
-                  <ChartContainer config={visionChartConfig} className="h-[120px] w-[120px]">
-                    <RadialBarChart
-                      innerRadius="60%"
-                      outerRadius="100%"
-                      data={[
-                        { name: "Long-term", value: vt.longTerm.score, fill: "var(--chart-2)" },
-                        { name: "Short-term", value: vt.shortTerm.score, fill: "var(--chart-1)" },
-                      ]}
-                      startAngle={180}
-                      endAngle={0}
-                    >
-                      <RadialBar
-                        background={{ fill: "rgba(0,0,0,0.03)" }}
-                        dataKey="value"
-                        cornerRadius={6}
-                      />
-                    </RadialBarChart>
-                  </ChartContainer>
-                  <div className="ml-4">
-                    <div className="text-3xl font-bold text-black dark:text-white">{vt.alignment}%</div>
-                    <div className="text-[10px] text-black/40 dark:text-white/40">alignment</div>
-                  </div>
-                </div>
-
-                {/* Short-term / Long-term breakdown */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-black/6 dark:border-white/8 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Zap className="h-3 w-3 text-black/30 dark:text-white/30" />
-                      <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
-                        Short-term
-                      </span>
-                      <span className="ml-auto text-sm font-bold text-black dark:text-white">{vt.shortTerm.score}%</span>
-                    </div>
-                    <p className="text-[11px] text-black/50 dark:text-white/50 font-medium mb-1.5">{vt.shortTerm.label}</p>
-                    <ul className="space-y-0.5">
-                      {vt.shortTerm.items.map((item, i) => (
-                        <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
-                          <span className="mt-0.5 h-1 w-1 rounded-full bg-black/30 dark:bg-white/30 shrink-0" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="rounded-lg border border-black/6 dark:border-white/8 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Target className="h-3 w-3 text-black/30 dark:text-white/30" />
-                      <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">
-                        Long-term
-                      </span>
-                      <span className="ml-auto text-sm font-bold text-black dark:text-white">{vt.longTerm.score}%</span>
-                    </div>
-                    <p className="text-[11px] text-black/50 dark:text-white/50 font-medium mb-1.5">{vt.longTerm.label}</p>
-                    <ul className="space-y-0.5">
-                      {vt.longTerm.items.map((item, i) => (
-                        <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
-                          <span className="mt-0.5 h-1 w-1 rounded-full bg-black/30 dark:bg-white/30 shrink-0" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Insight */}
-                <p className="mt-3 text-[11px] text-black/50 dark:text-white/50 leading-relaxed italic">
-                  {vt.insight}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Recommendations */}
-        {insights?.recommendations && insights.recommendations.length > 0 && (
-          <div className="mb-6 rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.01] dark:bg-white/[0.01] p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
-              <span className="text-xs font-semibold text-black/70 dark:text-white/70">AI Recommendations</span>
-              {insights.generatedAt && (
-                <span className="text-[9px] text-black/25 dark:text-white/25 ml-auto">
-                  Generated {timeAgo(insights.generatedAt)}
-                </span>
-              )}
-            </div>
-            <ul className="space-y-1.5">
-              {insights.recommendations.map((rec, i) => (
-                <li key={i} className="flex items-start gap-2 text-[12px] text-black/60 dark:text-white/55 leading-relaxed">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black/20 dark:bg-white/20 shrink-0" />
-                  {rec}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Activity Chart */}
-        <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-          <CardHeader className="flex items-center gap-2 space-y-0 border-b border-black/6 dark:border-white/8 py-4 sm:flex-row">
-            <div className="grid flex-1 gap-1">
-              <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                Workspace Activity
-              </CardTitle>
-              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                Document edits, pages created, and AI breakouts over time
-              </CardDescription>
-            </div>
-            <Select value={timeRange} onValueChange={(v) => { if (v) setTimeRange(v); }}>
-              <SelectTrigger
-                className="hidden w-[140px] rounded-lg text-xs sm:ml-auto sm:flex border-black/8 dark:border-white/10"
-                aria-label="Select time range"
-              >
-                <SelectValue placeholder="Last 30 days" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="30d" className="rounded-lg text-xs">Last 30 days</SelectItem>
-                <SelectItem value="14d" className="rounded-lg text-xs">Last 14 days</SelectItem>
-                <SelectItem value="7d" className="rounded-lg text-xs">Last 7 days</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardHeader>
-          <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-            <ChartContainer config={activityChartConfig} className="aspect-auto h-[220px] w-full">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="fillEdits" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-edits)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-edits)" stopOpacity={0.05} />
-                  </linearGradient>
-                  <linearGradient id="fillCreated" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-created)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-created)" stopOpacity={0.05} />
-                  </linearGradient>
-                  <linearGradient id="fillBreakouts" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-breakouts)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-breakouts)" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-black/[0.06] dark:stroke-white/[0.06]" />
-                <XAxis
-                  dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32}
-                  className="text-[10px] fill-black/30 dark:fill-white/30"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      indicator="dot"
-                    />
-                  }
-                />
-                <Area dataKey="edits" type="natural" fill="url(#fillEdits)" stroke="var(--color-edits)" strokeWidth={2} stackId="a" />
-                <Area dataKey="created" type="natural" fill="url(#fillCreated)" stroke="var(--color-created)" strokeWidth={2} stackId="a" />
-                <Area dataKey="breakouts" type="natural" fill="url(#fillBreakouts)" stroke="var(--color-breakouts)" strokeWidth={2} stackId="a" />
-                <ChartLegend content={<ChartLegendContent />} />
-              </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        {/* ═══════ WORKFLOW LOG ═══════ */}
-        {insights?.workflowLog && insights.workflowLog.length > 0 && (
-          <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-            <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+        {/* ═══════════════════════════════════════════════════
+            CEO SECTION — "Are we executing on what matters?"
+        ═══════════════════════════════════════════════════ */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            {ceoAgent ? (
+              <AgentBadge
+                agent={ceoAgent}
+                monitor={findMonitor(ceoAgent.id)?.monitor}
+                onToggle={() => toggleAgentMonitor(ceoAgent.id, !findMonitor(ceoAgent.id)?.monitor?.enabled)}
+              />
+            ) : (
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-black/40 dark:text-white/40" />
-                <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                  Workflow Log
-                </CardTitle>
+                <Target className="h-4 w-4 text-black/40 dark:text-white/40" />
+                <span className="text-sm font-semibold text-black dark:text-white">Strategic Overview</span>
               </div>
-              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                AI-tracked activity across all team members
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-3 max-h-[400px] overflow-y-auto">
-              <div className="space-y-0.5">
-                {insights.workflowLog.map((entry, i) => (
-                  <div key={i} className="flex items-start gap-2.5 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                    <div className="mt-0.5 text-black/25 dark:text-white/25">
-                      {workflowIcon(entry.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-black/60 dark:text-white/60 leading-snug">
-                        <span className="font-medium text-black/80 dark:text-white/80">{entry.author}</span>
-                        {" "}{entry.summary}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${impactColor(entry.impact)}`}>
-                        {entry.impact}
-                      </span>
-                      <span className="text-[9px] text-black/20 dark:text-white/20">
-                        {entry.date}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </div>
 
-        {/* ═══════ GITHUB ACTIVITY — FULL WIDTH ═══════ */}
-        {github?.configured && (
-          <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-            <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
-                <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                  GitHub Activity
-                </CardTitle>
-
-                {/* Repo switcher */}
-                {github.repos && github.repos.length > 0 && (
-                  <div className="flex items-center gap-1 ml-2">
-                    <button
-                      onClick={() => switchRepo("all")}
-                      className={`text-[10px] rounded-full px-2.5 py-0.5 font-medium transition-colors ${
-                        activeRepo === "all"
-                          ? "bg-black/10 dark:bg-white/10 text-black/70 dark:text-white/70"
-                          : "text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50"
-                      }`}
-                    >
-                      All Projects
-                    </button>
-                    {github.repos.map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() => switchRepo(r.name)}
-                        className={`text-[10px] rounded-full px-2.5 py-0.5 font-medium transition-colors ${
-                          activeRepo === r.name
-                            ? "bg-black/10 dark:bg-white/10 text-black/70 dark:text-white/70"
-                            : "text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50"
-                        }`}
-                      >
-                        {r.name.split("/")[1] || r.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 ml-auto shrink-0">
-                  <span className="text-[10px] text-black/25 dark:text-white/25">
-                    {github.totalCommits} commits
-                  </span>
-                  <button
-                    onClick={() => setShowGitHubConfig(true)}
-                    className="flex items-center gap-1 text-[10px] text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Repo
-                  </button>
-                </div>
-              </div>
-              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                {activeRepo === "all" ? "Combined activity across all connected repositories" : activeRepo}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              {/* Contribution calendar — full width */}
-              {github.timeline && github.timeline.length > 0 && (
-                <div className="mb-5">
-                  <ContributionCalendar timeline={github.timeline} />
-                </div>
-              )}
-
-              {/* Author breakdown + repo management */}
-              <div className="flex items-start gap-6 mb-4 flex-wrap">
-                {github.authors && github.authors.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {github.authors.map((a) => (
-                      <div key={a.name} className="flex items-center gap-1.5 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-2.5 py-0.5">
-                        {a.avatar ? (
-                          <img src={a.avatar} alt="" className="h-4 w-4 rounded-full" />
-                        ) : (
-                          <div className="h-4 w-4 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center">
-                            <span className="text-[8px] font-bold text-black/40 dark:text-white/40">{a.name.charAt(0)}</span>
-                          </div>
-                        )}
-                        <span className="text-[10px] text-black/50 dark:text-white/50">{a.name}</span>
-                        <span className="text-[9px] text-black/25 dark:text-white/25">{a.commits}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Connected repos list with remove */}
-                {github.repos && github.repos.length > 1 && activeRepo === "all" && (
-                  <div className="flex flex-wrap gap-1.5 ml-auto">
-                    {github.repos.map((r) => (
-                      <div key={r.id} className="flex items-center gap-1 rounded-full border border-black/6 dark:border-white/8 pl-2.5 pr-1 py-0.5">
-                        <span className="text-[9px] text-black/35 dark:text-white/35">{r.name}</span>
-                        <button
-                          onClick={() => removeGitHubRepo(r.id)}
-                          className="text-black/15 dark:text-white/15 hover:text-red-500 transition-colors p-0.5"
-                          title={`Remove ${r.name}`}
-                        >
-                          <Trash2 className="h-2.5 w-2.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Recent commits */}
-              <div className="max-h-[320px] overflow-y-auto space-y-0.5">
-                {github.commits?.slice(0, githubExpanded ? 50 : 10).map((c) => (
-                  <a
-                    key={c.sha + c.repo}
-                    href={c.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group"
-                  >
-                    <code className="text-[10px] text-[#c9a84c] dark:text-[#d4af37] font-mono mt-0.5 shrink-0">{c.sha}</code>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
-                        {c.message}
-                      </p>
-                      <p className="text-[9px] text-black/25 dark:text-white/25">
-                        {c.author} · {c.repo.split("/")[1]} · {new Date(c.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-              {github.commits && github.commits.length > 10 && (
-                <button
-                  onClick={() => setGithubExpanded(!githubExpanded)}
-                  className="mt-2 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
-                >
-                  {githubExpanded ? "Show less" : `Show all ${github.commits.length} commits`}
-                </button>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* GitHub Setup Card — shows when not configured, or when "Add Repo" is clicked */}
-        {(!github.configured || showGitHubConfig) && (
-          <div className="mb-6">
-            {showGitHubConfig || github.configured ? (
+          {sn && vt ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Signal vs Noise */}
               <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
                 <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
                   <div className="flex items-center gap-2">
-                    <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
-                    <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                      {github.configured ? "Add Another Repository" : "Connect GitHub Repository"}
-                    </CardTitle>
+                    <Signal className="h-4 w-4 text-black/40 dark:text-white/40" />
+                    <CardTitle className="text-sm font-semibold text-black dark:text-white">Signal vs Noise</CardTitle>
                   </div>
+                  <CardDescription className="text-[11px] text-black/40 dark:text-white/40">{sn.overall.summary}</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">Owner</label>
-                      <input
-                        value={ghOwner}
-                        onChange={(e) => setGhOwner(e.target.value)}
-                        placeholder="e.g. automatq"
-                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">Repository</label>
-                      <input
-                        value={ghRepo}
-                        onChange={(e) => setGhRepo(e.target.value)}
-                        placeholder="e.g. markedup"
-                        className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
-                      />
+                  {/* Overall gauge */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-[10px] text-black/40 dark:text-white/40 mb-1">
+                        <span>Signal {sn.overall.signal}%</span>
+                        <span>Noise {sn.overall.noise}%</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
+                        <div className="h-full rounded-l-full bg-[#c9a84c] dark:bg-[#d4af37] transition-all" style={{ width: `${sn.overall.signal}%` }} />
+                        <div className="h-full rounded-r-full bg-black/10 dark:bg-white/10 transition-all" style={{ width: `${sn.overall.noise}%` }} />
+                      </div>
                     </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">
-                      Personal Access Token <span className="normal-case">(optional, for private repos)</span>
-                    </label>
-                    <input
-                      value={ghToken}
-                      onChange={(e) => setGhToken(e.target.value)}
-                      type="password"
-                      placeholder="ghp_... or github_pat_..."
-                      className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30"
-                    />
-                  </div>
-                  {ghError && (
-                    <p className="text-[11px] text-red-500 mb-2">{ghError}</p>
+
+                  {/* Category breakdown */}
+                  <ChartContainer config={signalNoiseChartConfig} className="h-[140px] w-full">
+                    <BarChart data={sn.categories} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                      <YAxis dataKey="category" type="category" tickLine={false} axisLine={false} width={90} className="text-[10px] fill-black/40 dark:fill-white/40" />
+                      <XAxis type="number" domain={[0, 100]} hide />
+                      <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
+                      <Bar dataKey="signal" fill="var(--chart-1)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                      <Bar dataKey="noise" fill="var(--chart-5)" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                    </BarChart>
+                  </ChartContainer>
+
+                  {/* Per-member signal */}
+                  {sn.members.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {sn.members.map((m) => (
+                        <div key={m.name} className="flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-black/60 dark:text-white/60 w-20 truncate shrink-0">{m.name}</span>
+                          <div className="flex-1 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
+                            <div className="h-full bg-[#c9a84c] dark:bg-[#d4af37] transition-all" style={{ width: `${m.signal}%` }} />
+                            <div className="h-full bg-black/10 dark:bg-white/10 transition-all" style={{ width: `${m.noise}%` }} />
+                          </div>
+                          <span className="text-[9px] text-black/30 dark:text-white/30 w-8 text-right shrink-0">{m.signal}%</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveGitHubConfig}
-                      disabled={ghSaving || !ghOwner || !ghRepo}
-                      className="flex items-center gap-1.5 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-4 py-1.5 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-50"
-                    >
-                      {ghSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitCommit className="h-3 w-3" />}
-                      Connect
-                    </button>
-                    <button
-                      onClick={() => { setShowGitHubConfig(false); setGhError(""); }}
-                      className="rounded-lg border border-black/8 dark:border-white/10 px-4 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </CardContent>
               </Card>
-            ) : (
-              <button
-                onClick={() => setShowGitHubConfig(true)}
-                className="flex w-full items-center gap-3 rounded-xl border border-dashed border-black/10 dark:border-white/10 p-4 hover:border-black/20 dark:hover:border-white/20 transition-colors group"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5 group-hover:bg-black/8 dark:group-hover:bg-white/8 transition-colors">
-                  <GitCommit className="h-4 w-4 text-black/30 dark:text-white/30" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-medium text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">
-                    Connect GitHub Repository
-                  </p>
-                  <p className="text-[10px] text-black/30 dark:text-white/30">
-                    Track commits and let your CTO agent analyze development workflow automatically
-                  </p>
-                </div>
-                <Settings className="h-3.5 w-3.5 text-black/15 dark:text-white/15 ml-auto group-hover:text-black/40 dark:group-hover:text-white/40 transition-colors" />
-              </button>
-            )}
-          </div>
-        )}
 
-        {/* ═══════ TEAM SCORECARDS + KPIs ═══════ */}
-        <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-          <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-black/40 dark:text-white/40" />
-              <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                Team Scorecards
-              </CardTitle>
-              <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5 ml-1">
-                {kpiData?.week || "This Week"}
-              </span>
-              <button
-                onClick={() => setShowAddKpi(!showAddKpi)}
-                className="ml-auto flex items-center gap-1 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
-              >
-                <Plus className="h-3 w-3" />
-                Add KPI
-              </button>
+              {/* Vision Tracker */}
+              <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+                <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-black/40 dark:text-white/40" />
+                    <CardTitle className="text-sm font-semibold text-black dark:text-white">Vision Tracker</CardTitle>
+                  </div>
+                  <CardDescription className="text-[11px] text-black/40 dark:text-white/40">Short-term execution vs long-term strategic alignment</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-center mb-4">
+                    <ChartContainer config={visionChartConfig} className="h-[120px] w-[120px]">
+                      <RadialBarChart
+                        innerRadius="60%" outerRadius="100%"
+                        data={[
+                          { name: "Long-term", value: vt.longTerm.score, fill: "var(--chart-2)" },
+                          { name: "Short-term", value: vt.shortTerm.score, fill: "var(--chart-1)" },
+                        ]}
+                        startAngle={180} endAngle={0}
+                      >
+                        <RadialBar background={{ fill: "rgba(0,0,0,0.03)" }} dataKey="value" cornerRadius={6} />
+                      </RadialBarChart>
+                    </ChartContainer>
+                    <div className="ml-4">
+                      <div className="text-3xl font-bold text-black dark:text-white">{vt.alignment}%</div>
+                      <div className="text-[10px] text-black/40 dark:text-white/40">alignment</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {[{ data: vt.shortTerm, icon: Zap, label: "Short-term" }, { data: vt.longTerm, icon: Target, label: "Long-term" }].map(({ data: d, icon: Icon, label }) => (
+                      <div key={label} className="rounded-lg border border-black/6 dark:border-white/8 p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Icon className="h-3 w-3 text-black/30 dark:text-white/30" />
+                          <span className="text-[10px] uppercase tracking-wider text-black/40 dark:text-white/40 font-medium">{label}</span>
+                          <span className="ml-auto text-sm font-bold text-black dark:text-white">{d.score}%</span>
+                        </div>
+                        <p className="text-[11px] text-black/50 dark:text-white/50 font-medium mb-1.5">{d.label}</p>
+                        <ul className="space-y-0.5">
+                          {d.items.map((item, i) => (
+                            <li key={i} className="text-[10px] text-black/40 dark:text-white/40 flex items-start gap-1">
+                              <span className="mt-0.5 h-1 w-1 rounded-full bg-black/30 dark:bg-white/30 shrink-0" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="mt-3 text-[11px] text-black/50 dark:text-white/50 leading-relaxed italic">{vt.insight}</p>
+                </CardContent>
+              </Card>
             </div>
-            <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-              Weekly targets and signal strength for each team member
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {/* Add KPI form */}
-            {showAddKpi && (
-              <div className="mb-4 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] p-3">
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
-                  <div>
-                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Member</label>
-                    <select
-                      value={kpiUserId}
-                      onChange={(e) => setKpiUserId(e.target.value)}
-                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white outline-none"
-                    >
-                      <option value="">Select...</option>
-                      {data.memberActivity.map((m) => (
-                        <option key={m.userId} value={m.userId}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">KPI Name</label>
-                    <input value={kpiName} onChange={(e) => setKpiName(e.target.value)} placeholder="e.g. Docs Created"
-                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Target</label>
-                    <input value={kpiTarget} onChange={(e) => setKpiTarget(e.target.value)} type="number" placeholder="10"
-                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Unit</label>
-                    <input value={kpiUnit} onChange={(e) => setKpiUnit(e.target.value)} placeholder="docs"
-                      className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
-                  </div>
-                  <div className="flex items-end">
-                    <button onClick={addKpi} disabled={!kpiName || !kpiTarget || !kpiUserId}
-                      className="w-full rounded-md bg-[#c9a84c] dark:bg-[#d4af37] px-3 py-1 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-40">
-                      Add
-                    </button>
+          ) : (
+            /* Empty state for CEO section */
+            <div className="rounded-xl border border-dashed border-black/10 dark:border-white/10 p-8 text-center">
+              <Signal className="h-6 w-6 text-black/10 dark:text-white/10 mx-auto mb-3" />
+              <p className="text-sm text-black/30 dark:text-white/30">Signal/Noise and Vision Tracking</p>
+              <p className="text-[11px] text-black/20 dark:text-white/20 mt-1">
+                Click "Generate Insights" above to analyze team productivity and strategic alignment
+              </p>
+            </div>
+          )}
+
+          {/* Team KPI Scorecards — belongs under CEO as overall attainment */}
+          {data.memberActivity.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
+                <span className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Team Scorecards</span>
+                <span className="text-[10px] text-black/25 dark:text-white/25 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5">{kpiData?.week || "This Week"}</span>
+                <button onClick={() => setShowAddKpi(!showAddKpi)} className="ml-auto flex items-center gap-1 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">
+                  <Plus className="h-3 w-3" /> Add KPI
+                </button>
+              </div>
+
+              {/* Add KPI form */}
+              {showAddKpi && (
+                <div className="mb-3 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] p-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
+                    <div>
+                      <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Member</label>
+                      <select value={kpiUserId} onChange={(e) => setKpiUserId(e.target.value)}
+                        className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white outline-none">
+                        <option value="">Select...</option>
+                        {data.memberActivity.map((m) => (<option key={m.userId} value={m.userId}>{m.name}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">KPI Name</label>
+                      <input value={kpiName} onChange={(e) => setKpiName(e.target.value)} placeholder="e.g. Docs Created"
+                        className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Target</label>
+                      <input value={kpiTarget} onChange={(e) => setKpiTarget(e.target.value)} type="number" placeholder="10"
+                        className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-black/40 dark:text-white/40 uppercase tracking-wider mb-0.5 block">Unit</label>
+                      <input value={kpiUnit} onChange={(e) => setKpiUnit(e.target.value)} placeholder="docs"
+                        className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-2 py-1 text-[11px] text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none" />
+                    </div>
+                    <div className="flex items-end">
+                      <button onClick={addKpi} disabled={!kpiName || !kpiTarget || !kpiUserId}
+                        className="w-full rounded-md bg-[#c9a84c] dark:bg-[#d4af37] px-3 py-1 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-40">Add</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Member scorecards */}
-            {data.memberActivity.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {data.memberActivity.map((member) => {
-                  const memberKpis = kpiData?.all.filter((k) => k.userId === member.userId) || [];
+                  const memberKpis = allKpis.filter((k) => k.userId === member.userId);
                   const snMember = sn?.members.find((m) => m.name === member.name);
-                  const totalTarget = memberKpis.reduce((s, k) => s + k.target, 0);
-                  const totalActual = memberKpis.reduce((s, k) => s + k.actual, 0);
-                  const overallProgress = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : null;
+                  const mTotal = memberKpis.reduce((s, k) => s + k.target, 0);
+                  const mActual = memberKpis.reduce((s, k) => s + k.actual, 0);
+                  const mPct = mTotal > 0 ? Math.min(100, Math.round((mActual / mTotal) * 100)) : null;
 
                   return (
                     <div key={member.userId} className="rounded-xl border border-black/6 dark:border-white/8 p-4">
-                      {/* Member header */}
                       <div className="flex items-center gap-3 mb-3">
                         {member.avatar ? (
-                          <img src={member.avatar} alt="" className="h-8 w-8 rounded-full shrink-0" />
+                          <img src={member.avatar} alt="" className="h-7 w-7 rounded-full shrink-0" />
                         ) : (
-                          <div className="h-8 w-8 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center shrink-0">
-                            <span className="text-[11px] font-bold text-black/40 dark:text-white/40">{member.name.charAt(0).toUpperCase()}</span>
+                          <div className="h-7 w-7 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center shrink-0">
+                            <span className="text-[10px] font-bold text-black/40 dark:text-white/40">{member.name.charAt(0).toUpperCase()}</span>
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-black dark:text-white">{member.name}</p>
-                          <p className="text-[10px] text-black/30 dark:text-white/30">
-                            {member.docs} pages · {member.edits} edits this week
-                          </p>
+                          <p className="text-[10px] text-black/30 dark:text-white/30">{member.docs} pages · {member.edits} edits</p>
                         </div>
-
-                        {/* Signal indicator */}
                         {snMember && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="text-right">
-                              <div className="flex items-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-black/30 dark:bg-white/40" />
-                                <span className="text-[10px] text-black/40 dark:text-white/40">{snMember.signal}%</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-black/10 dark:bg-white/10" />
-                                <span className="text-[10px] text-black/40 dark:text-white/40">{snMember.noise}%</span>
-                              </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="w-12 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                              <div className="h-full bg-[#c9a84c] dark:bg-[#d4af37] rounded-full transition-all" style={{ width: `${snMember.signal}%` }} />
                             </div>
-                            <div className="w-16 h-8">
-                              <div className="h-full flex flex-col justify-center gap-0.5">
-                                <div className="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
-                                  <div className="h-full bg-black/30 dark:bg-white/40 rounded-full transition-all" style={{ width: `${snMember.signal}%` }} />
-                                </div>
-                                <div className="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
-                                  <div className="h-full bg-black/10 dark:bg-white/10 rounded-full transition-all" style={{ width: `${snMember.noise}%` }} />
-                                </div>
-                              </div>
-                            </div>
+                            <span className="text-[9px] text-black/30 dark:text-white/30">{snMember.signal}%</span>
                           </div>
                         )}
-
-                        {/* Overall KPI progress */}
-                        {overallProgress !== null && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {overallProgress >= 80 ? (
-                              <CheckCircle2 className="h-4 w-4 text-black/50 dark:text-white/50" />
-                            ) : overallProgress >= 50 ? (
-                              <AlertTriangle className="h-4 w-4 text-black/30 dark:text-white/30" />
-                            ) : (
-                              <AlertTriangle className="h-4 w-4 text-black/20 dark:text-white/20" />
-                            )}
-                            <span className={`text-sm font-bold ${
-                              overallProgress >= 80 ? "text-black/70 dark:text-white/70" : overallProgress >= 50 ? "text-black/40 dark:text-white/40" : "text-black/25 dark:text-white/25"
-                            }`}>
-                              {overallProgress}%
-                            </span>
-                          </div>
+                        {mPct !== null && (
+                          <span className={`text-sm font-bold shrink-0 ${mPct >= 80 ? "text-[#c9a84c] dark:text-[#d4af37]" : mPct >= 50 ? "text-black/40 dark:text-white/40" : "text-black/20 dark:text-white/20"}`}>
+                            {mPct}%
+                          </span>
                         )}
                       </div>
 
-                      {/* KPIs */}
                       {memberKpis.length > 0 ? (
                         <div className="space-y-2">
                           {memberKpis.map((kpi) => {
                             const pct = kpi.target > 0 ? Math.min(100, Math.round((kpi.actual / kpi.target) * 100)) : 0;
-                            const color = pct >= 80 ? "bg-black/40 dark:bg-white/50" : pct >= 50 ? "bg-black/20 dark:bg-white/25" : "bg-black/10 dark:bg-white/10";
                             return (
                               <div key={kpi.id} className="flex items-center gap-3">
                                 <span className="text-[11px] text-black/50 dark:text-white/50 w-28 truncate shrink-0">{kpi.name}</span>
                                 <div className="flex-1 h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
-                                  <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+                                  <div className={`h-full rounded-full transition-all ${pct >= 80 ? "bg-[#c9a84c] dark:bg-[#d4af37]" : pct >= 50 ? "bg-black/20 dark:bg-white/25" : "bg-black/10 dark:bg-white/10"}`} style={{ width: `${pct}%` }} />
                                 </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                  <input
-                                    type="number"
-                                    value={kpi.actual}
-                                    onChange={(e) => updateKpiActual(kpi.id, parseFloat(e.target.value) || 0)}
-                                    className="w-12 rounded border border-black/10 dark:border-white/10 bg-transparent px-1.5 py-0.5 text-[10px] text-black dark:text-white text-center outline-none focus:border-black/30 dark:focus:border-white/30"
-                                  />
+                                  <input type="number" value={kpi.actual} onChange={(e) => updateKpiActual(kpi.id, parseFloat(e.target.value) || 0)}
+                                    className="w-12 rounded border border-black/10 dark:border-white/10 bg-transparent px-1.5 py-0.5 text-[10px] text-black dark:text-white text-center outline-none focus:border-black/30 dark:focus:border-white/30" />
                                   <span className="text-[10px] text-black/25 dark:text-white/25">/ {kpi.target} {kpi.unit}</span>
                                   <button onClick={() => deleteKpi(kpi.id)} className="text-black/15 dark:text-white/15 hover:text-red-500 transition-colors">
                                     <Trash2 className="h-3 w-3" />
@@ -1290,107 +952,362 @@ export default function OverviewPage() {
                           })}
                         </div>
                       ) : (
-                        <p className="text-[10px] text-black/20 dark:text-white/20 italic">
-                          No KPIs set — click "Add KPI" to track targets for this member
-                        </p>
+                        <p className="text-[10px] text-black/20 dark:text-white/20 italic">No KPIs — click "Add KPI" above</p>
                       )}
-
-                      {/* Signal insight */}
                       {snMember?.insight && (
-                        <p className="mt-2 text-[10px] text-black/35 dark:text-white/35 italic leading-relaxed">
-                          {snMember.insight}
-                        </p>
+                        <p className="mt-2 text-[10px] text-black/35 dark:text-white/35 italic leading-relaxed">{snMember.insight}</p>
                       )}
                     </div>
                   );
                 })}
               </div>
+            </div>
+          )}
+        </section>
+
+        {/* ═══════════════════════════════════════════════════
+            CTO SECTION — "Is the team shipping?"
+        ═══════════════════════════════════════════════════ */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            {ctoAgent ? (
+              <AgentBadge
+                agent={ctoAgent}
+                monitor={findMonitor(ctoAgent.id)?.monitor}
+                onToggle={() => toggleAgentMonitor(ctoAgent.id, !findMonitor(ctoAgent.id)?.monitor?.enabled)}
+              />
             ) : (
-              <p className="text-[11px] text-black/30 dark:text-white/30 text-center py-6">
-                No team members with activity yet
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ═══════ AGENT MONITORING ═══════ */}
-        {data.agents.length > 0 && (
-          <Card className="pt-0 mb-6 border-black/6 dark:border-white/8 bg-transparent shadow-none">
-            <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
               <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-black/40 dark:text-white/40" />
-                <CardTitle className="text-sm font-semibold text-black dark:text-white">
-                  Active Agent Monitoring
-                </CardTitle>
-                <button
-                  onClick={() => setShowAgentMonitors(!showAgentMonitors)}
-                  className="ml-auto text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
-                >
-                  {showAgentMonitors ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
+                <GitCommit className="h-4 w-4 text-black/40 dark:text-white/40" />
+                <span className="text-sm font-semibold text-black dark:text-white">Development</span>
               </div>
-              <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
-                Toggle agents to actively watch workspace activity and help you reach targets
-              </CardDescription>
+            )}
+          </div>
+
+          {/* Workspace Activity Chart */}
+          <Card className="pt-0 mb-4 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+            <CardHeader className="flex items-center gap-2 space-y-0 border-b border-black/6 dark:border-white/8 py-4 sm:flex-row">
+              <div className="grid flex-1 gap-1">
+                <CardTitle className="text-sm font-semibold text-black dark:text-white">Workspace Activity</CardTitle>
+                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">
+                  Edits, pages created, and AI breakouts
+                </CardDescription>
+              </div>
+              <Select value={timeRange} onValueChange={(v) => { if (v) setTimeRange(v); }}>
+                <SelectTrigger className="hidden w-[140px] rounded-lg text-xs sm:ml-auto sm:flex border-black/8 dark:border-white/10" aria-label="Select time range">
+                  <SelectValue placeholder="Last 30 days" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="30d" className="rounded-lg text-xs">Last 30 days</SelectItem>
+                  <SelectItem value="14d" className="rounded-lg text-xs">Last 14 days</SelectItem>
+                  <SelectItem value="7d" className="rounded-lg text-xs">Last 7 days</SelectItem>
+                </SelectContent>
+              </Select>
             </CardHeader>
-            {showAgentMonitors && (
-              <CardContent className="pt-4">
-                <div className="space-y-2">
-                  {agentMonitors.map(({ agent, monitor }) => (
-                    <div key={agent.id} className="flex items-center gap-3 rounded-lg border border-black/6 dark:border-white/8 px-4 py-3">
-                      <div
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                        style={{ backgroundColor: agent.color }}
-                      >
-                        {agent.avatar}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-black dark:text-white">{agent.name}</p>
-                        <p className="text-[10px] text-black/35 dark:text-white/35">{agent.title}</p>
-                      </div>
+            <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+              <ChartContainer config={activityChartConfig} className="aspect-auto h-[200px] w-full">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="fillEdits" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-edits)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--color-edits)" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="fillCreated" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-created)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--color-created)" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="fillBreakouts" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-breakouts)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--color-breakouts)" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-black/[0.06] dark:stroke-white/[0.06]" />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32}
+                    className="text-[10px] fill-black/30 dark:fill-white/30"
+                    tickFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })} />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent labelFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} indicator="dot" />} />
+                  <Area dataKey="edits" type="natural" fill="url(#fillEdits)" stroke="var(--color-edits)" strokeWidth={2} stackId="a" />
+                  <Area dataKey="created" type="natural" fill="url(#fillCreated)" stroke="var(--color-created)" strokeWidth={2} stackId="a" />
+                  <Area dataKey="breakouts" type="natural" fill="url(#fillBreakouts)" stroke="var(--color-breakouts)" strokeWidth={2} stackId="a" />
+                  <ChartLegend content={<ChartLegendContent />} />
+                </AreaChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
 
-                      {/* Frequency badge */}
-                      {monitor?.enabled && (
-                        <span className="text-[9px] text-black/40 dark:text-white/40 bg-black/5 dark:bg-white/5 rounded-full px-2 py-0.5 font-medium shrink-0">
-                          {monitor.frequency}
-                        </span>
-                      )}
+          {/* GitHub — full-width calendar + commits */}
+          {github.configured ? (
+            <Card className="pt-0 mb-4 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <GitCommit className="h-4 w-4 text-[#c9a84c] dark:text-[#d4af37]" />
+                  <CardTitle className="text-sm font-semibold text-black dark:text-white">GitHub</CardTitle>
 
-                      {/* Last run */}
-                      {monitor?.lastRunAt && (
-                        <span className="text-[9px] text-black/20 dark:text-white/20 shrink-0">
-                          Last: {timeAgo(monitor.lastRunAt)}
-                        </span>
-                      )}
-
-                      {/* Toggle */}
-                      <button
-                        onClick={() => toggleAgentMonitor(agent.id, !monitor?.enabled)}
-                        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-medium transition-all shrink-0 border ${
-                          monitor?.enabled
-                            ? "bg-black/[0.06] dark:bg-white/[0.06] text-black/60 dark:text-white/60 border-black/15 dark:border-white/15"
-                            : "bg-black/[0.02] dark:bg-white/[0.02] text-black/25 dark:text-white/25 border-black/6 dark:border-white/8"
-                        }`}
-                      >
-                        <Power className="h-3 w-3" />
-                        {monitor?.enabled ? "Active" : "Off"}
+                  {github.repos && github.repos.length > 0 && (
+                    <div className="flex items-center gap-1 ml-2">
+                      <button onClick={() => switchRepo("all")}
+                        className={`text-[10px] rounded-full px-2.5 py-0.5 font-medium transition-colors ${activeRepo === "all" ? "bg-[#c9a84c]/10 dark:bg-[#d4af37]/10 text-[#c9a84c] dark:text-[#d4af37]" : "text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50"}`}>
+                        All Projects
                       </button>
+                      {github.repos.map((r) => (
+                        <button key={r.id} onClick={() => switchRepo(r.name)}
+                          className={`text-[10px] rounded-full px-2.5 py-0.5 font-medium transition-colors ${activeRepo === r.name ? "bg-[#c9a84c]/10 dark:bg-[#d4af37]/10 text-[#c9a84c] dark:text-[#d4af37]" : "text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50"}`}>
+                          {r.name.split("/")[1] || r.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 ml-auto shrink-0">
+                    <span className="text-[10px] text-black/25 dark:text-white/25">{github.totalCommits} commits</span>
+                    <button onClick={() => setShowGitHubConfig(true)} className="flex items-center gap-1 text-[10px] text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors">
+                      <Plus className="h-3 w-3" /> Add Repo
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {github.timeline && github.timeline.length > 0 && (
+                  <div className="mb-5"><ContributionCalendar timeline={github.timeline} /></div>
+                )}
+
+                <div className="flex items-start gap-6 mb-4 flex-wrap">
+                  {github.authors && github.authors.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {github.authors.map((a) => (
+                        <div key={a.name} className="flex items-center gap-1.5 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-2.5 py-0.5">
+                          {a.avatar ? <img src={a.avatar} alt="" className="h-4 w-4 rounded-full" /> : (
+                            <div className="h-4 w-4 rounded-full bg-black/8 dark:bg-white/8 flex items-center justify-center">
+                              <span className="text-[8px] font-bold text-black/40 dark:text-white/40">{a.name.charAt(0)}</span>
+                            </div>
+                          )}
+                          <span className="text-[10px] text-black/50 dark:text-white/50">{a.name}</span>
+                          <span className="text-[9px] text-black/25 dark:text-white/25">{a.commits}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {github.repos && github.repos.length > 1 && activeRepo === "all" && (
+                    <div className="flex flex-wrap gap-1.5 ml-auto">
+                      {github.repos.map((r) => (
+                        <div key={r.id} className="flex items-center gap-1 rounded-full border border-black/6 dark:border-white/8 pl-2.5 pr-1 py-0.5">
+                          <span className="text-[9px] text-black/35 dark:text-white/35">{r.name}</span>
+                          <button onClick={() => removeGitHubRepo(r.id)} className="text-black/15 dark:text-white/15 hover:text-red-500 transition-colors p-0.5" title={`Remove ${r.name}`}>
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="max-h-[280px] overflow-y-auto space-y-0.5">
+                  {github.commits?.slice(0, githubExpanded ? 50 : 10).map((c) => (
+                    <a key={c.sha + c.repo} href={c.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] group">
+                      <code className="text-[10px] text-[#c9a84c] dark:text-[#d4af37] font-mono mt-0.5 shrink-0">{c.sha}</code>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-black/60 dark:text-white/60 truncate group-hover:text-black dark:group-hover:text-white transition-colors">{c.message}</p>
+                        <p className="text-[9px] text-black/25 dark:text-white/25">{c.author} · {c.repo.split("/")[1]} · {new Date(c.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+                {github.commits && github.commits.length > 10 && (
+                  <button onClick={() => setGithubExpanded(!githubExpanded)} className="mt-2 text-[10px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">
+                    {githubExpanded ? "Show less" : `Show all ${github.commits.length} commits`}
+                  </button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            /* GitHub connect */
+            <div className="mb-4">
+              {showGitHubConfig ? (
+                <GitHubConfigCard
+                  ghOwner={ghOwner} setGhOwner={setGhOwner}
+                  ghRepo={ghRepo} setGhRepo={setGhRepo}
+                  ghToken={ghToken} setGhToken={setGhToken}
+                  ghSaving={ghSaving} ghError={ghError}
+                  onSave={saveGitHubConfig}
+                  onCancel={() => { setShowGitHubConfig(false); setGhError(""); }}
+                />
+              ) : (
+                <button onClick={() => setShowGitHubConfig(true)}
+                  className="flex w-full items-center gap-3 rounded-xl border border-dashed border-black/10 dark:border-white/10 p-4 hover:border-[#c9a84c]/30 dark:hover:border-[#d4af37]/30 transition-colors group">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#c9a84c]/5 dark:bg-[#d4af37]/5 shrink-0">
+                    <GitCommit className="h-4 w-4 text-[#c9a84c] dark:text-[#d4af37]" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-medium text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors">Connect GitHub Repository</p>
+                    <p className="text-[10px] text-black/30 dark:text-white/30">Track commits and analyze development workflow</p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-black/15 dark:text-white/15 ml-auto group-hover:text-[#c9a84c] dark:group-hover:text-[#d4af37] transition-colors" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* GitHub config overlay when already configured */}
+          {github.configured && showGitHubConfig && (
+            <div className="mb-4">
+              <GitHubConfigCard
+                title="Add Another Repository"
+                ghOwner={ghOwner} setGhOwner={setGhOwner}
+                ghRepo={ghRepo} setGhRepo={setGhRepo}
+                ghToken={ghToken} setGhToken={setGhToken}
+                ghSaving={ghSaving} ghError={ghError}
+                onSave={saveGitHubConfig}
+                onCancel={() => { setShowGitHubConfig(false); setGhError(""); }}
+              />
+            </div>
+          )}
+
+          {/* Workflow Log (CTO-focused — filtered to code/docs) */}
+          {insights?.workflowLog && insights.workflowLog.length > 0 && (
+            <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-black/40 dark:text-white/40" />
+                  <CardTitle className="text-sm font-semibold text-black dark:text-white">Workflow Log</CardTitle>
+                </div>
+                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">AI-tracked activity timeline</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-3 max-h-[320px] overflow-y-auto">
+                <div className="space-y-0.5">
+                  {insights.workflowLog.filter((e) => ["commit", "doc", "breakout"].includes(e.type)).map((entry, i) => (
+                    <div key={i} className="flex items-start gap-2.5 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                      <div className="mt-0.5 text-black/25 dark:text-white/25">{workflowIcon(entry.type)}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-black/60 dark:text-white/60 leading-snug">
+                          <span className="font-medium text-black/80 dark:text-white/80">{entry.author}</span> {entry.summary}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${impactColor(entry.impact)}`}>{entry.impact}</span>
+                        <span className="text-[9px] text-black/20 dark:text-white/20">{entry.date}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
-
-                {agentMonitors.some((a) => a.monitor?.enabled) && (
-                  <p className="mt-3 text-[10px] text-black/30 dark:text-white/30 leading-relaxed">
-                    Active agents will analyze workspace activity, track KPI progress, and generate reports
-                    to help your team stay on target. Agents run on their configured frequency.
-                  </p>
-                )}
               </CardContent>
-            )}
-          </Card>
-        )}
+            </Card>
+          )}
+        </section>
 
-        {/* ═══════ ACTIVITY FEED + SIDEBAR ═══════ */}
+        {/* ═══════════════════════════════════════════════════
+            CRO SECTION — "Are we closing?"
+        ═══════════════════════════════════════════════════ */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            {croAgent ? (
+              <AgentBadge
+                agent={croAgent}
+                monitor={findMonitor(croAgent.id)?.monitor}
+                onToggle={() => toggleAgentMonitor(croAgent.id, !findMonitor(croAgent.id)?.monitor?.enabled)}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-black/40 dark:text-white/40" />
+                <span className="text-sm font-semibold text-black dark:text-white">Revenue & Pipeline</span>
+              </div>
+            )}
+          </div>
+
+          {/* Call stats strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-xl border border-black/6 dark:border-white/8 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium mb-1">Total Calls</p>
+              <p className="text-2xl font-bold text-black dark:text-white">{data.callStats?.total ?? 0}</p>
+              <p className="text-[10px] text-black/30 dark:text-white/30">last 30 days</p>
+            </div>
+            <div className="rounded-xl border border-black/6 dark:border-white/8 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium mb-1">Win Rate</p>
+              <p className="text-2xl font-bold text-[#c9a84c] dark:text-[#d4af37]">
+                {data.callStats?.total ? Math.round((data.callStats.positive / data.callStats.total) * 100) : 0}%
+              </p>
+              <p className="text-[10px] text-black/30 dark:text-white/30">{data.callStats?.positive ?? 0} positive</p>
+            </div>
+            <div className="rounded-xl border border-black/6 dark:border-white/8 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium mb-1">Avg Score</p>
+              <p className="text-2xl font-bold text-black dark:text-white">{data.callStats?.avgScore ?? 0}</p>
+              <p className="text-[10px] text-black/30 dark:text-white/30">out of 100</p>
+            </div>
+            <div className="rounded-xl border border-black/6 dark:border-white/8 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium mb-1">Outcomes</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex-1 h-3 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden flex">
+                  {data.callStats?.total ? (
+                    <>
+                      <div className="h-full bg-[#c9a84c] dark:bg-[#d4af37]" style={{ width: `${(data.callStats.positive / data.callStats.total) * 100}%` }} />
+                      <div className="h-full bg-black/15 dark:bg-white/15" style={{ width: `${(data.callStats.neutral / data.callStats.total) * 100}%` }} />
+                      <div className="h-full bg-black/5 dark:bg-white/5" style={{ width: `${(data.callStats.negative / data.callStats.total) * 100}%` }} />
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex gap-2 mt-1">
+                <span className="text-[8px] text-black/30 dark:text-white/30">{data.callStats?.positive ?? 0} won</span>
+                <span className="text-[8px] text-black/20 dark:text-white/20">{data.callStats?.neutral ?? 0} neutral</span>
+                <span className="text-[8px] text-black/15 dark:text-white/15">{data.callStats?.negative ?? 0} lost</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Call outcome trend chart */}
+          {data.dailyCalls && data.dailyCalls.some((d) => d.positive + d.neutral + d.negative > 0) && (
+            <Card className="pt-0 mb-4 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                <CardTitle className="text-sm font-semibold text-black dark:text-white">Call Outcomes Over Time</CardTitle>
+                <CardDescription className="text-[11px] text-black/40 dark:text-white/40">Daily call results — positive, neutral, negative</CardDescription>
+              </CardHeader>
+              <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+                <ChartContainer config={callChartConfig} className="aspect-auto h-[180px] w-full">
+                  <BarChart data={callChartData}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-black/[0.06] dark:stroke-white/[0.06]" />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32}
+                      className="text-[10px] fill-black/30 dark:fill-white/30"
+                      tickFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })} />
+                    <ChartTooltip content={<ChartTooltipContent labelFormatter={(value) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })} indicator="dot" />} cursor={false} />
+                    <Bar dataKey="positive" fill="var(--chart-1)" radius={[4, 4, 0, 0]} stackId="a" />
+                    <Bar dataKey="neutral" fill="var(--chart-2)" radius={[0, 0, 0, 0]} stackId="a" />
+                    <Bar dataKey="negative" fill="var(--chart-5)" radius={[0, 0, 4, 4]} stackId="a" />
+                    <ChartLegend content={<ChartLegendContent />} />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* CRO workflow log — calls only */}
+          {insights?.workflowLog && insights.workflowLog.filter((e) => e.type === "call").length > 0 && (
+            <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+              <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+                <CardTitle className="text-sm font-semibold text-black dark:text-white">Call Activity Log</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3 max-h-[240px] overflow-y-auto">
+                <div className="space-y-0.5">
+                  {insights.workflowLog.filter((e) => e.type === "call").map((entry, i) => (
+                    <div key={i} className="flex items-start gap-2.5 px-1 py-1.5 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                      <div className="mt-0.5 text-black/25 dark:text-white/25"><Phone className="h-3 w-3" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-black/60 dark:text-white/60 leading-snug">
+                          <span className="font-medium text-black/80 dark:text-white/80">{entry.author}</span> {entry.summary}
+                        </p>
+                      </div>
+                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${impactColor(entry.impact)}`}>{entry.impact}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* ═══════════════════════════════════════════════════
+            ACTIVITY FEED + SIDEBAR
+        ═══════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Activity Feed */}
           <div className="lg:col-span-2">
@@ -1403,13 +1320,12 @@ export default function OverviewPage() {
               <div className="rounded-xl border border-dashed border-black/10 dark:border-white/10 p-10 text-center">
                 <Activity className="h-6 w-6 text-black/10 dark:text-white/10 mx-auto mb-3" />
                 <p className="text-sm text-black/30 dark:text-white/30">No recent activity</p>
-                <p className="text-[11px] text-black/20 dark:text-white/20 mt-1">Activity from the last 7 days will appear here</p>
               </div>
             ) : (
               <div className="space-y-1">
                 {data.activity.map((item, i) => (
                   <div key={i} className="group flex items-start gap-3 rounded-xl px-3.5 py-2.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-default">
-                    <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${activityColor(item.type)}`}>
+                    <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-black/[0.03] dark:bg-white/[0.03] border-black/6 dark:border-white/8">
                       <ActivityIcon type={item.type} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1428,7 +1344,6 @@ export default function OverviewPage() {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
-            {/* Popular Pages */}
             {data.popularDocs.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -1448,12 +1363,11 @@ export default function OverviewPage() {
               </div>
             )}
 
-            {/* Team Members */}
             {data.memberActivity.length > 1 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Team Activity</h3>
+                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Team</h3>
                 </div>
                 <div className="rounded-xl border border-black/6 dark:border-white/8 divide-y divide-black/5 dark:divide-white/5">
                   {data.memberActivity.slice(0, 8).map((member) => (
@@ -1467,31 +1381,24 @@ export default function OverviewPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-black/70 dark:text-white/70 truncate">{member.name}</p>
-                        <p className="text-[10px] text-black/30 dark:text-white/30">
-                          {member.docs} page{member.docs !== 1 ? "s" : ""}
-                          {member.edits > 0 && <span className="text-black/50 dark:text-white/50"> · {member.edits} edit{member.edits !== 1 ? "s" : ""} this week</span>}
-                        </p>
+                        <p className="text-[10px] text-black/30 dark:text-white/30">{member.edits} edits this week</p>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* AI Agents */}
-            {data.agents.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-                  <h3 className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">AI Agents</h3>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {data.agents.map((agent) => (
-                    <div key={agent.id} className="flex items-center gap-2 rounded-full border border-black/6 dark:border-white/8 pl-1 pr-3 py-1">
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: agent.color }}>
-                        {agent.avatar}
-                      </div>
-                      <span className="text-[11px] text-black/60 dark:text-white/60">{agent.name}</span>
+                      {/* Mini KPI bar */}
+                      {(() => {
+                        const mKpis = allKpis.filter((k) => k.userId === member.userId);
+                        const mT = mKpis.reduce((s, k) => s + k.target, 0);
+                        const mA = mKpis.reduce((s, k) => s + k.actual, 0);
+                        const pct = mT > 0 ? Math.min(100, Math.round((mA / mT) * 100)) : null;
+                        if (pct === null) return null;
+                        return (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <div className="w-10 h-1.5 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                              <div className={`h-full rounded-full ${pct >= 80 ? "bg-[#c9a84c] dark:bg-[#d4af37]" : "bg-black/15 dark:bg-white/15"}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-[8px] text-black/25 dark:text-white/25">{pct}%</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -1522,17 +1429,68 @@ export default function OverviewPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub }: {
-  icon: React.ElementType; label: string; value: number | string; sub?: string;
+/* ──────────────────── Sub-components ──────────────────── */
+
+function PulseItem({ label, value, sub, accent }: {
+  label: string; value: number | string; sub?: string; accent?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-black/6 dark:border-white/8 bg-black/[0.01] dark:bg-white/[0.01] px-4 py-3.5">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className="h-3.5 w-3.5 text-black/30 dark:text-white/30" />
-        <span className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium">{label}</span>
-      </div>
-      <p className="text-2xl font-bold text-black dark:text-white tracking-tight">{value}</p>
+    <div className="rounded-xl border border-black/6 dark:border-white/8 px-4 py-3">
+      <p className="text-[10px] uppercase tracking-wider text-black/35 dark:text-white/35 font-medium mb-1">{label}</p>
+      <p className={`text-2xl font-bold tracking-tight ${accent ? "text-[#c9a84c] dark:text-[#d4af37]" : "text-black dark:text-white"}`}>{value}</p>
       {sub && <p className="text-[10px] text-black/30 dark:text-white/30 mt-0.5">{sub}</p>}
     </div>
+  );
+}
+
+function GitHubConfigCard({ title, ghOwner, setGhOwner, ghRepo, setGhRepo, ghToken, setGhToken, ghSaving, ghError, onSave, onCancel }: {
+  title?: string;
+  ghOwner: string; setGhOwner: (v: string) => void;
+  ghRepo: string; setGhRepo: (v: string) => void;
+  ghToken: string; setGhToken: (v: string) => void;
+  ghSaving: boolean; ghError: string;
+  onSave: () => void; onCancel: () => void;
+}) {
+  return (
+    <Card className="pt-0 border-black/6 dark:border-white/8 bg-transparent shadow-none">
+      <CardHeader className="border-b border-black/6 dark:border-white/8 py-4">
+        <div className="flex items-center gap-2">
+          <GitCommit className="h-4 w-4 text-[#c9a84c] dark:text-[#d4af37]" />
+          <CardTitle className="text-sm font-semibold text-black dark:text-white">{title || "Connect GitHub Repository"}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">Owner</label>
+            <input value={ghOwner} onChange={(e) => setGhOwner(e.target.value)} placeholder="e.g. automatq"
+              className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30" />
+          </div>
+          <div>
+            <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">Repository</label>
+            <input value={ghRepo} onChange={(e) => setGhRepo(e.target.value)} placeholder="e.g. markedup"
+              className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30" />
+          </div>
+        </div>
+        <div className="mb-3">
+          <label className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-wider font-medium mb-1 block">
+            Personal Access Token <span className="normal-case">(optional, for private repos)</span>
+          </label>
+          <input value={ghToken} onChange={(e) => setGhToken(e.target.value)} type="password" placeholder="ghp_... or github_pat_..."
+            className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-3 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none focus:border-black/30 dark:focus:border-white/30" />
+        </div>
+        {ghError && <p className="text-[11px] text-red-500 mb-2">{ghError}</p>}
+        <div className="flex gap-2">
+          <button onClick={onSave} disabled={ghSaving || !ghOwner || !ghRepo}
+            className="flex items-center gap-1.5 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-4 py-1.5 text-[11px] font-medium text-white hover:opacity-80 transition-opacity disabled:opacity-50">
+            {ghSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitCommit className="h-3 w-3" />} Connect
+          </button>
+          <button onClick={onCancel}
+            className="rounded-lg border border-black/8 dark:border-white/10 px-4 py-1.5 text-[11px] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">
+            Cancel
+          </button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
