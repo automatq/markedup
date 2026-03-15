@@ -44,10 +44,9 @@ function AgentCard({
     <div className="group flex items-center gap-3 rounded-xl border border-black/6 dark:border-white/8 px-4 py-3.5 transition-all hover:border-black/15 dark:hover:border-white/15 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
       <button onClick={onClick} className="flex flex-1 items-center gap-3 text-left min-w-0">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-          style={{ backgroundColor: agent.color }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg"
         >
-          {agent.avatar}
+          🤖
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-black dark:text-white">
@@ -203,10 +202,9 @@ function MessageBubble({
     <div className="flex gap-2.5 group/msg">
       {agent && (
         <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white mt-0.5"
-          style={{ backgroundColor: agent.color }}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm mt-0.5"
         >
-          {agent.avatar}
+          🤖
         </div>
       )}
       <div className="flex-1 min-w-0">
@@ -380,10 +378,9 @@ export function AgentsPanel({
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <div
-                className="flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-bold text-white"
-                style={{ backgroundColor: activeAgent.color }}
+                className="flex h-6 w-6 items-center justify-center rounded-full text-sm"
               >
-                {activeAgent.avatar}
+                🤖
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-black dark:text-white">
@@ -486,10 +483,9 @@ export function AgentsPanel({
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center gap-3">
                 <div
-                  className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white"
-                  style={{ backgroundColor: activeAgent.color }}
+                  className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
                 >
-                  {activeAgent.avatar}
+                  🤖
                 </div>
                 <div>
                   <p className="text-sm font-medium text-black dark:text-white">
@@ -536,10 +532,9 @@ export function AgentsPanel({
             {loading && (
               <div className="flex gap-2.5">
                 <div
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white mt-0.5"
-                  style={{ backgroundColor: activeAgent.color }}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm mt-0.5"
                 >
-                  {activeAgent.avatar}
+                  🤖
                 </div>
                 <div className="rounded-2xl rounded-bl-md border border-black/8 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-3.5 py-2.5">
                   <Loader2 className="h-4 w-4 animate-spin text-black/30 dark:text-white/30" />
