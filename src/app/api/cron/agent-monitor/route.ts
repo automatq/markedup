@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
+import { generateOperationsDigest } from "@/app/api/operations/route";
 
 const FREQUENCY_MS: Record<string, number> = {
   daily: 24 * 60 * 60 * 1000,
@@ -52,7 +53,29 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed: results.length, results });
+  // Generate daily operations digests for all active workspaces
+  const digestResults: { workspaceId: string; status: string }[] = [];
+  try {
+    const activeWorkspaces = await db.workspace.findMany({
+      select: { id: true },
+    });
+
+    await Promise.all(
+      activeWorkspaces.map(async (ws) => {
+        try {
+          await generateOperationsDigest(openai, ws.id, "daily");
+          digestResults.push({ workspaceId: ws.id, status: "success" });
+        } catch (err) {
+          console.error(`Operations digest failed for ${ws.id}:`, err);
+          digestResults.push({ workspaceId: ws.id, status: "error" });
+        }
+      })
+    );
+  } catch (err) {
+    console.error("Failed to generate operations digests:", err);
+  }
+
+  return NextResponse.json({ processed: results.length, results, digests: digestResults });
 }
 
 async function generateMonitorReport(

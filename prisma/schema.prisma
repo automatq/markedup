@@ -352,3 +352,32 @@ model RoleAssignment {
   @@index([workspaceId])
   @@index([agentConfigId])
 }
+
+/// AI-generated business operations timeline — daily, weekly, monthly summaries
+model OperationsDigest {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// "daily" | "weekly" | "monthly"
+  period      String
+  /// Start of the period (inclusive)
+  periodStart DateTime
+  /// End of the period (exclusive)
+  periodEnd   DateTime
+  /// AI-generated narrative summary (markdown)
+  summary     String
+  /// Structured metrics snapshot for the period
+  metrics     Json
+  /// Key highlights / milestones
+  highlights  Json     @default("[]")
+  /// Document IDs referenced in this digest
+  docRefs     Json     @default("[]")
+  /// Full AI response payload
+  payload     Json
+  /// Who triggered generation (or "system" for cron)
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, period, periodStart])
+  @@index([workspaceId, period])
+  @@index([workspaceId, periodStart])
+}
