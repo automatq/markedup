@@ -1,5 +1,5 @@
 import { Liveblocks } from "@liveblocks/node";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -42,11 +42,31 @@ export async function POST() {
     });
 
     // Scope access to only documents in workspaces the user can access
+    // Use full Clerk membership list (not just active org) so team docs work
+    let userOrgIds: string[] = orgId ? [orgId] : [];
+    try {
+      const clerk = await clerkClient();
+      const memberships = await clerk.users.getOrganizationMembershipList({
+        userId,
+        limit: 50,
+      });
+      const membershipList = Array.isArray(memberships)
+        ? memberships
+        : memberships.data ?? [];
+      userOrgIds = membershipList
+        .map((m: any) => m.organization?.id)
+        .filter(Boolean) as string[];
+    } catch {
+      // Fall back to active orgId only
+    }
+
     const workspaces = await db.workspace.findMany({
       where: {
         OR: [
           { ownerId: userId },
-          ...(orgId ? [{ orgId, isPersonal: false }] : []),
+          ...(userOrgIds.length > 0
+            ? [{ orgId: { in: userOrgIds }, isPersonal: false }]
+            : []),
         ],
       },
       select: { id: true },

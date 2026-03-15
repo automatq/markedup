@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
 /**
@@ -14,24 +14,51 @@ export async function getAuth() {
  * Check if a user can access a workspace.
  * A user can access a workspace if:
  * - They own it (personal or team workspace owner)
- * - They belong to the org that owns it (team workspace via Clerk org)
+ * - They belong to the org that owns it (checked via Clerk membership, not just active org)
  */
 export async function canAccessWorkspace(
   workspaceId: string,
   userId: string,
   orgId: string | null
 ) {
-  const workspace = await db.workspace.findFirst({
-    where: {
-      id: workspaceId,
-      OR: [
-        { ownerId: userId },
-        ...(orgId ? [{ orgId, isPersonal: false }] : []),
-      ],
-    },
-    select: { id: true },
+  // First check ownership (fast path)
+  const workspace = await db.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { id: true, ownerId: true, orgId: true, isPersonal: true },
   });
-  return !!workspace;
+  if (!workspace) return false;
+
+  // Owner always has access
+  if (workspace.ownerId === userId) return true;
+
+  // Personal workspaces are owner-only
+  if (workspace.isPersonal) return false;
+
+  // Team workspace — check if user belongs to the workspace's org
+  if (workspace.orgId) {
+    // Fast path: active org matches
+    if (orgId === workspace.orgId) return true;
+
+    // Full check: look up user's org memberships from Clerk
+    try {
+      const clerk = await clerkClient();
+      const memberships = await clerk.users.getOrganizationMembershipList({
+        userId,
+        limit: 50,
+      });
+      const membershipList = Array.isArray(memberships)
+        ? memberships
+        : memberships.data ?? [];
+      const userOrgIds = membershipList
+        .map((m: any) => m.organization?.id)
+        .filter(Boolean) as string[];
+      return userOrgIds.includes(workspace.orgId);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -62,10 +89,11 @@ export async function canAccessDocument(
 
   if (!document) return null;
 
-  const ws = document.workspace;
-  const hasAccess =
-    ws.ownerId === userId ||
-    (orgId && ws.orgId === orgId && !ws.isPersonal);
+  const hasAccess = await canAccessWorkspace(
+    document.workspaceId,
+    userId,
+    orgId
+  );
 
   return hasAccess ? document : null;
 }
