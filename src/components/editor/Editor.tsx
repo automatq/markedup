@@ -26,6 +26,7 @@ import { useThreads } from "@liveblocks/react/suspense";
 import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
 import { Toggle } from "./extensions/toggle";
+import { KeyboardShortcuts } from "./extensions/keyboard-shortcuts";
 import { SlashCommandExtension } from "./extensions/slash-command-extension";
 import {
   SlashCommandMenu,
@@ -101,6 +102,7 @@ export function MarkedUpEditor({
       Callout,
       Backlink,
       Toggle,
+      KeyboardShortcuts,
 
       // Slash commands
       SlashCommandExtension.configure({
