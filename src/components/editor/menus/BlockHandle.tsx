@@ -60,10 +60,12 @@ export function BlockHandle({
 }) {
   const handleRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const dropIndicatorRef = useRef<HTMLDivElement>(null);
   const currentBlock = useRef<HTMLElement | null>(null);
   const menuBlockEl = useRef<HTMLElement | null>(null);
   const menuOpenRef = useRef(false);
-  const handleVisible = useRef(false);
+  const dragData = useRef<{ nodeJson: any; sourceEl: HTMLElement } | null>(null);
+  const dropTarget = useRef<{ el: HTMLElement; position: "before" | "after" } | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSub, setMenuSub] = useState<"main" | "turnInto" | "color">("main");
@@ -72,75 +74,61 @@ export function BlockHandle({
 
   useEffect(() => { menuOpenRef.current = menuOpen; }, [menuOpen]);
 
-  /* ── Direct DOM helpers ── */
+  /* ── Position helpers ── */
 
   const positionHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
     const scrollRect = scrollContainer.getBoundingClientRect();
     const blockRect = blockEl.getBoundingClientRect();
     const pmRect = editor.view.dom.getBoundingClientRect();
-
     handleRef.current.style.top = `${blockRect.top - scrollRect.top + scrollContainer.scrollTop}px`;
     handleRef.current.style.left = `${pmRect.left - scrollRect.left - 58}px`;
   }, [editor, scrollContainer]);
 
   const showHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
-
-    // Swap highlight class
     if (currentBlock.current && currentBlock.current !== blockEl) {
       currentBlock.current.classList.remove("block-hover-active");
     }
     blockEl.classList.add("block-hover-active");
     currentBlock.current = blockEl;
-
     positionHandle(blockEl);
     handleRef.current.style.opacity = "1";
     handleRef.current.style.pointerEvents = "auto";
-    handleVisible.current = true;
   }, [positionHandle]);
 
   const hideHandle = useCallback(() => {
     if (!handleRef.current) return;
     handleRef.current.style.opacity = "0";
     handleRef.current.style.pointerEvents = "none";
-    handleVisible.current = false;
     if (currentBlock.current) {
       currentBlock.current.classList.remove("block-hover-active");
       currentBlock.current = null;
     }
   }, []);
 
-  /* ── Hover detection: mouseover delegation on .ProseMirror ── */
+  /* ── Hover: mouseover delegation on .ProseMirror ── */
 
   useEffect(() => {
     const pm = editor.view.dom;
-
     const findDirectChild = (target: HTMLElement): HTMLElement | null => {
-      // Walk up from target to find the direct child of .ProseMirror
       let el: HTMLElement | null = target;
-      while (el && el.parentElement !== pm) {
-        el = el.parentElement;
-      }
+      while (el && el.parentElement !== pm) el = el.parentElement;
       return el;
     };
 
     const onMouseOver = (e: MouseEvent) => {
-      if (menuOpenRef.current) return;
+      if (menuOpenRef.current || dragData.current) return;
       const target = e.target as HTMLElement;
-      if (target === pm) return; // Hovering the editor padding, not a block
-
+      if (target === pm) return;
       const block = findDirectChild(target);
-      if (!block) return;
-      if (currentBlock.current === block) return; // Same block, skip
-
+      if (!block || currentBlock.current === block) return;
       showHandle(block);
     };
 
     const onMouseLeave = (e: MouseEvent) => {
-      if (menuOpenRef.current) return;
+      if (menuOpenRef.current || dragData.current) return;
       const related = e.relatedTarget as Node | null;
-      // Don't hide if moving to the handle or menu
       if (related && handleRef.current?.contains(related)) return;
       if (related && menuRef.current?.contains(related)) return;
       hideHandle();
@@ -148,7 +136,6 @@ export function BlockHandle({
 
     pm.addEventListener("mouseover", onMouseOver);
     pm.addEventListener("mouseleave", onMouseLeave);
-
     return () => {
       pm.removeEventListener("mouseover", onMouseOver);
       pm.removeEventListener("mouseleave", onMouseLeave);
@@ -156,6 +143,146 @@ export function BlockHandle({
       currentBlock.current = null;
     };
   }, [editor, showHandle, hideHandle]);
+
+  /* ── Drag and drop ── */
+
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    const block = currentBlock.current;
+    if (!block) return;
+    const pos = resolveBlockPos(block);
+    if (pos === null) return;
+    const pmNode = editor.state.doc.nodeAt(pos);
+    if (!pmNode) return;
+
+    dragData.current = { nodeJson: pmNode.toJSON(), sourceEl: block };
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/x-block-drag", "1");
+    e.dataTransfer.setDragImage(block, 20, 20);
+    block.style.opacity = "0.3";
+    block.classList.add("block-dragging");
+  }, [editor]);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragData.current) {
+      dragData.current.sourceEl.style.opacity = "";
+      dragData.current.sourceEl.classList.remove("block-dragging");
+      dragData.current = null;
+    }
+    dropTarget.current = null;
+    if (dropIndicatorRef.current) dropIndicatorRef.current.style.display = "none";
+  }, []);
+
+  // Drag over + drop listeners on scroll container
+  useEffect(() => {
+    const pm = editor.view.dom;
+
+    const onDragOver = (e: DragEvent) => {
+      if (!dragData.current) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+
+      // Find which block the cursor is over and show indicator
+      const children = pm.children;
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i] as HTMLElement;
+        const rect = child.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          // Don't show indicator on the source block
+          if (child === dragData.current.sourceEl) {
+            if (dropIndicatorRef.current) dropIndicatorRef.current.style.display = "none";
+            dropTarget.current = null;
+            return;
+          }
+
+          const midY = rect.top + rect.height / 2;
+          const position = e.clientY < midY ? "before" : "after";
+          const indicatorY = position === "before" ? rect.top : rect.bottom;
+
+          if (dropIndicatorRef.current) {
+            const scrollRect = scrollContainer.getBoundingClientRect();
+            dropIndicatorRef.current.style.display = "block";
+            dropIndicatorRef.current.style.top = `${indicatorY - scrollRect.top + scrollContainer.scrollTop - 1}px`;
+            dropIndicatorRef.current.style.left = `${rect.left - scrollRect.left}px`;
+            dropIndicatorRef.current.style.width = `${rect.width}px`;
+          }
+          dropTarget.current = { el: child, position };
+          return;
+        }
+      }
+    };
+
+    const onDrop = (e: DragEvent) => {
+      if (!dragData.current || !dropTarget.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const { nodeJson, sourceEl } = dragData.current;
+      const { el: targetEl, position } = dropTarget.current;
+
+      // Resolve fresh positions at drop time
+      const sourcePos = resolveBlockPos(sourceEl);
+      const targetPos = resolveBlockPos(targetEl);
+
+      if (sourcePos === null || targetPos === null) {
+        handleDragEnd();
+        return;
+      }
+
+      const sourceNode = editor.state.doc.nodeAt(sourcePos);
+      const targetNode = editor.state.doc.nodeAt(targetPos);
+      if (!sourceNode || !targetNode) {
+        handleDragEnd();
+        return;
+      }
+
+      const sourceSize = sourceNode.nodeSize;
+      const targetSize = targetNode.nodeSize;
+
+      // Calculate insertion point
+      const insertAt = position === "before" ? targetPos : targetPos + targetSize;
+
+      // Execute: delete source, insert at target (adjust for position shift)
+      if (insertAt <= sourcePos) {
+        // Moving up: delete source (higher pos), insert at target
+        editor.chain().focus()
+          .deleteRange({ from: sourcePos, to: sourcePos + sourceSize })
+          .insertContentAt(insertAt, nodeJson)
+          .run();
+      } else {
+        // Moving down: delete source first, target shifts
+        editor.chain().focus()
+          .deleteRange({ from: sourcePos, to: sourcePos + sourceSize })
+          .insertContentAt(insertAt - sourceSize, nodeJson)
+          .run();
+      }
+
+      // Cleanup
+      sourceEl.style.opacity = "";
+      sourceEl.classList.remove("block-dragging");
+      dragData.current = null;
+      dropTarget.current = null;
+      if (dropIndicatorRef.current) dropIndicatorRef.current.style.display = "none";
+      hideHandle();
+    };
+
+    const onDragLeave = (e: DragEvent) => {
+      // Hide indicator when dragging outside the editor
+      if (!dragData.current) return;
+      const related = e.relatedTarget as Node | null;
+      if (related && pm.contains(related)) return;
+      if (dropIndicatorRef.current) dropIndicatorRef.current.style.display = "none";
+      dropTarget.current = null;
+    };
+
+    scrollContainer.addEventListener("dragover", onDragOver);
+    scrollContainer.addEventListener("drop", onDrop);
+    scrollContainer.addEventListener("dragleave", onDragLeave);
+    return () => {
+      scrollContainer.removeEventListener("dragover", onDragOver);
+      scrollContainer.removeEventListener("drop", onDrop);
+      scrollContainer.removeEventListener("dragleave", onDragLeave);
+    };
+  }, [editor, scrollContainer, hideHandle, handleDragEnd]);
 
   /* ── Close menu on outside click ── */
 
@@ -200,7 +327,7 @@ export function BlockHandle({
     return { node, pos };
   }, [resolveBlockPos]);
 
-  /* ── Actions ── */
+  /* ── Menu actions ── */
 
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
@@ -221,7 +348,7 @@ export function BlockHandle({
     editor.chain().focus().insertContentAt(endPos, { type: "paragraph" }).setTextSelection(endPos + 1).run();
   }, [editor, resolveBlockPos]);
 
-  const handleGripClick = useCallback(() => {
+  const handleGripMenu = useCallback(() => {
     const node = currentBlock.current;
     if (!node) return;
     const pos = resolveBlockPos(node);
@@ -320,27 +447,33 @@ export function BlockHandle({
 
   return (
     <>
+      {/* Gold drop indicator line — shown during drag */}
+      <div
+        ref={dropIndicatorRef}
+        className="absolute z-40 h-[3px] rounded-full pointer-events-none"
+        style={{ display: "none", backgroundColor: "#d4af37" }}
+      />
+
       {/* Handle — always mounted, positioned in page margin */}
       <div
         ref={handleRef}
         className="absolute z-30 flex items-center gap-1"
         style={{ top: 0, left: 0, opacity: 0, pointerEvents: "none", transition: "opacity 0.12s ease" }}
         onMouseEnter={() => {
-          // Keep handle visible when mouse enters it
           if (handleRef.current && currentBlock.current) {
             handleRef.current.style.opacity = "1";
             handleRef.current.style.pointerEvents = "auto";
           }
         }}
         onMouseLeave={(e) => {
-          if (menuOpenRef.current) return;
+          if (menuOpenRef.current || dragData.current) return;
           const related = e.relatedTarget as Node | null;
-          // Don't hide if going back to editor or menu
           if (related && editor.view.dom.contains(related)) return;
           if (related && menuRef.current?.contains(related)) return;
           hideHandle();
         }}
       >
+        {/* + Add block */}
         <button
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleAddBlock(); }}
           className="flex h-7 w-7 items-center justify-center rounded-md text-black/35 dark:text-white/35 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] transition-colors"
@@ -348,17 +481,21 @@ export function BlockHandle({
         >
           <Plus className="h-4 w-4" />
         </button>
+
+        {/* ⠿ Drag handle — left-click drags, right-click opens menu */}
         <button
-          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          onClick={(e) => { e.preventDefault(); handleGripClick(); }}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-black/35 dark:text-white/35 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] transition-colors cursor-grab"
-          title="Click for block menu"
+          draggable
+          onDragStart={handleDragStart as any}
+          onDragEnd={handleDragEnd}
+          onContextMenu={(e) => { e.preventDefault(); handleGripMenu(); }}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-black/35 dark:text-white/35 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] transition-colors cursor-grab active:cursor-grabbing"
+          title="Drag to move · Right-click for menu"
         >
           <GripVertical className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Block action menu */}
+      {/* Block action menu (right-click) */}
       {menuOpen && (
         <div
           ref={menuRef}
@@ -436,28 +573,14 @@ export function BlockHandle({
   );
 }
 
-/* ── Menu button ── */
-
-function MenuBtn({
-  onClick,
-  destructive,
-  dim,
-  children,
-}: {
-  onClick: () => void;
-  destructive?: boolean;
-  dim?: boolean;
-  children: React.ReactNode;
-}) {
+function MenuBtn({ onClick, destructive, dim, children }: { onClick: () => void; destructive?: boolean; dim?: boolean; children: React.ReactNode }) {
   return (
     <button
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${
-        destructive
-          ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-          : dim
-            ? "text-black/40 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5"
+        destructive ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+          : dim ? "text-black/40 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5"
             : "text-black/80 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5"
       }`}
     >
