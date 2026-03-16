@@ -22,9 +22,7 @@ import {
   Palette,
 } from "lucide-react";
 
-interface BlockHandleProps {
-  editor: Editor;
-}
+/* ── Constants ── */
 
 const COLORS = [
   { name: "Default", value: "" },
@@ -51,143 +49,144 @@ const TURN_INTO = [
   { type: "codeBlock", label: "Code", icon: Code },
 ];
 
-export function BlockHandle({ editor }: BlockHandleProps) {
+/* ── Component ── */
+
+export function BlockHandle({ editor }: { editor: Editor }) {
   // Refs for zero-re-render hover tracking
   const handleRef = useRef<HTMLDivElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
-  const currentBlock = useRef<{ node: HTMLElement; pos: number } | null>(null);
-  const menuBlock = useRef<{ node: HTMLElement; pos: number } | null>(null);
-  const rafId = useRef(0);
+  const currentBlock = useRef<HTMLElement | null>(null);
+  const menuBlockEl = useRef<HTMLElement | null>(null);
   const menuOpenRef = useRef(false);
-  const dragSource = useRef<{ nodeJson: any; domNode: HTMLElement; markerId: string } | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // React state only for menu rendering
+  // React state — only for menu rendering
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSub, setMenuSub] = useState<"main" | "turnInto" | "color">("main");
   const [menuTop, setMenuTop] = useState(0);
   const [selectedNode, setSelectedNode] = useState<HTMLElement | null>(null);
 
-  // Sync menuOpen ref
-  useEffect(() => {
-    menuOpenRef.current = menuOpen;
-  }, [menuOpen]);
+  // Sync ref
+  useEffect(() => { menuOpenRef.current = menuOpen; }, [menuOpen]);
+
+  /* ── Hover helpers (direct DOM, no React state) ── */
 
   const hideHandle = useCallback(() => {
     if (handleRef.current) {
       handleRef.current.style.opacity = "0";
       handleRef.current.style.pointerEvents = "none";
     }
-    if (currentBlock.current) {
-      currentBlock.current.node.classList.remove("block-hover-active");
-      currentBlock.current = null;
+    currentBlock.current?.classList.remove("block-hover-active");
+    currentBlock.current = null;
+  }, []);
+
+  const cancelHide = useCallback(() => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
     }
   }, []);
 
-  const showHandle = useCallback((node: HTMLElement, pos: number) => {
+  const scheduleHide = useCallback(() => {
+    cancelHide();
+    hideTimer.current = setTimeout(() => {
+      if (!menuOpenRef.current) hideHandle();
+    }, 120);
+  }, [cancelHide, hideHandle]);
+
+  const showHandleForNode = useCallback((node: HTMLElement, wrapper: HTMLElement) => {
     if (!handleRef.current) return;
+    cancelHide();
 
-    // Remove old highlight
-    if (currentBlock.current && currentBlock.current.node !== node) {
-      currentBlock.current.node.classList.remove("block-hover-active");
+    // Swap highlight class
+    if (currentBlock.current && currentBlock.current !== node) {
+      currentBlock.current.classList.remove("block-hover-active");
     }
-
-    // Add new highlight
     node.classList.add("block-hover-active");
-    currentBlock.current = { node, pos };
+    currentBlock.current = node;
 
-    // Position using offsetTop — naturally accounts for scroll
-    handleRef.current.style.top = `${node.offsetTop}px`;
+    // Position using getBoundingClientRect (auto-accounts for scroll)
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const blockRect = node.getBoundingClientRect();
+    handleRef.current.style.top = `${blockRect.top - wrapperRect.top}px`;
     handleRef.current.style.opacity = "1";
     handleRef.current.style.pointerEvents = "auto";
-  }, []);
+  }, [cancelHide]);
 
-  // Core mousemove handler — uses refs + rAF, no React state
+  /* ── Core: mousemove → find hovered block by walking DOM children ── */
+
   useEffect(() => {
     const wrapper = editor.view.dom.parentElement;
     if (!wrapper) return;
+    const proseMirror = editor.view.dom;
 
-    const onMouseMove = (e: MouseEvent) => {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = requestAnimationFrame(() => {
-        if (menuOpenRef.current) return;
-
-        const editorDom = editor.view.dom;
-        const editorRect = editorDom.getBoundingClientRect();
-
-        // Check bounds — generous left margin for handle area
-        if (
-          e.clientY < editorRect.top ||
-          e.clientY > editorRect.bottom ||
-          e.clientX < editorRect.left - 60 ||
-          e.clientX > editorRect.right + 10
-        ) {
-          hideHandle();
-          return;
+    const findBlockAtY = (clientY: number): HTMLElement | null => {
+      const children = proseMirror.children;
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i] as HTMLElement;
+        const rect = child.getBoundingClientRect();
+        if (clientY >= rect.top && clientY <= rect.bottom) {
+          return child;
         }
-
-        // Resolve position at a consistent x coordinate inside the editor
-        const posInfo = editor.view.posAtCoords({
-          left: editorRect.left + 50,
-          top: e.clientY,
-        });
-        if (!posInfo) {
-          hideHandle();
-          return;
-        }
-
-        try {
-          const resolved = editor.state.doc.resolve(posInfo.pos);
-          if (resolved.depth < 1) {
-            hideHandle();
-            return;
-          }
-
-          const blockPos = resolved.before(1);
-          const domNode = editor.view.nodeDOM(blockPos);
-          if (!(domNode instanceof HTMLElement)) {
-            hideHandle();
-            return;
-          }
-
-          // Same block — no update needed
-          if (currentBlock.current?.node === domNode) return;
-
-          showHandle(domNode, blockPos);
-        } catch {
-          hideHandle();
-        }
-      });
+      }
+      return null;
     };
 
-    const onMouseLeave = (e: MouseEvent) => {
-      // Don't hide if mouse moved to the handle/menu
-      const relatedTarget = e.relatedTarget as Node | null;
+    const onMouseMove = (e: MouseEvent) => {
+      if (menuOpenRef.current) return;
+
+      const wrapperRect = wrapper.getBoundingClientRect();
+
+      // Check bounds (generous left margin for handle)
       if (
-        relatedTarget &&
-        (handleRef.current?.contains(relatedTarget) ||
-          menuContainerRef.current?.contains(relatedTarget))
+        e.clientY < wrapperRect.top ||
+        e.clientY > wrapperRect.bottom ||
+        e.clientX < wrapperRect.left - 10 ||
+        e.clientX > wrapperRect.right + 10
       ) {
+        scheduleHide();
         return;
       }
-      if (!menuOpenRef.current) {
-        cancelAnimationFrame(rafId.current);
-        hideHandle();
+
+      const found = findBlockAtY(e.clientY);
+      if (!found) {
+        scheduleHide();
+        return;
       }
+
+      // Same block — no update needed
+      if (currentBlock.current === found) {
+        cancelHide();
+        return;
+      }
+
+      showHandleForNode(found, wrapper);
+    };
+
+    const onMouseLeave = () => {
+      scheduleHide();
+    };
+
+    const onMouseEnter = () => {
+      cancelHide();
     };
 
     wrapper.addEventListener("mousemove", onMouseMove);
     wrapper.addEventListener("mouseleave", onMouseLeave);
+    wrapper.addEventListener("mouseenter", onMouseEnter);
 
     return () => {
-      cancelAnimationFrame(rafId.current);
       wrapper.removeEventListener("mousemove", onMouseMove);
       wrapper.removeEventListener("mouseleave", onMouseLeave);
-      currentBlock.current?.node.classList.remove("block-hover-active");
+      wrapper.removeEventListener("mouseenter", onMouseEnter);
+      cancelHide();
+      currentBlock.current?.classList.remove("block-hover-active");
       currentBlock.current = null;
     };
-  }, [editor, hideHandle, showHandle]);
+  }, [editor, scheduleHide, cancelHide, showHandleForNode]);
 
-  // Close menu on click outside
+  /* ── Close menu on outside click ── */
+
   useEffect(() => {
     if (!menuOpen) return;
     const onClick = (e: MouseEvent) => {
@@ -195,9 +194,7 @@ export function BlockHandle({ editor }: BlockHandleProps) {
       if (
         menuContainerRef.current?.contains(target) ||
         handleRef.current?.contains(target)
-      ) {
-        return;
-      }
+      ) return;
       setMenuOpen(false);
       setMenuSub("main");
       selectedNode?.classList.remove("block-selected");
@@ -207,114 +204,135 @@ export function BlockHandle({ editor }: BlockHandleProps) {
     return () => document.removeEventListener("mousedown", onClick);
   }, [menuOpen, selectedNode]);
 
-  // Clear block selection when typing in editor
+  /* ── Clear selection on editor interaction ── */
+
   useEffect(() => {
-    const onSelectionUpdate = () => {
+    const onUpdate = () => {
       if (selectedNode && !menuOpenRef.current) {
         selectedNode.classList.remove("block-selected");
         setSelectedNode(null);
       }
     };
-    editor.on("selectionUpdate", onSelectionUpdate);
-    return () => { editor.off("selectionUpdate", onSelectionUpdate); };
+    editor.on("selectionUpdate", onUpdate);
+    return () => { editor.off("selectionUpdate", onUpdate); };
   }, [editor, selectedNode]);
 
-  // ── Actions ──
+  /* ── Resolve fresh ProseMirror position from a DOM node ── */
 
-  const getBlock = useCallback(() => {
-    return menuBlock.current || currentBlock.current;
-  }, []);
+  const resolveBlockPos = useCallback((node: HTMLElement): number | null => {
+    try {
+      const pos = editor.view.posAtDOM(node, 0);
+      const resolved = editor.state.doc.resolve(pos);
+      return resolved.before(1);
+    } catch {
+      return null;
+    }
+  }, [editor]);
+
+  /* ── Actions ── */
+
+  const getActionBlock = useCallback((): { node: HTMLElement; pos: number } | null => {
+    const node = menuBlockEl.current || currentBlock.current;
+    if (!node) return null;
+    const pos = resolveBlockPos(node);
+    if (pos === null) return null;
+    return { node, pos };
+  }, [resolveBlockPos]);
 
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
     setMenuSub("main");
     selectedNode?.classList.remove("block-selected");
     setSelectedNode(null);
-    menuBlock.current = null;
+    menuBlockEl.current = null;
   }, [selectedNode]);
 
   const handleAddBlock = useCallback(() => {
-    const block = currentBlock.current;
-    if (!block) return;
-    const node = editor.state.doc.nodeAt(block.pos);
+    const node = currentBlock.current;
     if (!node) return;
-    const endPos = block.pos + node.nodeSize;
+    const pos = resolveBlockPos(node);
+    if (pos === null) return;
+    const pmNode = editor.state.doc.nodeAt(pos);
+    if (!pmNode) return;
+    const endPos = pos + pmNode.nodeSize;
     editor
       .chain()
       .focus()
       .insertContentAt(endPos, { type: "paragraph" })
       .setTextSelection(endPos + 1)
       .run();
-  }, [editor]);
+  }, [editor, resolveBlockPos]);
 
   const handleGripClick = useCallback(() => {
-    const block = currentBlock.current;
-    if (!block) return;
+    const node = currentBlock.current;
+    if (!node) return;
+    const pos = resolveBlockPos(node);
+    if (pos === null) return;
 
     // Visual selection
     selectedNode?.classList.remove("block-selected");
-    block.node.classList.add("block-selected");
-    setSelectedNode(block.node);
+    node.classList.add("block-selected");
+    setSelectedNode(node);
 
     // ProseMirror selection
     try {
-      const tr = editor.state.tr.setSelection(
-        NodeSelection.create(editor.state.doc, block.pos)
-      );
+      const tr = editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos));
       editor.view.dispatch(tr);
-    } catch {
-      // Not all nodes support NodeSelection
-    }
+    } catch { /* Not all nodes support NodeSelection */ }
 
     // Anchor menu to this block
-    menuBlock.current = { ...block };
-    setMenuTop(block.node.offsetTop + 28);
+    menuBlockEl.current = node;
+    const wrapper = editor.view.dom.parentElement;
+    if (wrapper) {
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const blockRect = node.getBoundingClientRect();
+      setMenuTop(blockRect.top - wrapperRect.top + 28);
+    }
     setMenuOpen(true);
     setMenuSub("main");
-  }, [editor, selectedNode]);
+  }, [editor, resolveBlockPos, selectedNode]);
 
   const handleDelete = useCallback(() => {
-    const block = getBlock();
+    const block = getActionBlock();
     if (!block) return;
-    const node = editor.state.doc.nodeAt(block.pos);
-    if (!node) return;
-    editor.chain().focus().deleteRange({ from: block.pos, to: block.pos + node.nodeSize }).run();
+    const pmNode = editor.state.doc.nodeAt(block.pos);
+    if (!pmNode) return;
+    editor.chain().focus().deleteRange({ from: block.pos, to: block.pos + pmNode.nodeSize }).run();
     hideHandle();
     closeMenu();
-  }, [editor, getBlock, hideHandle, closeMenu]);
+  }, [editor, getActionBlock, hideHandle, closeMenu]);
 
   const handleDuplicate = useCallback(() => {
-    const block = getBlock();
+    const block = getActionBlock();
     if (!block) return;
-    const node = editor.state.doc.nodeAt(block.pos);
-    if (!node) return;
-    editor.chain().focus().insertContentAt(block.pos + node.nodeSize, node.toJSON()).run();
+    const pmNode = editor.state.doc.nodeAt(block.pos);
+    if (!pmNode) return;
+    editor.chain().focus().insertContentAt(block.pos + pmNode.nodeSize, pmNode.toJSON()).run();
     closeMenu();
-  }, [editor, getBlock, closeMenu]);
+  }, [editor, getActionBlock, closeMenu]);
 
   const handleMoveUp = useCallback(() => {
-    const block = getBlock();
+    const block = getActionBlock();
     if (!block || block.pos === 0) return;
-    const node = editor.state.doc.nodeAt(block.pos);
-    if (!node) return;
-    const blockEnd = block.pos + node.nodeSize;
+    const pmNode = editor.state.doc.nodeAt(block.pos);
+    if (!pmNode) return;
     const $prev = editor.state.doc.resolve(block.pos - 1);
     const prevStart = $prev.before(1);
     editor
       .chain()
       .focus()
-      .deleteRange({ from: block.pos, to: blockEnd })
-      .insertContentAt(prevStart, node.toJSON())
+      .deleteRange({ from: block.pos, to: block.pos + pmNode.nodeSize })
+      .insertContentAt(prevStart, pmNode.toJSON())
       .run();
     closeMenu();
-  }, [editor, getBlock, closeMenu]);
+  }, [editor, getActionBlock, closeMenu]);
 
   const handleMoveDown = useCallback(() => {
-    const block = getBlock();
+    const block = getActionBlock();
     if (!block) return;
-    const node = editor.state.doc.nodeAt(block.pos);
-    if (!node) return;
-    const blockEnd = block.pos + node.nodeSize;
+    const pmNode = editor.state.doc.nodeAt(block.pos);
+    if (!pmNode) return;
+    const blockEnd = block.pos + pmNode.nodeSize;
     if (blockEnd >= editor.state.doc.content.size) return;
     const nextNode = editor.state.doc.nodeAt(blockEnd);
     if (!nextNode) return;
@@ -322,178 +340,54 @@ export function BlockHandle({ editor }: BlockHandleProps) {
       .chain()
       .focus()
       .deleteRange({ from: block.pos, to: blockEnd })
-      .insertContentAt(block.pos + nextNode.nodeSize, node.toJSON())
+      .insertContentAt(block.pos + nextNode.nodeSize, pmNode.toJSON())
       .run();
     closeMenu();
-  }, [editor, getBlock, closeMenu]);
+  }, [editor, getActionBlock, closeMenu]);
 
-  const handleTurnInto = useCallback(
-    (type: string) => {
-      const block = getBlock();
-      if (!block) return;
-      editor.chain().focus().setTextSelection(block.pos + 1).run();
-      switch (type) {
-        case "paragraph": editor.chain().focus().setParagraph().run(); break;
-        case "h1": editor.chain().focus().setHeading({ level: 1 }).run(); break;
-        case "h2": editor.chain().focus().setHeading({ level: 2 }).run(); break;
-        case "h3": editor.chain().focus().setHeading({ level: 3 }).run(); break;
-        case "bulletList": editor.chain().focus().toggleBulletList().run(); break;
-        case "orderedList": editor.chain().focus().toggleOrderedList().run(); break;
-        case "taskList": editor.chain().focus().toggleTaskList().run(); break;
-        case "blockquote": editor.chain().focus().toggleBlockquote().run(); break;
-        case "codeBlock": editor.chain().focus().toggleCodeBlock().run(); break;
-      }
-      closeMenu();
-    },
-    [editor, getBlock, closeMenu]
-  );
-
-  const handleColor = useCallback(
-    (color: string) => {
-      const block = getBlock();
-      if (!block) return;
-      const node = editor.state.doc.nodeAt(block.pos);
-      if (!node) return;
-      editor
-        .chain()
-        .focus()
-        .setTextSelection({ from: block.pos + 1, to: block.pos + node.nodeSize - 1 })
-        .setColor(color)
-        .run();
-      closeMenu();
-    },
-    [editor, getBlock, closeMenu]
-  );
-
-  // Drag and drop — store node JSON + marker at dragstart, resolve fresh positions at drop
-  const onDragStart = useCallback(
-    (e: React.DragEvent) => {
-      const block = currentBlock.current;
-      if (!block) return;
-      const node = editor.state.doc.nodeAt(block.pos);
-      if (!node) return;
-
-      // Mark the DOM node so we can find it at drop time
-      const markerId = `drag-${Date.now()}`;
-      block.node.dataset.dragMarker = markerId;
-
-      dragSource.current = {
-        nodeJson: node.toJSON(),
-        domNode: block.node,
-        markerId,
-      };
-
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("application/x-block-drag", markerId);
-      e.dataTransfer.setDragImage(block.node, 0, 0);
-      block.node.style.opacity = "0.4";
-
-      // Prevent ProseMirror's native drag handler from interfering
-      e.stopPropagation();
-    },
-    [editor]
-  );
-
-  const onDragEnd = useCallback(() => {
-    if (dragSource.current) {
-      dragSource.current.domNode.style.opacity = "";
-      delete dragSource.current.domNode.dataset.dragMarker;
-      dragSource.current = null;
+  const handleTurnInto = useCallback((type: string) => {
+    const block = getActionBlock();
+    if (!block) return;
+    editor.chain().focus().setTextSelection(block.pos + 1).run();
+    switch (type) {
+      case "paragraph": editor.chain().focus().setParagraph().run(); break;
+      case "h1": editor.chain().focus().setHeading({ level: 1 }).run(); break;
+      case "h2": editor.chain().focus().setHeading({ level: 2 }).run(); break;
+      case "h3": editor.chain().focus().setHeading({ level: 3 }).run(); break;
+      case "bulletList": editor.chain().focus().toggleBulletList().run(); break;
+      case "orderedList": editor.chain().focus().toggleOrderedList().run(); break;
+      case "taskList": editor.chain().focus().toggleTaskList().run(); break;
+      case "blockquote": editor.chain().focus().toggleBlockquote().run(); break;
+      case "codeBlock": editor.chain().focus().toggleCodeBlock().run(); break;
     }
-  }, []);
+    closeMenu();
+  }, [editor, getActionBlock, closeMenu]);
 
-  useEffect(() => {
-    const editorDom = editor.view.dom;
+  const handleColor = useCallback((color: string) => {
+    const block = getActionBlock();
+    if (!block) return;
+    const pmNode = editor.state.doc.nodeAt(block.pos);
+    if (!pmNode) return;
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from: block.pos + 1, to: block.pos + pmNode.nodeSize - 1 })
+      .setColor(color)
+      .run();
+    closeMenu();
+  }, [editor, getActionBlock, closeMenu]);
 
-    const onDragOver = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes("application/x-block-drag")) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-    };
-
-    const onDrop = (e: DragEvent) => {
-      if (!dragSource.current) return;
-      if (!e.dataTransfer?.types.includes("application/x-block-drag")) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      const { nodeJson, domNode, markerId } = dragSource.current;
-
-      // Find the source block's CURRENT position by locating the marked DOM node
-      const markedEl = editorDom.querySelector(`[data-drag-marker="${markerId}"]`);
-      if (!markedEl) return;
-
-      // Get fresh source position from the DOM node
-      const sourcePos = editor.view.posAtDOM(markedEl, 0);
-      const resolvedSource = editor.state.doc.resolve(sourcePos);
-      const sourceBlockPos = resolvedSource.before(1);
-      const sourceNode = editor.state.doc.nodeAt(sourceBlockPos);
-      if (!sourceNode) return;
-
-      // Get target position from drop coordinates
-      const dropPos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
-      if (!dropPos) return;
-
-      const resolvedTarget = editor.state.doc.resolve(dropPos.pos);
-      if (resolvedTarget.depth < 1) return;
-      const targetBlockPos = resolvedTarget.before(1);
-
-      // Don't drop on self
-      if (targetBlockPos === sourceBlockPos) return;
-
-      const sourceSize = sourceNode.nodeSize;
-
-      // Execute in correct order depending on direction
-      if (targetBlockPos < sourceBlockPos) {
-        // Moving up: delete source first (higher pos), then insert at target
-        editor.chain().focus()
-          .deleteRange({ from: sourceBlockPos, to: sourceBlockPos + sourceSize })
-          .insertContentAt(targetBlockPos, nodeJson)
-          .run();
-      } else {
-        // Moving down: delete source first, then insert at adjusted target
-        editor.chain().focus()
-          .deleteRange({ from: sourceBlockPos, to: sourceBlockPos + sourceSize })
-          .insertContentAt(targetBlockPos - sourceSize, nodeJson)
-          .run();
-      }
-
-      // Cleanup
-      domNode.style.opacity = "";
-      delete domNode.dataset.dragMarker;
-      dragSource.current = null;
-      hideHandle();
-    };
-
-    editorDom.addEventListener("dragover", onDragOver);
-    editorDom.addEventListener("drop", onDrop);
-    return () => {
-      editorDom.removeEventListener("dragover", onDragOver);
-      editorDom.removeEventListener("drop", onDrop);
-    };
-  }, [editor, hideHandle]);
-
-  // ── Render ──
+  /* ── Render ── */
 
   return (
     <>
-      {/* Handle — always mounted, visibility controlled via style */}
+      {/* Handle — always mounted, visibility via style */}
       <div
         ref={handleRef}
         className="absolute z-30 flex items-center gap-0.5"
         style={{ top: 0, left: 4, opacity: 0, pointerEvents: "none", transition: "opacity 0.1s ease" }}
-        onMouseLeave={(e) => {
-          // If leaving handle and not entering menu or editor, hide
-          const related = e.relatedTarget as Node | null;
-          if (
-            !menuOpenRef.current &&
-            related &&
-            !editor.view.dom.contains(related) &&
-            !menuContainerRef.current?.contains(related)
-          ) {
-            hideHandle();
-          }
-        }}
+        onMouseEnter={cancelHide}
+        onMouseLeave={scheduleHide}
       >
         <button
           onMouseDown={(e) => { e.preventDefault(); handleAddBlock(); }}
@@ -503,12 +397,9 @@ export function BlockHandle({ editor }: BlockHandleProps) {
           <Plus className="h-3.5 w-3.5" />
         </button>
         <button
-          draggable
           onClick={(e) => { e.preventDefault(); handleGripClick(); }}
-          onDragStart={onDragStart as any}
-          onDragEnd={onDragEnd}
-          className="flex h-6 w-6 items-center justify-center rounded text-black/15 dark:text-white/15 hover:text-black/50 dark:hover:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-grab active:cursor-grabbing"
-          title="Drag to move · Click for menu"
+          className="flex h-6 w-6 items-center justify-center rounded text-black/15 dark:text-white/15 hover:text-black/50 dark:hover:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-grab"
+          title="Click for block menu"
         >
           <GripVertical className="h-3.5 w-3.5" />
         </button>
@@ -520,20 +411,22 @@ export function BlockHandle({ editor }: BlockHandleProps) {
           ref={menuContainerRef}
           className="absolute z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up py-1 w-48"
           style={{ top: menuTop, left: 4 }}
+          onMouseEnter={cancelHide}
+          onMouseLeave={scheduleHide}
         >
           {menuSub === "turnInto" ? (
             <>
-              <MenuButton onClick={() => setMenuSub("main")}>← Back</MenuButton>
+              <MenuBtn onClick={() => setMenuSub("main")}>← Back</MenuBtn>
               {TURN_INTO.map((item) => (
-                <MenuButton key={item.type} onClick={() => handleTurnInto(item.type)}>
+                <MenuBtn key={item.type} onClick={() => handleTurnInto(item.type)}>
                   <item.icon className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
                   {item.label}
-                </MenuButton>
+                </MenuBtn>
               ))}
             </>
           ) : menuSub === "color" ? (
             <>
-              <MenuButton onClick={() => setMenuSub("main")}>← Back</MenuButton>
+              <MenuBtn onClick={() => setMenuSub("main")}>← Back</MenuBtn>
               <div className="px-3 py-2 grid grid-cols-5 gap-1.5">
                 {COLORS.map((c) => (
                   <button
@@ -544,9 +437,7 @@ export function BlockHandle({ editor }: BlockHandleProps) {
                     className="h-6 w-6 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 transition-transform"
                     style={{
                       backgroundColor: c.value || undefined,
-                      ...(c.value === ""
-                        ? { background: "conic-gradient(from 0deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)" }
-                        : {}),
+                      ...(c.value === "" ? { background: "conic-gradient(from 0deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)" } : {}),
                     }}
                   />
                 ))}
@@ -554,34 +445,28 @@ export function BlockHandle({ editor }: BlockHandleProps) {
             </>
           ) : (
             <>
-              <MenuButton onClick={handleDelete} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete
-              </MenuButton>
-              <MenuButton onClick={handleDuplicate}>
-                <Copy className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
-                Duplicate
-              </MenuButton>
+              <MenuBtn onClick={handleDelete} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </MenuBtn>
+              <MenuBtn onClick={handleDuplicate}>
+                <Copy className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Duplicate
+              </MenuBtn>
               <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
-              <MenuButton onClick={() => setMenuSub("turnInto")}>
-                <Type className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
-                Turn into
+              <MenuBtn onClick={() => setMenuSub("turnInto")}>
+                <Type className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Turn into
                 <span className="ml-auto text-black/25 dark:text-white/25">→</span>
-              </MenuButton>
-              <MenuButton onClick={() => setMenuSub("color")}>
-                <Palette className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
-                Color
+              </MenuBtn>
+              <MenuBtn onClick={() => setMenuSub("color")}>
+                <Palette className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Color
                 <span className="ml-auto text-black/25 dark:text-white/25">→</span>
-              </MenuButton>
+              </MenuBtn>
               <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
-              <MenuButton onClick={handleMoveUp}>
-                <ArrowUp className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
-                Move up
-              </MenuButton>
-              <MenuButton onClick={handleMoveDown}>
-                <ArrowDown className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
-                Move down
-              </MenuButton>
+              <MenuBtn onClick={handleMoveUp}>
+                <ArrowUp className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Move up
+              </MenuBtn>
+              <MenuBtn onClick={handleMoveDown}>
+                <ArrowDown className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Move down
+              </MenuBtn>
             </>
           )}
         </div>
@@ -590,13 +475,9 @@ export function BlockHandle({ editor }: BlockHandleProps) {
   );
 }
 
-/* ── Menu button helper ── */
+/* ── Menu button ── */
 
-function MenuButton({
-  onClick,
-  className,
-  children,
-}: {
+function MenuBtn({ onClick, className, children }: {
   onClick: () => void;
   className?: string;
   children: React.ReactNode;
