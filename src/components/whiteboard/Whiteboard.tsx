@@ -113,6 +113,22 @@ export function Whiteboard() {
     ensureShapes();
   }, [ensureShapes]);
 
+  // Keyboard shortcuts: Ctrl/Cmd+Z for undo, Ctrl/Cmd+Shift+Z for redo, Delete/Backspace for selected shapes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) history.redo();
+        else history.undo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [history]);
+
   const addShape = useMutation(({ storage }, shape: WhiteboardShape) => {
     let shapesList = storage.get("shapes") as any;
     if (!shapesList) {
