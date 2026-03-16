@@ -20,7 +20,15 @@ import {
   Code,
   Type,
   Palette,
+  Table,
+  ChevronRight,
+  Info,
+  ImageIcon,
+  Minus,
+  Highlighter,
+  type LucideIcon,
 } from "lucide-react";
+import { slashCommandItems, filterSlashCommands, type SlashCommandItem } from "./slash-command";
 
 /* ── Constants ── */
 
@@ -49,6 +57,11 @@ const TURN_INTO = [
   { type: "codeBlock", label: "Code", icon: Code },
 ];
 
+const BLOCK_ICON_MAP: Record<string, LucideIcon> = {
+  Heading1, Heading2, Heading3, List, ListOrdered, Quote, CheckSquare,
+  Table, ChevronRight, Highlighter, Code, Info, ImageIcon, Minus,
+};
+
 /* ── Component ── */
 
 export function BlockHandle({
@@ -71,8 +84,14 @@ export function BlockHandle({
   const [menuSub, setMenuSub] = useState<"main" | "turnInto" | "color">("main");
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [selectedNode, setSelectedNode] = useState<HTMLElement | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerIndex, setPickerIndex] = useState(0);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const pickerInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { menuOpenRef.current = menuOpen; }, [menuOpen]);
+  useEffect(() => { menuOpenRef.current = menuOpen || pickerOpen; }, [menuOpen, pickerOpen]);
 
   /* ── Position helpers ── */
 
@@ -287,15 +306,17 @@ export function BlockHandle({
   /* ── Close menu on outside click ── */
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !pickerOpen) return;
     const onClick = (e: MouseEvent) => {
       const target = e.target as Node;
       if (menuRef.current?.contains(target) || handleRef.current?.contains(target)) return;
-      closeMenu();
+      if (pickerRef.current?.contains(target)) return;
+      if (menuOpen) closeMenu();
+      if (pickerOpen) { setPickerOpen(false); setPickerQuery(""); menuBlockEl.current = null; }
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [menuOpen]);
+  }, [menuOpen, pickerOpen]);
 
   /* ── Clear selection on editor interaction ── */
 
@@ -340,12 +361,41 @@ export function BlockHandle({
   const handleAddBlock = useCallback(() => {
     const node = currentBlock.current;
     if (!node) return;
+
+    menuBlockEl.current = node;
+    const scrollRect = scrollContainer.getBoundingClientRect();
+    const blockRect = node.getBoundingClientRect();
+    const pmRect = editor.view.dom.getBoundingClientRect();
+    setPickerPos({
+      top: blockRect.bottom - scrollRect.top + scrollContainer.scrollTop + 4,
+      left: pmRect.left - scrollRect.left,
+    });
+    setPickerQuery("");
+    setPickerIndex(0);
+    setPickerOpen(true);
+    // Focus input after render
+    setTimeout(() => pickerInputRef.current?.focus(), 50);
+  }, [editor, scrollContainer]);
+
+  const executeBlockCommand = useCallback((item: SlashCommandItem) => {
+    const node = menuBlockEl.current || currentBlock.current;
+    if (!node) return;
     const pos = resolveBlockPos(node);
     if (pos === null) return;
     const pmNode = editor.state.doc.nodeAt(pos);
     if (!pmNode) return;
+
+    // Insert a paragraph below the current block, then execute the command on it
     const endPos = pos + pmNode.nodeSize;
     editor.chain().focus().insertContentAt(endPos, { type: "paragraph" }).setTextSelection(endPos + 1).run();
+
+    // Execute the slash command — create a fake range for the new empty paragraph
+    const newPos = endPos + 1; // inside the new paragraph
+    item.command({ editor, range: { from: newPos, to: newPos } });
+
+    setPickerOpen(false);
+    setPickerQuery("");
+    menuBlockEl.current = null;
   }, [editor, resolveBlockPos]);
 
   const handleGripMenu = useCallback(() => {
@@ -569,9 +619,127 @@ export function BlockHandle({
           )}
         </div>
       )}
+
+      {/* Block picker — opened by + button */}
+      {pickerOpen && (
+        <BlockPicker
+          ref={pickerRef}
+          inputRef={pickerInputRef}
+          query={pickerQuery}
+          selectedIndex={pickerIndex}
+          position={pickerPos}
+          onQueryChange={(q) => { setPickerQuery(q); setPickerIndex(0); }}
+          onIndexChange={setPickerIndex}
+          onSelect={executeBlockCommand}
+          onClose={() => { setPickerOpen(false); setPickerQuery(""); menuBlockEl.current = null; }}
+        />
+      )}
     </>
   );
 }
+
+/* ── Block Picker ── */
+
+const BlockPicker = React.forwardRef<
+  HTMLDivElement,
+  {
+    inputRef: React.RefObject<HTMLInputElement | null>;
+    query: string;
+    selectedIndex: number;
+    position: { top: number; left: number };
+    onQueryChange: (q: string) => void;
+    onIndexChange: (i: number) => void;
+    onSelect: (item: SlashCommandItem) => void;
+    onClose: () => void;
+  }
+>(({ inputRef, query, selectedIndex, position, onQueryChange, onIndexChange, onSelect, onClose }, ref) => {
+  const items = filterSlashCommands(query);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      onIndexChange((selectedIndex + 1) % Math.max(items.length, 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      onIndexChange((selectedIndex + items.length - 1) % Math.max(items.length, 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (items[selectedIndex]) onSelect(items[selectedIndex]);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="absolute z-50 w-72 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl animate-fade-in-up overflow-hidden"
+      style={{ top: position.top, left: position.left }}
+    >
+      {/* Filter input */}
+      <div className="px-3 pt-3 pb-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type to filter..."
+          className="w-full rounded-lg bg-black/[0.04] dark:bg-white/[0.04] px-3 py-2 text-sm text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 outline-none border border-transparent focus:border-black/10 dark:focus:border-white/10 transition-colors"
+        />
+      </div>
+
+      {/* Block list */}
+      <div className="max-h-[320px] overflow-y-auto px-1.5 pb-1.5">
+        <p className="px-2 pt-1 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+          Basic blocks
+        </p>
+        {items.length === 0 ? (
+          <p className="px-3 py-4 text-xs text-black/30 dark:text-white/30 text-center">No blocks found</p>
+        ) : (
+          items.map((item, index) => {
+            const Icon = BLOCK_ICON_MAP[item.icon];
+            return (
+              <button
+                key={item.title}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onSelect(item)}
+                onMouseEnter={() => onIndexChange(index)}
+                className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                  index === selectedIndex
+                    ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white"
+                    : "text-black/70 dark:text-white/70 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+                }`}
+              >
+                {Icon && (
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    index === selectedIndex
+                      ? "bg-black/10 text-black/80 dark:bg-white/10 dark:text-white"
+                      : "bg-black/[0.04] text-black/35 dark:bg-white/[0.04] dark:text-white/35"
+                  }`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                )}
+                <div>
+                  <p className="text-[13px] font-medium">{item.title}</p>
+                  <p className="text-[10px] text-black/40 dark:text-white/40">{item.description}</p>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-black/6 dark:border-white/6 px-3 py-2 flex items-center justify-between">
+        <span className="text-[10px] text-black/25 dark:text-white/25">Close menu</span>
+        <kbd className="text-[10px] text-black/25 dark:text-white/25 rounded border border-black/10 dark:border-white/10 px-1.5 py-0.5">esc</kbd>
+      </div>
+    </div>
+  );
+});
+BlockPicker.displayName = "BlockPicker";
 
 function MenuBtn({ onClick, destructive, dim, children }: { onClick: () => void; destructive?: boolean; dim?: boolean; children: React.ReactNode }) {
   return (
