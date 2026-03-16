@@ -100,6 +100,23 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    // Bootstrap: ensure CEO, CTO, CRO agent configs exist for team scorecards
+    const defaultRoles = [
+      { roleId: "ceo", name: "Chief Executive Officer", title: "CEO", color: "#c9a84c", description: "Strategic oversight, vision alignment, and team performance", systemPrompt: "You are the CEO AI agent. Focus on strategic alignment, company vision, team performance, and overall business health." },
+      { roleId: "cto", name: "Chief Technology Officer", title: "CTO", color: "#3b82f6", description: "Technical execution, development velocity, and engineering quality", systemPrompt: "You are the CTO AI agent. Focus on development velocity, code quality, technical debt, and shipping cadence." },
+      { roleId: "cro", name: "Chief Revenue Officer", title: "CRO", color: "#10b981", description: "Revenue generation, sales performance, and pipeline health", systemPrompt: "You are the CRO AI agent. Focus on sales pipeline, call outcomes, win rates, and revenue trajectory." },
+    ];
+    const existingRoleIds = new Set(agentConfigs.map((a) => a.roleId));
+    const missingRoles = defaultRoles.filter((r) => !existingRoleIds.has(r.roleId));
+    if (missingRoles.length > 0) {
+      const created = await db.agentConfig.createManyAndReturn({
+        data: missingRoles.map((r) => ({ workspaceId, createdBy: userId, ...r })),
+      });
+      for (const c of created) {
+        agentConfigs.push({ id: c.id, name: c.name, title: c.title, color: c.color, avatar: c.avatar, roleId: c.roleId });
+      }
+    }
+
     // Gather all user IDs for name resolution
     const userIdSet = new Set<string>();
     for (const d of recentDocs) if (d.createdBy) userIdSet.add(d.createdBy);

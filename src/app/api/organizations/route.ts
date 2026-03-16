@@ -67,7 +67,43 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 4. Generate a default invite code for this workspace
+    // 4. Seed default agent configs (CEO, CTO, CRO) for the team scorecard
+    await db.agentConfig.createMany({
+      data: [
+        {
+          workspaceId: workspace.id,
+          roleId: "ceo",
+          name: "Chief Executive Officer",
+          title: "CEO",
+          color: "#c9a84c",
+          description: "Strategic oversight, vision alignment, and team performance",
+          systemPrompt: "You are the CEO AI agent. Focus on strategic alignment, company vision, team performance, and overall business health. Analyze activity for signal vs noise, identify what matters most, and recommend where leadership attention should go.",
+          createdBy: userId,
+        },
+        {
+          workspaceId: workspace.id,
+          roleId: "cto",
+          name: "Chief Technology Officer",
+          title: "CTO",
+          color: "#3b82f6",
+          description: "Technical execution, development velocity, and engineering quality",
+          systemPrompt: "You are the CTO AI agent. Focus on development velocity, code quality, technical debt, shipping cadence, and engineering team productivity. Analyze commits, documentation, and technical decisions.",
+          createdBy: userId,
+        },
+        {
+          workspaceId: workspace.id,
+          roleId: "cro",
+          name: "Chief Revenue Officer",
+          title: "CRO",
+          color: "#10b981",
+          description: "Revenue generation, sales performance, and pipeline health",
+          systemPrompt: "You are the CRO AI agent. Focus on sales pipeline, call outcomes, win rates, revenue trajectory, and go-to-market effectiveness. Analyze call logs, deal progress, and revenue-generating activities.",
+          createdBy: userId,
+        },
+      ],
+    });
+
+    // 5. Generate a default invite code for this workspace
     const chars = "abcdefghjkmnpqrstuvwxyz23456789";
     let code = "";
     for (let i = 0; i < 6; i++) {
