@@ -37,6 +37,7 @@ import {
   filterSlashCommands,
 } from "./menus/slash-command";
 import { BlockToolbar } from "./menus/BlockToolbar";
+import { BlockHandle } from "./menus/BlockHandle";
 import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
@@ -189,6 +190,7 @@ export function MarkedUpEditor({
     <div className="relative w-full">
       <EditorContent editor={editor} />
       {editor && <BlockToolbar editor={editor} />}
+      {editor && <BlockHandle editor={editor} />}
       <FloatingComposer editor={editor} />
       <FloatingThreads editor={editor} threads={threads} />
       <AnchoredThreads editor={editor} threads={threads} />
