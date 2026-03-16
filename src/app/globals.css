@@ -516,6 +516,57 @@
   opacity: 0.15;
 }
 
+/* ── Block hover highlight + drag handle ── */
+
+.ProseMirror > * {
+  position: relative;
+  border-radius: 0.25rem;
+  transition: background-color 0.15s ease;
+}
+
+.ProseMirror > *:hover {
+  background-color: rgba(0, 0, 0, 0.025);
+}
+.dark .ProseMirror > *:hover {
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+/* Drag handle — invisible by default, appears on hover */
+.ProseMirror > *::before {
+  content: "⠿";
+  position: absolute;
+  left: -1.5rem;
+  top: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  color: transparent;
+  cursor: grab;
+  user-select: none;
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+.ProseMirror > *:hover::before {
+  color: rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+.dark .ProseMirror > *:hover::before {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* Brighter on direct handle hover */
+.ProseMirror > *:hover::before:hover {
+  color: rgba(0, 0, 0, 0.45);
+}
+.dark .ProseMirror > *:hover::before:hover {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Suppress handle on blocks that don't need it */
+.ProseMirror > .tableWrapper::before,
+.ProseMirror > hr::before {
+  display: none;
+}
+
 /* ── Placeholder styles ── */
 
 .ProseMirror p.is-editor-empty:first-child::before {
