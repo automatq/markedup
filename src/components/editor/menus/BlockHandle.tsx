@@ -250,12 +250,24 @@ export function BlockHandle({
       const sourceNode = editor.state.doc.nodeAt(sourcePos);
       const targetNode = editor.state.doc.nodeAt(targetPos);
       if (!sourceNode || !targetNode) {
+        // Fallback: use stored nodeJson instead of reading from doc
+        // This handles cases where posAtDOM resolved slightly off
+        const targetSize = targetNode?.nodeSize ?? 2;
+        const insertAt = position === "before" ? targetPos : targetPos + targetSize;
+        // Just insert without deleting (safer fallback)
+        editor.chain().focus().insertContentAt(insertAt, nodeJson).run();
         handleDragEnd();
         return;
       }
 
       const sourceSize = sourceNode.nodeSize;
       const targetSize = targetNode.nodeSize;
+
+      // Same block? Skip
+      if (sourcePos === targetPos) {
+        handleDragEnd();
+        return;
+      }
 
       // Calculate insertion point
       const insertAt = position === "before" ? targetPos : targetPos + targetSize;
@@ -293,13 +305,24 @@ export function BlockHandle({
       dropTarget.current = null;
     };
 
+    // Also prevent ProseMirror from handling drops during our block drag
+    const onPmDrop = (e: DragEvent) => {
+      if (dragData.current) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
     scrollContainer.addEventListener("dragover", onDragOver);
     scrollContainer.addEventListener("drop", onDrop);
     scrollContainer.addEventListener("dragleave", onDragLeave);
+    // Capture phase on PM to prevent its drop handler
+    pm.addEventListener("drop", onPmDrop, true);
     return () => {
       scrollContainer.removeEventListener("dragover", onDragOver);
       scrollContainer.removeEventListener("drop", onDrop);
       scrollContainer.removeEventListener("dragleave", onDragLeave);
+      pm.removeEventListener("drop", onPmDrop, true);
     };
   }, [editor, scrollContainer, hideHandle, handleDragEnd]);
 
@@ -335,8 +358,34 @@ export function BlockHandle({
 
   const resolveBlockPos = useCallback((node: HTMLElement): number | null => {
     try {
-      const pos = editor.view.posAtDOM(node, 0);
-      return editor.state.doc.resolve(pos).before(1);
+      // Try posAtDOM with offset 0 first
+      let pos = editor.view.posAtDOM(node, 0);
+      let resolved = editor.state.doc.resolve(pos);
+
+      // If depth >= 1, we can get the top-level block position
+      if (resolved.depth >= 1) return resolved.before(1);
+
+      // Fallback: try with a child text node inside the element
+      const textNode = node.querySelector("*");
+      if (textNode) {
+        pos = editor.view.posAtDOM(textNode, 0);
+        resolved = editor.state.doc.resolve(pos);
+        if (resolved.depth >= 1) return resolved.before(1);
+      }
+
+      // Last resort: walk all top-level doc nodes and match by DOM
+      const pm = editor.view.dom;
+      let docPos = 0;
+      for (let i = 0; i < editor.state.doc.childCount; i++) {
+        const child = editor.state.doc.child(i);
+        const domNode = editor.view.nodeDOM(docPos);
+        if (domNode === node || (domNode instanceof HTMLElement && domNode.contains(node))) {
+          return docPos;
+        }
+        docPos += child.nodeSize;
+      }
+
+      return null;
     } catch { return null; }
   }, [editor]);
 
