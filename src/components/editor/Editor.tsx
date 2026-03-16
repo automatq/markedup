@@ -37,7 +37,6 @@ import {
   filterSlashCommands,
 } from "./menus/slash-command";
 import { BlockToolbar } from "./menus/BlockToolbar";
-import { BlockHandle } from "./menus/BlockHandle";
 import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
@@ -172,7 +171,7 @@ export function MarkedUpEditor({
     ],
     editorProps: {
       attributes: {
-        class: `prose prose-sm max-w-none focus:outline-none min-h-[500px] pl-10 pr-4 py-6 text-black dark:text-white/85 prose-headings:text-black dark:prose-headings:text-white/90 prose-p:text-black/80 dark:prose-p:text-white/75 prose-strong:text-black dark:prose-strong:text-white/90 prose-code:text-black/70 dark:prose-code:text-white/70 prose-code:bg-black/5 dark:prose-code:bg-white/5 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-blockquote:border-black/15 dark:prose-blockquote:border-white/15 prose-blockquote:text-black/60 dark:prose-blockquote:text-white/50 prose-hr:border-black/8 dark:prose-hr:border-white/10 ${className ?? ""}`,
+        class: `prose prose-sm max-w-none focus:outline-none min-h-[500px] px-4 py-6 text-black dark:text-white/85 prose-headings:text-black dark:prose-headings:text-white/90 prose-p:text-black/80 dark:prose-p:text-white/75 prose-strong:text-black dark:prose-strong:text-white/90 prose-code:text-black/70 dark:prose-code:text-white/70 prose-code:bg-black/5 dark:prose-code:bg-white/5 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-blockquote:border-black/15 dark:prose-blockquote:border-white/15 prose-blockquote:text-black/60 dark:prose-blockquote:text-white/50 prose-hr:border-black/8 dark:prose-hr:border-white/10 ${className ?? ""}`,
       },
     },
     immediatelyRender: false,
@@ -190,7 +189,6 @@ export function MarkedUpEditor({
     <div className="relative w-full">
       <EditorContent editor={editor} />
       {editor && <BlockToolbar editor={editor} />}
-      {editor && <BlockHandle editor={editor} />}
       <FloatingComposer editor={editor} />
       <FloatingThreads editor={editor} threads={threads} />
       <AnchoredThreads editor={editor} threads={threads} />
