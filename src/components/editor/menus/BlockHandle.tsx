@@ -59,7 +59,7 @@ export function BlockHandle({ editor }: BlockHandleProps) {
   const menuBlock = useRef<{ node: HTMLElement; pos: number } | null>(null);
   const rafId = useRef(0);
   const menuOpenRef = useRef(false);
-  const dragSource = useRef<{ pos: number; node: HTMLElement } | null>(null);
+  const dragSource = useRef<{ nodeJson: any; domNode: HTMLElement; markerId: string } | null>(null);
 
   // React state only for menu rendering
   const [menuOpen, setMenuOpen] = useState(false);
@@ -245,8 +245,6 @@ export function BlockHandle({ editor }: BlockHandleProps) {
       .insertContentAt(endPos, { type: "paragraph" })
       .setTextSelection(endPos + 1)
       .run();
-    // Open slash commands
-    setTimeout(() => editor.commands.insertContent("/"), 50);
   }, [editor]);
 
   const handleGripClick = useCallback(() => {
@@ -367,73 +365,113 @@ export function BlockHandle({ editor }: BlockHandleProps) {
     [editor, getBlock, closeMenu]
   );
 
-  // Drag and drop
+  // Drag and drop — store node JSON + marker at dragstart, resolve fresh positions at drop
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
       const block = currentBlock.current;
       if (!block) return;
-      dragSource.current = { pos: block.pos, node: block.node };
+      const node = editor.state.doc.nodeAt(block.pos);
+      if (!node) return;
+
+      // Mark the DOM node so we can find it at drop time
+      const markerId = `drag-${Date.now()}`;
+      block.node.dataset.dragMarker = markerId;
+
+      dragSource.current = {
+        nodeJson: node.toJSON(),
+        domNode: block.node,
+        markerId,
+      };
+
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", "");
+      e.dataTransfer.setData("application/x-block-drag", markerId);
       e.dataTransfer.setDragImage(block.node, 0, 0);
       block.node.style.opacity = "0.4";
+
+      // Prevent ProseMirror's native drag handler from interfering
+      e.stopPropagation();
     },
-    []
+    [editor]
   );
 
   const onDragEnd = useCallback(() => {
     if (dragSource.current) {
-      dragSource.current.node.style.opacity = "";
+      dragSource.current.domNode.style.opacity = "";
+      delete dragSource.current.domNode.dataset.dragMarker;
       dragSource.current = null;
     }
   }, []);
 
   useEffect(() => {
     const editorDom = editor.view.dom;
+
     const onDragOver = (e: DragEvent) => {
-      if (!dragSource.current) return;
+      if (!e.dataTransfer?.types.includes("application/x-block-drag")) return;
       e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      e.dataTransfer.dropEffect = "move";
     };
+
     const onDrop = (e: DragEvent) => {
       if (!dragSource.current) return;
+      if (!e.dataTransfer?.types.includes("application/x-block-drag")) return;
       e.preventDefault();
-      const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
-      if (!pos) return;
-      try {
-        const resolved = editor.state.doc.resolve(pos.pos);
-        if (resolved.depth < 1) return;
-        const targetPos = resolved.before(1);
-        const sourcePos = dragSource.current.pos;
-        const sourceNode = editor.state.doc.nodeAt(sourcePos);
-        if (!sourceNode || targetPos === sourcePos) return;
-        const sourceSize = sourceNode.nodeSize;
-        if (targetPos < sourcePos) {
-          editor.chain().focus()
-            .deleteRange({ from: sourcePos, to: sourcePos + sourceSize })
-            .insertContentAt(targetPos, sourceNode.toJSON())
-            .run();
-        } else {
-          editor.chain().focus()
-            .deleteRange({ from: sourcePos, to: sourcePos + sourceSize })
-            .insertContentAt(targetPos - sourceSize, sourceNode.toJSON())
-            .run();
-        }
-      } catch {
-        // Invalid drop target
+      e.stopPropagation();
+
+      const { nodeJson, domNode, markerId } = dragSource.current;
+
+      // Find the source block's CURRENT position by locating the marked DOM node
+      const markedEl = editorDom.querySelector(`[data-drag-marker="${markerId}"]`);
+      if (!markedEl) return;
+
+      // Get fresh source position from the DOM node
+      const sourcePos = editor.view.posAtDOM(markedEl, 0);
+      const resolvedSource = editor.state.doc.resolve(sourcePos);
+      const sourceBlockPos = resolvedSource.before(1);
+      const sourceNode = editor.state.doc.nodeAt(sourceBlockPos);
+      if (!sourceNode) return;
+
+      // Get target position from drop coordinates
+      const dropPos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+      if (!dropPos) return;
+
+      const resolvedTarget = editor.state.doc.resolve(dropPos.pos);
+      if (resolvedTarget.depth < 1) return;
+      const targetBlockPos = resolvedTarget.before(1);
+
+      // Don't drop on self
+      if (targetBlockPos === sourceBlockPos) return;
+
+      const sourceSize = sourceNode.nodeSize;
+
+      // Execute in correct order depending on direction
+      if (targetBlockPos < sourceBlockPos) {
+        // Moving up: delete source first (higher pos), then insert at target
+        editor.chain().focus()
+          .deleteRange({ from: sourceBlockPos, to: sourceBlockPos + sourceSize })
+          .insertContentAt(targetBlockPos, nodeJson)
+          .run();
+      } else {
+        // Moving down: delete source first, then insert at adjusted target
+        editor.chain().focus()
+          .deleteRange({ from: sourceBlockPos, to: sourceBlockPos + sourceSize })
+          .insertContentAt(targetBlockPos - sourceSize, nodeJson)
+          .run();
       }
-      if (dragSource.current) {
-        dragSource.current.node.style.opacity = "";
-        dragSource.current = null;
-      }
+
+      // Cleanup
+      domNode.style.opacity = "";
+      delete domNode.dataset.dragMarker;
+      dragSource.current = null;
+      hideHandle();
     };
+
     editorDom.addEventListener("dragover", onDragOver);
     editorDom.addEventListener("drop", onDrop);
     return () => {
       editorDom.removeEventListener("dragover", onDragOver);
       editorDom.removeEventListener("drop", onDrop);
     };
-  }, [editor]);
+  }, [editor, hideHandle]);
 
   // ── Render ──
 
@@ -443,7 +481,7 @@ export function BlockHandle({ editor }: BlockHandleProps) {
       <div
         ref={handleRef}
         className="absolute z-30 flex items-center gap-0.5"
-        style={{ top: 0, left: 0, opacity: 0, pointerEvents: "none", transition: "opacity 0.1s ease" }}
+        style={{ top: 0, left: 4, opacity: 0, pointerEvents: "none", transition: "opacity 0.1s ease" }}
         onMouseLeave={(e) => {
           // If leaving handle and not entering menu or editor, hide
           const related = e.relatedTarget as Node | null;
@@ -481,7 +519,7 @@ export function BlockHandle({ editor }: BlockHandleProps) {
         <div
           ref={menuContainerRef}
           className="absolute z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up py-1 w-48"
-          style={{ top: menuTop, left: 0 }}
+          style={{ top: menuTop, left: 4 }}
         >
           {menuSub === "turnInto" ? (
             <>
