@@ -62,7 +62,6 @@ export async function GET(request: NextRequest) {
     }
 
     const results = users
-      .filter((u) => u.id !== userId) // exclude self from mentions
       .map((u) => ({
         id: u.id,
         name:
