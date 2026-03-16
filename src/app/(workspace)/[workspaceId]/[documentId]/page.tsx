@@ -37,7 +37,6 @@ import { AgentsPanel } from "@/components/panels/AgentsPanel";
 import { BreakoutPanel } from "@/components/panels/BreakoutPanel";
 import { PresentationMode } from "@/components/PresentationMode";
 import { PenLine, Grid3X3, ArrowUpRight } from "lucide-react";
-import { BlockHandle } from "@/components/editor/menus/BlockHandle";
 
 /**
  * Inner document content — rendered inside RoomProvider.
@@ -401,11 +400,6 @@ function DocumentInner({
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto relative"
         >
-          {/* Block handle — lives in the scroll container, positioned in the page margin */}
-          {editorRef.current && scrollRef.current && (
-            <BlockHandle editor={editorRef.current} scrollContainer={scrollRef.current} />
-          )}
-
           {/* Scroll progress indicator */}
           <div className="sticky top-0 left-0 right-0 h-[2px] z-30 bg-transparent">
             <div

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -15,6 +15,8 @@ import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import Color from "@tiptap/extension-color";
 import tippy, { Instance as TippyInstance } from "tippy.js";
+import DragHandle from "@tiptap/extension-drag-handle-react";
+import { Node as PmNode } from "@tiptap/pm/model";
 import {
   useLiveblocksExtension,
   FloatingComposer,
@@ -37,12 +39,13 @@ import {
   filterSlashCommands,
 } from "./menus/slash-command";
 import { BlockToolbar } from "./menus/BlockToolbar";
+import { BlockHandleContent } from "./menus/BlockHandle";
 import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
 
 interface EditorProps {
-  initialContent?: any; // kept for API compatibility but no longer passed to Liveblocks
+  initialContent?: any;
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
@@ -53,18 +56,16 @@ export function MarkedUpEditor({
   editable = true,
   onEditorReady,
 }: EditorProps) {
-  // Liveblocks extension handles Yjs sync, cursors, comments, mentions.
-  // Do NOT pass initialContent here — it causes a race condition where stale
-  // DB content overwrites the live Yjs document when a second user joins.
-  // The primary content delivery is server-side Yjs pre-seeding done in
-  // POST /api/documents. If the Yjs doc is empty, users see a blank editor
-  // (which is correct — they can start typing).
   const liveblocks = useLiveblocksExtension({
     comments: true,
     mentions: true,
   });
 
   const { threads } = useThreads();
+
+  // Track the currently hovered node from DragHandle
+  const [currentNode, setCurrentNode] = useState<PmNode | null>(null);
+  const [currentNodePos, setCurrentNodePos] = useState(-1);
 
   const editor = useEditor({
     extensions: [
@@ -171,7 +172,7 @@ export function MarkedUpEditor({
     ],
     editorProps: {
       attributes: {
-        class: `prose prose-sm max-w-none focus:outline-none min-h-[500px] pl-16 pr-4 py-6 text-black dark:text-white/85 prose-headings:text-black dark:prose-headings:text-white/90 prose-p:text-black/80 dark:prose-p:text-white/75 prose-strong:text-black dark:prose-strong:text-white/90 prose-code:text-black/70 dark:prose-code:text-white/70 prose-code:bg-black/5 dark:prose-code:bg-white/5 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-blockquote:border-black/15 dark:prose-blockquote:border-white/15 prose-blockquote:text-black/60 dark:prose-blockquote:text-white/50 prose-hr:border-black/8 dark:prose-hr:border-white/10 ${className ?? ""}`,
+        class: `prose prose-sm max-w-none focus:outline-none min-h-[500px] px-4 py-6 text-black dark:text-white/85 prose-headings:text-black dark:prose-headings:text-white/90 prose-p:text-black/80 dark:prose-p:text-white/75 prose-strong:text-black dark:prose-strong:text-white/90 prose-code:text-black/70 dark:prose-code:text-white/70 prose-code:bg-black/5 dark:prose-code:bg-white/5 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-blockquote:border-black/15 dark:prose-blockquote:border-white/15 prose-blockquote:text-black/60 dark:prose-blockquote:text-white/50 prose-hr:border-black/8 dark:prose-hr:border-white/10 ${className ?? ""}`,
       },
     },
     immediatelyRender: false,
@@ -188,6 +189,26 @@ export function MarkedUpEditor({
   return (
     <div className="relative w-full">
       <EditorContent editor={editor} />
+
+      {/* Official Tiptap DragHandle — handles hover, positioning, drag-and-drop natively */}
+      {editor && (
+        <DragHandle
+          editor={editor}
+          onNodeChange={({ node, pos }: { node: PmNode | null; pos: number }) => {
+            setCurrentNode(node);
+            setCurrentNodePos(pos);
+          }}
+        >
+          <div className="flex items-center gap-1">
+            <BlockHandleContent
+              editor={editor}
+              currentNode={currentNode}
+              currentNodePos={currentNodePos}
+            />
+          </div>
+        </DragHandle>
+      )}
+
       {editor && <BlockToolbar editor={editor} />}
       <FloatingComposer editor={editor} />
       <FloatingThreads editor={editor} threads={threads} />
