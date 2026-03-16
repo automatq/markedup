@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -64,8 +64,20 @@ export function MarkedUpEditor({
   const { threads } = useThreads();
 
   // Track the currently hovered node from DragHandle
+  // Use refs to avoid re-renders on every Yjs sync — only update state when node actually changes
   const [currentNode, setCurrentNode] = useState<PmNode | null>(null);
   const [currentNodePos, setCurrentNodePos] = useState(-1);
+  const lastNodeRef = useRef<PmNode | null>(null);
+  const lastPosRef = useRef(-1);
+
+  const handleNodeChange = useCallback(({ node, pos }: { node: PmNode | null; pos: number }) => {
+    // Skip if same node at same position — prevents re-render storms during collab sync
+    if (node === lastNodeRef.current && pos === lastPosRef.current) return;
+    lastNodeRef.current = node;
+    lastPosRef.current = pos;
+    setCurrentNode(node);
+    setCurrentNodePos(pos);
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -194,10 +206,7 @@ export function MarkedUpEditor({
       {editor && (
         <DragHandle
           editor={editor}
-          onNodeChange={({ node, pos }: { node: PmNode | null; pos: number }) => {
-            setCurrentNode(node);
-            setCurrentNodePos(pos);
-          }}
+          onNodeChange={handleNodeChange}
         >
           <div className="flex items-center gap-1">
             <BlockHandleContent
