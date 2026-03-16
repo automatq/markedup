@@ -214,6 +214,7 @@ export function MarkedUpEditor({
         <DragHandle
           editor={editor}
           onNodeChange={handleNodeChange}
+          nested={{ edgeDetection: { threshold: -16 } }}
         >
           <div className="flex items-center gap-1">
             <BlockHandleContent
