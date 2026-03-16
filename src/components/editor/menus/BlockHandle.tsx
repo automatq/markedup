@@ -49,10 +49,8 @@ const TURN_INTO = [
   { type: "codeBlock", label: "Code", icon: Code },
 ];
 
-/* ── Component ──
- * Rendered in the document page scroll container (NOT inside the editor).
- * Positioned in the left margin of the centered content area.
- */
+/* ── Component ── */
+
 export function BlockHandle({
   editor,
   scrollContainer,
@@ -65,6 +63,7 @@ export function BlockHandle({
   const currentBlock = useRef<HTMLElement | null>(null);
   const menuBlockEl = useRef<HTMLElement | null>(null);
   const menuOpenRef = useRef(false);
+  const handleVisible = useRef(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSub, setMenuSub] = useState<"main" | "turnInto" | "color">("main");
@@ -73,105 +72,90 @@ export function BlockHandle({
 
   useEffect(() => { menuOpenRef.current = menuOpen; }, [menuOpen]);
 
-  /* ── Position helpers ── */
+  /* ── Direct DOM helpers ── */
 
-  const getHandlePosition = useCallback((blockEl: HTMLElement) => {
+  const positionHandle = useCallback((blockEl: HTMLElement) => {
+    if (!handleRef.current) return;
     const scrollRect = scrollContainer.getBoundingClientRect();
     const blockRect = blockEl.getBoundingClientRect();
-    const proseMirror = editor.view.dom;
-    const pmRect = proseMirror.getBoundingClientRect();
+    const pmRect = editor.view.dom.getBoundingClientRect();
 
-    return {
-      top: blockRect.top - scrollRect.top + scrollContainer.scrollTop,
-      left: pmRect.left - scrollRect.left - 52, // 52px to the left of editor content
-    };
+    handleRef.current.style.top = `${blockRect.top - scrollRect.top + scrollContainer.scrollTop}px`;
+    handleRef.current.style.left = `${pmRect.left - scrollRect.left - 58}px`;
   }, [editor, scrollContainer]);
-
-  const hideHandle = useCallback(() => {
-    if (handleRef.current) {
-      handleRef.current.style.opacity = "0";
-      handleRef.current.style.pointerEvents = "none";
-    }
-    if (currentBlock.current) {
-      currentBlock.current.classList.remove("block-hover-active");
-      currentBlock.current = null;
-    }
-  }, []);
 
   const showHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
 
-    // Swap highlight
+    // Swap highlight class
     if (currentBlock.current && currentBlock.current !== blockEl) {
       currentBlock.current.classList.remove("block-hover-active");
     }
     blockEl.classList.add("block-hover-active");
     currentBlock.current = blockEl;
 
-    const pos = getHandlePosition(blockEl);
-    handleRef.current.style.top = `${pos.top}px`;
-    handleRef.current.style.left = `${pos.left}px`;
+    positionHandle(blockEl);
     handleRef.current.style.opacity = "1";
     handleRef.current.style.pointerEvents = "auto";
-  }, [getHandlePosition]);
+    handleVisible.current = true;
+  }, [positionHandle]);
 
-  /* ── Hover detection: mousemove on scroll container ── */
+  const hideHandle = useCallback(() => {
+    if (!handleRef.current) return;
+    handleRef.current.style.opacity = "0";
+    handleRef.current.style.pointerEvents = "none";
+    handleVisible.current = false;
+    if (currentBlock.current) {
+      currentBlock.current.classList.remove("block-hover-active");
+      currentBlock.current = null;
+    }
+  }, []);
+
+  /* ── Hover detection: mouseover delegation on .ProseMirror ── */
 
   useEffect(() => {
-    const proseMirror = editor.view.dom;
+    const pm = editor.view.dom;
 
-    const findBlockAtY = (clientY: number): HTMLElement | null => {
-      const children = proseMirror.children;
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i] as HTMLElement;
-        const rect = child.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) {
-          return child;
-        }
+    const findDirectChild = (target: HTMLElement): HTMLElement | null => {
+      // Walk up from target to find the direct child of .ProseMirror
+      let el: HTMLElement | null = target;
+      while (el && el.parentElement !== pm) {
+        el = el.parentElement;
       }
-      return null;
+      return el;
     };
 
-    const onMouseMove = (e: MouseEvent) => {
+    const onMouseOver = (e: MouseEvent) => {
       if (menuOpenRef.current) return;
+      const target = e.target as HTMLElement;
+      if (target === pm) return; // Hovering the editor padding, not a block
 
-      // Check if mouse is in the content area (horizontally)
-      const pmRect = proseMirror.getBoundingClientRect();
-      if (
-        e.clientX < pmRect.left - 60 ||
-        e.clientX > pmRect.right + 10 ||
-        e.clientY < pmRect.top ||
-        e.clientY > pmRect.bottom
-      ) {
-        hideHandle();
-        return;
-      }
+      const block = findDirectChild(target);
+      if (!block) return;
+      if (currentBlock.current === block) return; // Same block, skip
 
-      const found = findBlockAtY(e.clientY);
-      if (!found) {
-        hideHandle();
-        return;
-      }
-
-      if (currentBlock.current === found) return; // Same block, skip
-
-      showHandle(found);
+      showHandle(block);
     };
 
-    const onMouseLeave = () => {
-      if (!menuOpenRef.current) hideHandle();
+    const onMouseLeave = (e: MouseEvent) => {
+      if (menuOpenRef.current) return;
+      const related = e.relatedTarget as Node | null;
+      // Don't hide if moving to the handle or menu
+      if (related && handleRef.current?.contains(related)) return;
+      if (related && menuRef.current?.contains(related)) return;
+      hideHandle();
     };
 
-    scrollContainer.addEventListener("mousemove", onMouseMove);
-    scrollContainer.addEventListener("mouseleave", onMouseLeave);
+    pm.addEventListener("mouseover", onMouseOver);
+    pm.addEventListener("mouseleave", onMouseLeave);
 
     return () => {
-      scrollContainer.removeEventListener("mousemove", onMouseMove);
-      scrollContainer.removeEventListener("mouseleave", onMouseLeave);
+      pm.removeEventListener("mouseover", onMouseOver);
+      pm.removeEventListener("mouseleave", onMouseLeave);
       currentBlock.current?.classList.remove("block-hover-active");
       currentBlock.current = null;
     };
-  }, [editor, scrollContainer, hideHandle, showHandle]);
+  }, [editor, showHandle, hideHandle]);
 
   /* ── Close menu on outside click ── */
 
@@ -204,12 +188,9 @@ export function BlockHandle({
   const resolveBlockPos = useCallback((node: HTMLElement): number | null => {
     try {
       const pos = editor.view.posAtDOM(node, 0);
-      const resolved = editor.state.doc.resolve(pos);
-      return resolved.before(1);
+      return editor.state.doc.resolve(pos).before(1);
     } catch { return null; }
   }, [editor]);
-
-  /* ── Actions ── */
 
   const getBlock = useCallback((): { node: HTMLElement; pos: number } | null => {
     const node = menuBlockEl.current || currentBlock.current;
@@ -218,6 +199,8 @@ export function BlockHandle({
     if (pos === null) return null;
     return { node, pos };
   }, [resolveBlockPos]);
+
+  /* ── Actions ── */
 
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
@@ -249,16 +232,20 @@ export function BlockHandle({
     setSelectedNode(node);
 
     try {
-      const tr = editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos));
-      editor.view.dispatch(tr);
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
     } catch {}
 
     menuBlockEl.current = node;
-    const handlePos = getHandlePosition(node);
-    setMenuPos({ top: handlePos.top + 28, left: handlePos.left });
+    const scrollRect = scrollContainer.getBoundingClientRect();
+    const blockRect = node.getBoundingClientRect();
+    const pmRect = editor.view.dom.getBoundingClientRect();
+    setMenuPos({
+      top: blockRect.top - scrollRect.top + scrollContainer.scrollTop + 32,
+      left: pmRect.left - scrollRect.left - 58,
+    });
     setMenuOpen(true);
     setMenuSub("main");
-  }, [editor, resolveBlockPos, selectedNode, getHandlePosition]);
+  }, [editor, scrollContainer, resolveBlockPos, selectedNode]);
 
   const handleDelete = useCallback(() => {
     const block = getBlock();
@@ -284,8 +271,7 @@ export function BlockHandle({
     if (!block || block.pos === 0) return;
     const pmNode = editor.state.doc.nodeAt(block.pos);
     if (!pmNode) return;
-    const $prev = editor.state.doc.resolve(block.pos - 1);
-    const prevStart = $prev.before(1);
+    const prevStart = editor.state.doc.resolve(block.pos - 1).before(1);
     editor.chain().focus().deleteRange({ from: block.pos, to: block.pos + pmNode.nodeSize }).insertContentAt(prevStart, pmNode.toJSON()).run();
     closeMenu();
   }, [editor, getBlock, closeMenu]);
@@ -334,26 +320,41 @@ export function BlockHandle({
 
   return (
     <>
-      {/* Handle in page margin — always mounted, visibility via style */}
+      {/* Handle — always mounted, positioned in page margin */}
       <div
         ref={handleRef}
-        className="absolute z-30 flex items-center gap-0.5"
-        style={{ top: 0, left: 0, opacity: 0, pointerEvents: "none", transition: "opacity 0.15s ease" }}
+        className="absolute z-30 flex items-center gap-1"
+        style={{ top: 0, left: 0, opacity: 0, pointerEvents: "none", transition: "opacity 0.12s ease" }}
+        onMouseEnter={() => {
+          // Keep handle visible when mouse enters it
+          if (handleRef.current && currentBlock.current) {
+            handleRef.current.style.opacity = "1";
+            handleRef.current.style.pointerEvents = "auto";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (menuOpenRef.current) return;
+          const related = e.relatedTarget as Node | null;
+          // Don't hide if going back to editor or menu
+          if (related && editor.view.dom.contains(related)) return;
+          if (related && menuRef.current?.contains(related)) return;
+          hideHandle();
+        }}
       >
         <button
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleAddBlock(); }}
-          className="flex h-6 w-6 items-center justify-center rounded text-black/20 dark:text-white/20 hover:text-black/50 dark:hover:text-white/50 hover:bg-black/[0.06] dark:hover:bg-white/[0.06] transition-colors"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-black/35 dark:text-white/35 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] transition-colors"
           title="Add block below"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
         </button>
         <button
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onClick={(e) => { e.preventDefault(); handleGripClick(); }}
-          className="flex h-6 w-6 items-center justify-center rounded text-black/20 dark:text-white/20 hover:text-black/50 dark:hover:text-white/50 hover:bg-black/[0.06] dark:hover:bg-white/[0.06] transition-colors cursor-grab"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-black/35 dark:text-white/35 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] transition-colors cursor-grab"
           title="Click for block menu"
         >
-          <GripVertical className="h-3.5 w-3.5" />
+          <GripVertical className="h-4 w-4" />
         </button>
       </div>
 
@@ -361,30 +362,38 @@ export function BlockHandle({
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up py-1 w-48"
+          className="absolute z-50 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl py-1.5 w-52"
           style={{ top: menuPos.top, left: menuPos.left }}
+          onMouseEnter={() => {
+            if (handleRef.current) {
+              handleRef.current.style.opacity = "1";
+              handleRef.current.style.pointerEvents = "auto";
+            }
+          }}
         >
           {menuSub === "turnInto" ? (
             <>
-              <MenuBtn onClick={() => setMenuSub("main")}>← Back</MenuBtn>
+              <MenuBtn onClick={() => setMenuSub("main")} dim>← Back</MenuBtn>
+              <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
               {TURN_INTO.map((item) => (
                 <MenuBtn key={item.type} onClick={() => handleTurnInto(item.type)}>
-                  <item.icon className="h-3.5 w-3.5 text-black/40 dark:text-white/40" />
+                  <item.icon className="h-4 w-4 text-black/40 dark:text-white/40" />
                   {item.label}
                 </MenuBtn>
               ))}
             </>
           ) : menuSub === "color" ? (
             <>
-              <MenuBtn onClick={() => setMenuSub("main")}>← Back</MenuBtn>
-              <div className="px-3 py-2 grid grid-cols-5 gap-1.5">
+              <MenuBtn onClick={() => setMenuSub("main")} dim>← Back</MenuBtn>
+              <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
+              <div className="px-3 py-2.5 grid grid-cols-5 gap-2">
                 {COLORS.map((c) => (
                   <button
                     key={c.name}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleColor(c.value)}
                     title={c.name}
-                    className="h-6 w-6 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 transition-transform"
+                    className="h-7 w-7 rounded-full border-2 border-black/10 dark:border-white/10 hover:scale-110 hover:border-black/25 dark:hover:border-white/25 transition-all"
                     style={{
                       backgroundColor: c.value || undefined,
                       ...(c.value === "" ? { background: "conic-gradient(from 0deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)" } : {}),
@@ -395,27 +404,29 @@ export function BlockHandle({
             </>
           ) : (
             <>
-              <MenuBtn onClick={handleDelete} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">
-                <Trash2 className="h-3.5 w-3.5" /> Delete
+              <MenuBtn onClick={handleDelete} destructive>
+                <Trash2 className="h-4 w-4" /> Delete
               </MenuBtn>
               <MenuBtn onClick={handleDuplicate}>
-                <Copy className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Duplicate
+                <Copy className="h-4 w-4 text-black/40 dark:text-white/40" /> Duplicate
               </MenuBtn>
               <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
               <MenuBtn onClick={() => setMenuSub("turnInto")}>
-                <Type className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Turn into
-                <span className="ml-auto text-black/25 dark:text-white/25">→</span>
+                <Type className="h-4 w-4 text-black/40 dark:text-white/40" /> Turn into
+                <span className="ml-auto text-[10px] text-black/25 dark:text-white/25">→</span>
               </MenuBtn>
               <MenuBtn onClick={() => setMenuSub("color")}>
-                <Palette className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Color
-                <span className="ml-auto text-black/25 dark:text-white/25">→</span>
+                <Palette className="h-4 w-4 text-black/40 dark:text-white/40" /> Color
+                <span className="ml-auto text-[10px] text-black/25 dark:text-white/25">→</span>
               </MenuBtn>
               <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
               <MenuBtn onClick={handleMoveUp}>
-                <ArrowUp className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Move up
+                <ArrowUp className="h-4 w-4 text-black/40 dark:text-white/40" /> Move up
+                <span className="ml-auto text-[10px] text-black/25 dark:text-white/25">⌘⇧↑</span>
               </MenuBtn>
               <MenuBtn onClick={handleMoveDown}>
-                <ArrowDown className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Move down
+                <ArrowDown className="h-4 w-4 text-black/40 dark:text-white/40" /> Move down
+                <span className="ml-auto text-[10px] text-black/25 dark:text-white/25">⌘⇧↓</span>
               </MenuBtn>
             </>
           )}
@@ -425,12 +436,30 @@ export function BlockHandle({
   );
 }
 
-function MenuBtn({ onClick, className, children }: { onClick: () => void; className?: string; children: React.ReactNode }) {
+/* ── Menu button ── */
+
+function MenuBtn({
+  onClick,
+  destructive,
+  dim,
+  children,
+}: {
+  onClick: () => void;
+  destructive?: boolean;
+  dim?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <button
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${className ?? "text-black/70 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/5"}`}
+      className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${
+        destructive
+          ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+          : dim
+            ? "text-black/40 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5"
+            : "text-black/80 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5"
+      }`}
     >
       {children}
     </button>
