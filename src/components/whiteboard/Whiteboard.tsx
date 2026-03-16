@@ -310,11 +310,13 @@ export function Whiteboard() {
 
       if (tool === "select") return;
 
+      // Pause history so entire stroke/shape is one undo step
+      history.pause();
       setIsDrawing(true);
       setCurrentPoints([pt]);
       setStartPoint(pt);
     },
-    [tool, screenToCanvas]
+    [tool, screenToCanvas, history]
   );
 
   const handleMouseMove = useCallback(
@@ -392,7 +394,9 @@ export function Whiteboard() {
 
     setCurrentPoints([]);
     setStartPoint(null);
-  }, [isDrawing, tool, currentPoints, startPoint, color, strokeWidth, self, addShape, bgColor]);
+    // Resume history so the stroke is captured as one undo step
+    history.resume();
+  }, [isDrawing, tool, currentPoints, startPoint, color, strokeWidth, self, addShape, bgColor, history]);
 
   const handleMouseLeave = useCallback(() => {
     updatePresence(null);
@@ -402,6 +406,7 @@ export function Whiteboard() {
   /* ── Text submit ── */
   const handleTextSubmit = useCallback(() => {
     if (textInput && textValue.trim()) {
+      history.pause();
       addShape({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         type: "text",
@@ -412,10 +417,11 @@ export function Whiteboard() {
         strokeWidth: 16,
         createdBy: self?.id || "",
       });
+      history.resume();
     }
     setTextInput(null);
     setTextValue("");
-  }, [textInput, textValue, color, self, addShape]);
+  }, [textInput, textValue, color, self, addShape, history]);
 
   /* ── Zoom ── */
   const handleWheel = useCallback(
