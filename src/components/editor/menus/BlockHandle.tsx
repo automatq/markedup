@@ -173,7 +173,19 @@ export function BlockHandle({
   const handleDragStart = useCallback((e: React.DragEvent) => {
     const block = currentBlock.current;
     if (!block) return;
-    const pos = resolveBlockPos(block);
+
+    // Inline position resolution
+    let pos: number | null = null;
+    let docPos = 0;
+    for (let i = 0; i < editor.state.doc.childCount; i++) {
+      const child = editor.state.doc.child(i);
+      const domNode = editor.view.nodeDOM(docPos);
+      if (domNode === block || (domNode instanceof HTMLElement && domNode.contains(block))) {
+        pos = docPos;
+        break;
+      }
+      docPos += child.nodeSize;
+    }
     if (pos === null) return;
     const pmNode = editor.state.doc.nodeAt(pos);
     if (!pmNode) return;
@@ -243,9 +255,20 @@ export function BlockHandle({
       const { nodeJson, sourceEl } = dragData.current;
       const { el: targetEl, position } = dropTarget.current;
 
-      // Resolve fresh positions at drop time
-      const sourcePos = resolveBlockPos(sourceEl);
-      const targetPos = resolveBlockPos(targetEl);
+      // Inline position resolution — captures current editor from effect closure
+      const findPos = (targetNode: HTMLElement): number | null => {
+        let dp = 0;
+        for (let i = 0; i < editor.state.doc.childCount; i++) {
+          const child = editor.state.doc.child(i);
+          const domNode = editor.view.nodeDOM(dp);
+          if (domNode === targetNode || (domNode instanceof HTMLElement && domNode.contains(targetNode))) return dp;
+          dp += child.nodeSize;
+        }
+        return null;
+      };
+
+      const sourcePos = findPos(sourceEl);
+      const targetPos = findPos(targetEl);
 
       if (sourcePos === null || targetPos === null) {
         handleDragEnd();
@@ -417,27 +440,53 @@ export function BlockHandle({
   const executeBlockCommand = useCallback((item: SlashCommandItem) => {
     const node = menuBlockEl.current || currentBlock.current;
     if (!node) return;
-    const pos = resolveBlockPos(node);
+
+    // Inline position resolution — don't rely on resolveBlockPos closure
+    let pos: number | null = null;
+    let docPos = 0;
+    for (let i = 0; i < editor.state.doc.childCount; i++) {
+      const child = editor.state.doc.child(i);
+      const domNode = editor.view.nodeDOM(docPos);
+      if (domNode === node || (domNode instanceof HTMLElement && domNode.contains(node))) {
+        pos = docPos;
+        break;
+      }
+      docPos += child.nodeSize;
+    }
     if (pos === null) return;
+
     const pmNode = editor.state.doc.nodeAt(pos);
     if (!pmNode) return;
-
-    // Insert a paragraph below the current block and focus it
     const endPos = pos + pmNode.nodeSize;
+
+    // Insert empty paragraph and focus it
     editor.chain().focus()
       .insertContentAt(endPos, { type: "paragraph" })
       .setTextSelection(endPos + 1)
       .run();
 
-    // Read the CURRENT selection (inside the new empty paragraph)
-    // This is the correct range for the slash command to operate on
-    const { from, to } = editor.state.selection;
-    item.command({ editor, range: { from, to } });
+    // Execute direct editor commands — NOT the slash command functions
+    // (slash commands call deleteRange which corrupts state with empty ranges)
+    const title = item.title.toLowerCase();
+    if (title.includes("heading 1")) editor.chain().focus().setHeading({ level: 1 }).run();
+    else if (title.includes("heading 2")) editor.chain().focus().setHeading({ level: 2 }).run();
+    else if (title.includes("heading 3")) editor.chain().focus().setHeading({ level: 3 }).run();
+    else if (title.includes("bullet")) editor.chain().focus().toggleBulletList().run();
+    else if (title.includes("numbered")) editor.chain().focus().toggleOrderedList().run();
+    else if (title.includes("to-do")) editor.chain().focus().toggleTaskList().run();
+    else if (title.includes("blockquote")) editor.commands.insertContent("<blockquote><p></p></blockquote>");
+    else if (title.includes("code")) editor.chain().focus().toggleCodeBlock().run();
+    else if (title.includes("table")) editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    else if (title.includes("toggle")) editor.chain().focus().insertContent({ type: "toggle", attrs: { open: true }, content: [{ type: "paragraph" }] }).run();
+    else if (title.includes("callout")) editor.chain().focus().insertContent({ type: "callout", content: [{ type: "paragraph" }] }).run();
+    else if (title.includes("divider")) editor.chain().focus().setHorizontalRule().run();
+    else if (title.includes("image")) { const url = window.prompt("Image URL:"); if (url) editor.chain().focus().setImage({ src: url }).run(); }
+    else if (title.includes("highlight")) editor.chain().focus().toggleHighlight({ color: "#fef08a" }).run();
 
     setPickerOpen(false);
     setPickerQuery("");
     menuBlockEl.current = null;
-  }, [editor, resolveBlockPos]);
+  }, [editor]);
 
   const handleGripMenu = useCallback(() => {
     const node = currentBlock.current;
