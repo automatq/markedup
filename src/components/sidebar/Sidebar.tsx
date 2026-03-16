@@ -26,6 +26,8 @@ import {
   Accessibility,
   ChevronRight,
   BarChart3,
+  LogIn,
+  ArrowLeft,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams, usePathname } from "next/navigation";
@@ -365,6 +367,123 @@ function InviteTeamButton({ workspaceId }: { workspaceId: string }) {
   );
 }
 
+function JoinGroupInline({
+  onJoined,
+  onCancel,
+}: {
+  onJoined: (ws: WorkspaceEntry) => void;
+  onCancel: () => void;
+}) {
+  const [code, setCode] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [wsName, setWsName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Validate code as user types (debounced)
+  useEffect(() => {
+    if (code.length < 6) {
+      setWsName(null);
+      setError(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setValidating(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/invites?code=${code}`);
+        if (res.ok) {
+          const data = await res.json();
+          setWsName(data.workspace?.name || "Unknown");
+        } else {
+          setWsName(null);
+          setError("Invalid or expired code");
+        }
+      } catch {
+        setError("Failed to validate");
+      }
+      setValidating(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [code]);
+
+  const handleJoin = async () => {
+    if (!wsName || joining) return;
+    setJoining(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/invites", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onJoined({
+          id: data.workspace.id,
+          name: data.workspace.name,
+          slug: data.workspace.slug,
+          isPersonal: false,
+          orgId: data.orgId,
+        });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to join");
+      }
+    } catch {
+      setError("Failed to join");
+    }
+    setJoining(false);
+  };
+
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          onClick={onCancel}
+          className="flex h-5 w-5 items-center justify-center rounded text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
+        >
+          <ArrowLeft className="h-3 w-3" />
+        </button>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+          Join a Group
+        </p>
+      </div>
+      <input
+        autoFocus
+        value={code}
+        onChange={(e) => setCode(e.target.value.trim().toLowerCase())}
+        placeholder="Enter invite code"
+        className="w-full rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-center text-sm font-mono font-bold tracking-widest text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 outline-none border border-transparent focus:border-black/10 dark:focus:border-white/10 transition-colors"
+        maxLength={10}
+      />
+      {validating && (
+        <div className="flex justify-center mt-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-black/20 dark:text-white/20" />
+        </div>
+      )}
+      {wsName && !validating && (
+        <div className="mt-2">
+          <p className="text-[11px] text-center text-black/50 dark:text-white/50">
+            Join <span className="font-medium text-black/80 dark:text-white/80">{wsName}</span>
+          </p>
+          <button
+            onClick={handleJoin}
+            disabled={joining}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {joining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+            {joining ? "Joining…" : "Join Group"}
+          </button>
+        </div>
+      )}
+      {error && (
+        <p className="text-[10px] text-red-500 mt-2 text-center">{error}</p>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar({
   documents,
   activeDocumentId,
@@ -391,6 +510,7 @@ export function Sidebar({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [wsSwitcherOpen, setWsSwitcherOpen] = useState(false);
+  const [joinMode, setJoinMode] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [a11yOpen, setA11yOpen] = useState(false);
@@ -651,55 +771,80 @@ export function Sidebar({
         {/* Workspace dropdown */}
         {wsSwitcherOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setWsSwitcherOpen(false)} />
+            <div className="fixed inset-0 z-40" onClick={() => { setWsSwitcherOpen(false); setJoinMode(false); }} />
             <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black shadow-xl animate-fade-in-up py-1">
-              {/* Personal workspace */}
-              {personalWorkspace && (
+              {joinMode ? (
+                <JoinGroupInline
+                  onJoined={async (ws) => {
+                    setWorkspaces((prev) => [...prev, ws]);
+                    if (setActive && ws.orgId) await setActive({ organization: ws.orgId });
+                    router.push(`/${ws.id}`);
+                    setWsSwitcherOpen(false);
+                    setJoinMode(false);
+                  }}
+                  onCancel={() => setJoinMode(false)}
+                />
+              ) : (
                 <>
-                  <p className="px-3 pt-2 pb-1 text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
-                    Personal
-                  </p>
-                  <button
-                    onClick={async () => {
-                      if (setActive) await setActive({ organization: null });
-                      router.push(`/${personalWorkspace.id}`);
-                      setWsSwitcherOpen(false);
-                    }}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                      currentWorkspace?.id === personalWorkspace.id
-                        ? "bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium"
-                        : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
-                    }`}
-                  >
-                    <Lock className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{personalWorkspace.name}</span>
-                  </button>
-                </>
-              )}
-              {/* Team workspaces */}
-              {teamWorkspaces.length > 0 && (
-                <>
-                  <p className="px-3 pt-2 pb-1 text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
-                    Team
-                  </p>
-                  {teamWorkspaces.map((ws) => (
+                  {/* Personal workspace */}
+                  {personalWorkspace && (
+                    <>
+                      <p className="px-3 pt-2 pb-1 text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+                        Personal
+                      </p>
+                      <button
+                        onClick={async () => {
+                          if (setActive) await setActive({ organization: null });
+                          router.push(`/${personalWorkspace.id}`);
+                          setWsSwitcherOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                          currentWorkspace?.id === personalWorkspace.id
+                            ? "bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium"
+                            : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
+                        }`}
+                      >
+                        <Lock className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{personalWorkspace.name}</span>
+                      </button>
+                    </>
+                  )}
+                  {/* Team workspaces */}
+                  {teamWorkspaces.length > 0 && (
+                    <>
+                      <p className="px-3 pt-2 pb-1 text-[9px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+                        Team
+                      </p>
+                      {teamWorkspaces.map((ws) => (
+                        <button
+                          key={ws.id}
+                          onClick={async () => {
+                            if (setActive && ws.orgId) await setActive({ organization: ws.orgId });
+                            router.push(`/${ws.id}`);
+                            setWsSwitcherOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                            currentWorkspace?.id === ws.id
+                              ? "bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium"
+                              : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
+                          }`}
+                        >
+                          <Users className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{ws.name}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {/* Join a group */}
+                  <div className="border-t border-black/[0.06] dark:border-white/[0.06] mt-1 pt-1">
                     <button
-                      key={ws.id}
-                      onClick={async () => {
-                        if (setActive && ws.orgId) await setActive({ organization: ws.orgId });
-                        router.push(`/${ws.id}`);
-                        setWsSwitcherOpen(false);
-                      }}
-                      className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                        currentWorkspace?.id === ws.id
-                          ? "bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium"
-                          : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
-                      }`}
+                      onClick={() => setJoinMode(true)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-black/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black/80 dark:hover:text-white/80 transition-colors"
                     >
-                      <Users className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{ws.name}</span>
+                      <LogIn className="h-3.5 w-3.5 shrink-0" />
+                      <span>Join a Group</span>
                     </button>
-                  ))}
+                  </div>
                 </>
               )}
             </div>
