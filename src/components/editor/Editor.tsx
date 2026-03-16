@@ -41,23 +41,24 @@ import { createLowlight, common } from "lowlight";
 const lowlight = createLowlight(common);
 
 interface EditorProps {
-  initialContent?: any;
+  initialContent?: any; // kept for API compatibility but no longer passed to Liveblocks
   className?: string;
   editable?: boolean;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
 export function MarkedUpEditor({
-  initialContent,
   className,
   editable = true,
   onEditorReady,
 }: EditorProps) {
   // Liveblocks extension handles Yjs sync, cursors, comments, mentions.
-  // initialContent is a belt-and-suspenders fallback — the primary mechanism
-  // is server-side room pre-seeding via the POST /api/documents endpoint.
+  // Do NOT pass initialContent here — it causes a race condition where stale
+  // DB content overwrites the live Yjs document when a second user joins.
+  // The primary content delivery is server-side Yjs pre-seeding done in
+  // POST /api/documents. If the Yjs doc is empty, users see a blank editor
+  // (which is correct — they can start typing).
   const liveblocks = useLiveblocksExtension({
-    initialContent,
     comments: true,
     mentions: true,
   });
