@@ -95,14 +95,19 @@ export function BlockHandle({
 
   /* ── Position helpers ── */
 
+  const getHandleLeft = useCallback(() => {
+    const scrollRect = scrollContainer.getBoundingClientRect();
+    const pmRect = editor.view.dom.getBoundingClientRect();
+    return Math.max(4, pmRect.left - scrollRect.left - 58);
+  }, [editor, scrollContainer]);
+
   const positionHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
     const scrollRect = scrollContainer.getBoundingClientRect();
     const blockRect = blockEl.getBoundingClientRect();
-    const pmRect = editor.view.dom.getBoundingClientRect();
     handleRef.current.style.top = `${blockRect.top - scrollRect.top + scrollContainer.scrollTop}px`;
-    handleRef.current.style.left = `${pmRect.left - scrollRect.left - 58}px`;
-  }, [editor, scrollContainer]);
+    handleRef.current.style.left = `${getHandleLeft()}px`;
+  }, [scrollContainer, getHandleLeft]);
 
   const showHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
@@ -358,33 +363,17 @@ export function BlockHandle({
 
   const resolveBlockPos = useCallback((node: HTMLElement): number | null => {
     try {
-      // Try posAtDOM with offset 0 first
-      let pos = editor.view.posAtDOM(node, 0);
-      let resolved = editor.state.doc.resolve(pos);
-
-      // If depth >= 1, we can get the top-level block position
-      if (resolved.depth >= 1) return resolved.before(1);
-
-      // Fallback: try with a child text node inside the element
-      const textNode = node.querySelector("*");
-      if (textNode) {
-        pos = editor.view.posAtDOM(textNode, 0);
-        resolved = editor.state.doc.resolve(pos);
-        if (resolved.depth >= 1) return resolved.before(1);
-      }
-
-      // Last resort: walk all top-level doc nodes and match by DOM
-      const pm = editor.view.dom;
+      // Walk all top-level doc nodes and match by DOM element
+      // This is the most reliable approach — works for ALL block types
       let docPos = 0;
       for (let i = 0; i < editor.state.doc.childCount; i++) {
         const child = editor.state.doc.child(i);
         const domNode = editor.view.nodeDOM(docPos);
-        if (domNode === node || (domNode instanceof HTMLElement && domNode.contains(node))) {
-          return docPos;
-        }
+        if (domNode === node) return docPos;
+        // Tables and some blocks use wrapper divs
+        if (domNode instanceof HTMLElement && domNode.contains(node)) return docPos;
         docPos += child.nodeSize;
       }
-
       return null;
     } catch { return null; }
   }, [editor]);
@@ -414,10 +403,9 @@ export function BlockHandle({
     menuBlockEl.current = node;
     const scrollRect = scrollContainer.getBoundingClientRect();
     const blockRect = node.getBoundingClientRect();
-    const pmRect = editor.view.dom.getBoundingClientRect();
     setPickerPos({
       top: blockRect.bottom - scrollRect.top + scrollContainer.scrollTop + 4,
-      left: pmRect.left - scrollRect.left,
+      left: getHandleLeft(),
     });
     setPickerQuery("");
     setPickerIndex(0);
@@ -434,13 +422,17 @@ export function BlockHandle({
     const pmNode = editor.state.doc.nodeAt(pos);
     if (!pmNode) return;
 
-    // Insert a paragraph below the current block, then execute the command on it
+    // Insert a paragraph below the current block and focus it
     const endPos = pos + pmNode.nodeSize;
-    editor.chain().focus().insertContentAt(endPos, { type: "paragraph" }).setTextSelection(endPos + 1).run();
+    editor.chain().focus()
+      .insertContentAt(endPos, { type: "paragraph" })
+      .setTextSelection(endPos + 1)
+      .run();
 
-    // Execute the slash command — create a fake range for the new empty paragraph
-    const newPos = endPos + 1; // inside the new paragraph
-    item.command({ editor, range: { from: newPos, to: newPos } });
+    // Read the CURRENT selection (inside the new empty paragraph)
+    // This is the correct range for the slash command to operate on
+    const { from, to } = editor.state.selection;
+    item.command({ editor, range: { from, to } });
 
     setPickerOpen(false);
     setPickerQuery("");
@@ -464,10 +456,9 @@ export function BlockHandle({
     menuBlockEl.current = node;
     const scrollRect = scrollContainer.getBoundingClientRect();
     const blockRect = node.getBoundingClientRect();
-    const pmRect = editor.view.dom.getBoundingClientRect();
     setMenuPos({
       top: blockRect.top - scrollRect.top + scrollContainer.scrollTop + 32,
-      left: pmRect.left - scrollRect.left - 58,
+      left: getHandleLeft(),
     });
     setMenuOpen(true);
     setMenuSub("main");
