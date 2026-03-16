@@ -133,11 +133,34 @@ export function BlockHandle({
       return el;
     };
 
+    const findNearestBlockAtY = (clientY: number): HTMLElement | null => {
+      const children = pm.children;
+      let closest: HTMLElement | null = null;
+      let closestDist = Infinity;
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i] as HTMLElement;
+        const rect = child.getBoundingClientRect();
+        // Direct hit
+        if (clientY >= rect.top && clientY <= rect.bottom) return child;
+        // Nearest by distance
+        const dist = Math.min(Math.abs(clientY - rect.top), Math.abs(clientY - rect.bottom));
+        if (dist < closestDist) { closestDist = dist; closest = child; }
+      }
+      return closestDist < 40 ? closest : null; // Within 40px of nearest block
+    };
+
     const onMouseOver = (e: MouseEvent) => {
       if (menuOpenRef.current || dragData.current) return;
       const target = e.target as HTMLElement;
-      if (target === pm) return;
-      const block = findDirectChild(target);
+
+      let block: HTMLElement | null;
+      if (target === pm) {
+        // Hovering blank space — find nearest block by Y coordinate
+        block = findNearestBlockAtY(e.clientY);
+      } else {
+        block = findDirectChild(target);
+      }
+
       if (!block || currentBlock.current === block) return;
       showHandle(block);
     };
@@ -151,10 +174,21 @@ export function BlockHandle({
       hideHandle();
     };
 
+    // mousemove on blank space (when target is pm itself) to track nearest block
+    const onMouseMove = (e: MouseEvent) => {
+      if (menuOpenRef.current || dragData.current) return;
+      if (e.target !== pm) return; // Only for blank space — mouseover handles block elements
+      const block = findNearestBlockAtY(e.clientY);
+      if (!block || currentBlock.current === block) return;
+      showHandle(block);
+    };
+
     pm.addEventListener("mouseover", onMouseOver);
+    pm.addEventListener("mousemove", onMouseMove);
     pm.addEventListener("mouseleave", onMouseLeave);
     return () => {
       pm.removeEventListener("mouseover", onMouseOver);
+      pm.removeEventListener("mousemove", onMouseMove);
       pm.removeEventListener("mouseleave", onMouseLeave);
       currentBlock.current?.classList.remove("block-hover-active");
       currentBlock.current = null;
