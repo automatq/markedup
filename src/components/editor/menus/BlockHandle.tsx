@@ -106,35 +106,45 @@ export function BlockHandleContent({
 
   const executeBlockCommand = useCallback((item: SlashCommandItem) => {
     if (currentNodePos < 0 || !currentNode) return;
-    const endPos = currentNodePos + currentNode.nodeSize;
     const title = item.title.toLowerCase();
 
-    // Insert-based blocks: insert directly
-    if (title.includes("table")) {
-      editor.chain().focus().insertContentAt(endPos, { type: "paragraph" }).setTextSelection(endPos + 1).run();
-      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-    } else if (title.includes("toggle")) {
-      editor.chain().focus().insertContentAt(endPos, { type: "toggle", attrs: { open: true }, content: [{ type: "paragraph" }] }).run();
-    } else if (title.includes("callout")) {
-      editor.chain().focus().insertContentAt(endPos, { type: "callout", content: [{ type: "paragraph" }] }).run();
-    } else if (title.includes("divider")) {
-      editor.chain().focus().insertContentAt(endPos, { type: "horizontalRule" }).run();
-    } else if (title.includes("image")) {
-      const url = window.prompt("Image URL:");
-      if (url) { editor.chain().focus().insertContentAt(endPos, { type: "paragraph" }).setTextSelection(endPos + 1).run(); editor.chain().focus().setImage({ src: url }).run(); }
-    } else {
-      // Convert-based: insert paragraph then convert
-      editor.chain().focus().insertContentAt(endPos, { type: "paragraph" }).setTextSelection(endPos + 1).run();
-      if (title.includes("heading 1")) editor.chain().focus().setHeading({ level: 1 }).run();
-      else if (title.includes("heading 2")) editor.chain().focus().setHeading({ level: 2 }).run();
-      else if (title.includes("heading 3")) editor.chain().focus().setHeading({ level: 3 }).run();
-      else if (title.includes("bullet")) editor.chain().focus().toggleBulletList().run();
-      else if (title.includes("numbered")) editor.chain().focus().toggleOrderedList().run();
-      else if (title.includes("to-do")) editor.chain().focus().toggleTaskList().run();
-      else if (title.includes("blockquote")) editor.chain().focus().toggleBlockquote().run();
-      else if (title.includes("code")) editor.chain().focus().toggleCodeBlock().run();
-      else if (title.includes("highlight")) editor.chain().focus().toggleHighlight({ color: "#fef08a" }).run();
+    // Focus the current block first — all conversions happen on THIS line
+    editor.chain().focus().setTextSelection(currentNodePos + 1).run();
+
+    // Convert-based blocks: transform the current block in-place
+    if (title.includes("heading 1")) editor.chain().focus().setHeading({ level: 1 }).run();
+    else if (title.includes("heading 2")) editor.chain().focus().setHeading({ level: 2 }).run();
+    else if (title.includes("heading 3")) editor.chain().focus().setHeading({ level: 3 }).run();
+    else if (title.includes("bullet")) editor.chain().focus().toggleBulletList().run();
+    else if (title.includes("numbered")) editor.chain().focus().toggleOrderedList().run();
+    else if (title.includes("to-do")) editor.chain().focus().toggleTaskList().run();
+    else if (title.includes("blockquote")) editor.chain().focus().toggleBlockquote().run();
+    else if (title.includes("code")) editor.chain().focus().toggleCodeBlock().run();
+    else if (title.includes("highlight")) editor.chain().focus().toggleHighlight({ color: "#fef08a" }).run();
+    // Insert-based blocks: replace the current block if empty, otherwise insert after
+    else {
+      const isEmpty = currentNode.textContent.trim() === "";
+      const endPos = currentNodePos + currentNode.nodeSize;
+
+      if (title.includes("table")) {
+        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
+        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      } else if (title.includes("toggle")) {
+        const insertAt = isEmpty ? currentNodePos : endPos;
+        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
+        editor.chain().focus().insertContentAt(isEmpty ? currentNodePos : endPos, { type: "toggle", attrs: { open: true }, content: [{ type: "paragraph" }] }).run();
+      } else if (title.includes("callout")) {
+        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
+        editor.chain().focus().insertContentAt(isEmpty ? currentNodePos : endPos, { type: "callout", content: [{ type: "paragraph" }] }).run();
+      } else if (title.includes("divider")) {
+        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
+        editor.chain().focus().insertContentAt(isEmpty ? currentNodePos : endPos, { type: "horizontalRule" }).run();
+      } else if (title.includes("image")) {
+        const url = window.prompt("Image URL:");
+        if (url) editor.chain().focus().setImage({ src: url }).run();
+      }
     }
+
     setPickerOpen(false);
     setPickerQuery("");
   }, [editor, currentNode, currentNodePos]);
