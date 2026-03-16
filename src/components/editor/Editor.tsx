@@ -73,6 +73,13 @@ export function MarkedUpEditor({
   const handleNodeChange = useCallback(({ node, pos }: { node: PmNode | null; pos: number }) => {
     // Skip if same node at same position — prevents re-render storms during collab sync
     if (node === lastNodeRef.current && pos === lastPosRef.current) return;
+    // Don't update state when node becomes null (handle hidden during typing)
+    // This prevents re-renders that disrupt the slash command suggestion popup
+    if (!node) {
+      lastNodeRef.current = null;
+      lastPosRef.current = -1;
+      return;
+    }
     lastNodeRef.current = node;
     lastPosRef.current = pos;
     setCurrentNode(node);
