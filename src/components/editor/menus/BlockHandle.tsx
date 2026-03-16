@@ -87,19 +87,21 @@ export function BlockHandle({
 
   /* ── Position helpers ── */
 
-  const getHandleLeft = useCallback(() => {
+  /** Calculate handle left position relative to a block element */
+  const calcHandleLeft = useCallback((blockEl: HTMLElement) => {
     const scrollRect = scrollContainer.getBoundingClientRect();
-    const pmRect = editor.view.dom.getBoundingClientRect();
-    return Math.max(4, pmRect.left - scrollRect.left - 58);
-  }, [editor, scrollContainer]);
+    const blockRect = blockEl.getBoundingClientRect();
+    const blockLeft = blockRect.left - scrollRect.left;
+    return Math.max(4, blockLeft - 58);
+  }, [scrollContainer]);
 
   const positionHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
     const scrollRect = scrollContainer.getBoundingClientRect();
     const blockRect = blockEl.getBoundingClientRect();
     handleRef.current.style.top = `${blockRect.top - scrollRect.top + scrollContainer.scrollTop}px`;
-    handleRef.current.style.left = `${getHandleLeft()}px`;
-  }, [scrollContainer, getHandleLeft]);
+    handleRef.current.style.left = `${calcHandleLeft(blockEl)}px`;
+  }, [scrollContainer, calcHandleLeft]);
 
   const showHandle = useCallback((blockEl: HTMLElement) => {
     if (!handleRef.current) return;
@@ -385,13 +387,13 @@ export function BlockHandle({
     const blockRect = node.getBoundingClientRect();
     setPickerPos({
       top: blockRect.bottom - scrollRect.top + scrollContainer.scrollTop + 4,
-      left: getHandleLeft(), // Bug 1 fix: getHandleLeft in deps
+      left: calcHandleLeft(node),
     });
     setPickerQuery("");
     setPickerIndex(0);
     setPickerOpen(true);
     setTimeout(() => pickerInputRef.current?.focus(), 50);
-  }, [scrollContainer, getHandleLeft]); // Bug 1 fix
+  }, [scrollContainer, calcHandleLeft]);
 
   // Bug 7 fix: split insert-based vs convert-based blocks
   const executeBlockCommand = useCallback((item: SlashCommandItem) => {
@@ -458,11 +460,11 @@ export function BlockHandle({
     const blockRect = node.getBoundingClientRect();
     setMenuPos({
       top: blockRect.top - scrollRect.top + scrollContainer.scrollTop + 32,
-      left: getHandleLeft(), // Bug 2 fix
+      left: calcHandleLeft(node),
     });
     setMenuOpen(true);
     setMenuSub("main");
-  }, [editor, scrollContainer, getHandleLeft, selectedNode]); // Bug 2 fix
+  }, [editor, scrollContainer, calcHandleLeft, selectedNode]);
 
   const handleDelete = useCallback(() => {
     const node = menuBlockEl.current || currentBlock.current;
