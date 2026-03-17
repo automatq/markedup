@@ -78,6 +78,12 @@ export function BlockHandleContent({
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerIndex, setPickerIndex] = useState(0);
 
+  // Snapshot the block when menu/picker opens so it doesn't jump when cursor moves
+  const [lockedNode, setLockedNode] = useState<PmNode | null>(null);
+  const [lockedPos, setLockedPos] = useState(-1);
+  const activeNode = menuOpen || pickerOpen ? lockedNode : currentNode;
+  const activePos = menuOpen || pickerOpen ? lockedPos : currentNodePos;
+
   /* ── Close on outside click ── */
 
   useEffect(() => {
@@ -98,20 +104,20 @@ export function BlockHandleContent({
   /* ── + Button: open block picker ── */
 
   const handleAddBlock = useCallback(() => {
+    setLockedNode(currentNode);
+    setLockedPos(currentNodePos);
     setPickerQuery("");
     setPickerIndex(0);
     setPickerOpen(true);
     setTimeout(() => pickerInputRef.current?.focus(), 50);
-  }, []);
+  }, [currentNode, currentNodePos]);
 
   const executeBlockCommand = useCallback((item: SlashCommandItem) => {
-    if (currentNodePos < 0 || !currentNode) return;
+    if (activePos < 0 || !activeNode) return;
     const title = item.title.toLowerCase();
 
-    // Focus the current block first — all conversions happen on THIS line
-    editor.chain().focus().setTextSelection(currentNodePos + 1).run();
+    editor.chain().focus().setTextSelection(activePos + 1).run();
 
-    // Convert-based blocks: transform the current block in-place
     if (title.includes("heading 1")) editor.chain().focus().setHeading({ level: 1 }).run();
     else if (title.includes("heading 2")) editor.chain().focus().setHeading({ level: 2 }).run();
     else if (title.includes("heading 3")) editor.chain().focus().setHeading({ level: 3 }).run();
@@ -121,24 +127,22 @@ export function BlockHandleContent({
     else if (title.includes("blockquote")) editor.chain().focus().toggleBlockquote().run();
     else if (title.includes("code")) editor.chain().focus().toggleCodeBlock().run();
     else if (title.includes("highlight")) editor.chain().focus().toggleHighlight({ color: "#fef08a" }).run();
-    // Insert-based blocks: replace the current block if empty, otherwise insert after
     else {
-      const isEmpty = currentNode.textContent.trim() === "";
-      const endPos = currentNodePos + currentNode.nodeSize;
+      const isEmpty = activeNode.textContent.trim() === "";
+      const endPos = activePos + activeNode.nodeSize;
 
       if (title.includes("table")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
+        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
         editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
       } else if (title.includes("toggle")) {
-        const insertAt = isEmpty ? currentNodePos : endPos;
-        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
-        editor.chain().focus().insertContentAt(isEmpty ? currentNodePos : endPos, { type: "toggle", attrs: { open: true }, content: [{ type: "paragraph" }] }).run();
+        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
+        editor.chain().focus().insertContentAt(isEmpty ? activePos : endPos, { type: "toggle", attrs: { open: true }, content: [{ type: "paragraph" }] }).run();
       } else if (title.includes("callout")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
-        editor.chain().focus().insertContentAt(isEmpty ? currentNodePos : endPos, { type: "callout", content: [{ type: "paragraph" }] }).run();
+        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
+        editor.chain().focus().insertContentAt(isEmpty ? activePos : endPos, { type: "callout", content: [{ type: "paragraph" }] }).run();
       } else if (title.includes("divider")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: currentNodePos, to: endPos }).run();
-        editor.chain().focus().insertContentAt(isEmpty ? currentNodePos : endPos, { type: "horizontalRule" }).run();
+        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
+        editor.chain().focus().insertContentAt(isEmpty ? activePos : endPos, { type: "horizontalRule" }).run();
       } else if (title.includes("image")) {
         const url = window.prompt("Image URL:");
         if (url) editor.chain().focus().setImage({ src: url }).run();
@@ -147,15 +151,17 @@ export function BlockHandleContent({
 
     setPickerOpen(false);
     setPickerQuery("");
-  }, [editor, currentNode, currentNodePos]);
+  }, [editor, activeNode, activePos]);
 
   /* ── Right-click menu actions ── */
 
   const handleGripMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    setLockedNode(currentNode);
+    setLockedPos(currentNodePos);
     setMenuOpen(true);
     setMenuSub("main");
-  }, []);
+  }, [currentNode, currentNodePos]);
 
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
@@ -163,43 +169,43 @@ export function BlockHandleContent({
   }, []);
 
   const handleDelete = useCallback(() => {
-    if (currentNodePos < 0 || !currentNode) return;
-    editor.chain().focus().deleteRange({ from: currentNodePos, to: currentNodePos + currentNode.nodeSize }).run();
+    if (activePos < 0 || !activeNode) return;
+    editor.chain().focus().deleteRange({ from: activePos, to: activePos + activeNode.nodeSize }).run();
     closeMenu();
-  }, [editor, currentNode, currentNodePos, closeMenu]);
+  }, [editor, activeNode, activePos, closeMenu]);
 
   const handleDuplicate = useCallback(() => {
-    if (currentNodePos < 0 || !currentNode) return;
-    editor.chain().focus().insertContentAt(currentNodePos + currentNode.nodeSize, currentNode.toJSON()).run();
+    if (activePos < 0 || !activeNode) return;
+    editor.chain().focus().insertContentAt(activePos + activeNode.nodeSize, activeNode.toJSON()).run();
     closeMenu();
-  }, [editor, currentNode, currentNodePos, closeMenu]);
+  }, [editor, activeNode, activePos, closeMenu]);
 
   const handleMoveUp = useCallback(() => {
-    if (currentNodePos <= 0 || !currentNode) return;
-    const nodeJson = currentNode.toJSON();
-    const prevStart = editor.state.doc.resolve(currentNodePos - 1).before(1);
-    editor.chain().focus().deleteRange({ from: currentNodePos, to: currentNodePos + currentNode.nodeSize }).run();
+    if (activePos <= 0 || !activeNode) return;
+    const nodeJson = activeNode.toJSON();
+    const prevStart = editor.state.doc.resolve(activePos - 1).before(1);
+    editor.chain().focus().deleteRange({ from: activePos, to: activePos + activeNode.nodeSize }).run();
     editor.chain().focus().insertContentAt(prevStart, nodeJson).run();
     closeMenu();
-  }, [editor, currentNode, currentNodePos, closeMenu]);
+  }, [editor, activeNode, activePos, closeMenu]);
 
   const handleMoveDown = useCallback(() => {
-    if (currentNodePos < 0 || !currentNode) return;
-    const blockEnd = currentNodePos + currentNode.nodeSize;
+    if (activePos < 0 || !activeNode) return;
+    const blockEnd = activePos + activeNode.nodeSize;
     if (blockEnd >= editor.state.doc.content.size) return;
     const nextNode = editor.state.doc.nodeAt(blockEnd);
     if (!nextNode) return;
-    const nodeJson = currentNode.toJSON();
-    editor.chain().focus().deleteRange({ from: currentNodePos, to: blockEnd }).run();
-    const nextNow = editor.state.doc.nodeAt(currentNodePos);
+    const nodeJson = activeNode.toJSON();
+    editor.chain().focus().deleteRange({ from: activePos, to: blockEnd }).run();
+    const nextNow = editor.state.doc.nodeAt(activePos);
     if (!nextNow) return;
-    editor.chain().focus().insertContentAt(currentNodePos + nextNow.nodeSize, nodeJson).run();
+    editor.chain().focus().insertContentAt(activePos + nextNow.nodeSize, nodeJson).run();
     closeMenu();
-  }, [editor, currentNode, currentNodePos, closeMenu]);
+  }, [editor, activeNode, activePos, closeMenu]);
 
   const handleTurnInto = useCallback((type: string) => {
-    if (currentNodePos < 0) return;
-    editor.chain().focus().setTextSelection(currentNodePos + 1).run();
+    if (activePos < 0) return;
+    editor.chain().focus().setTextSelection(activePos + 1).run();
     switch (type) {
       case "paragraph": editor.chain().focus().setParagraph().run(); break;
       case "h1": editor.chain().focus().setHeading({ level: 1 }).run(); break;
@@ -212,13 +218,13 @@ export function BlockHandleContent({
       case "codeBlock": editor.chain().focus().toggleCodeBlock().run(); break;
     }
     closeMenu();
-  }, [editor, currentNodePos, closeMenu]);
+  }, [editor, activePos, closeMenu]);
 
   const handleColor = useCallback((color: string) => {
-    if (currentNodePos < 0 || !currentNode) return;
-    editor.chain().focus().setTextSelection({ from: currentNodePos + 1, to: currentNodePos + currentNode.nodeSize - 1 }).setColor(color).run();
+    if (activePos < 0 || !activeNode) return;
+    editor.chain().focus().setTextSelection({ from: activePos + 1, to: activePos + activeNode.nodeSize - 1 }).setColor(color).run();
     closeMenu();
-  }, [editor, currentNode, currentNodePos, closeMenu]);
+  }, [editor, activeNode, activePos, closeMenu]);
 
   /* ── Render ── */
 
