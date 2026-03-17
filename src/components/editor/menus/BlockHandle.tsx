@@ -78,9 +78,11 @@ export function BlockHandleContent({
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerIndex, setPickerIndex] = useState(0);
 
-  // Snapshot the block when menu/picker opens so it doesn't jump when cursor moves
+  // Snapshot the block + click position when menu/picker opens
   const [lockedNode, setLockedNode] = useState<PmNode | null>(null);
   const [lockedPos, setLockedPos] = useState(-1);
+  const [menuClickPos, setMenuClickPos] = useState({ x: 0, y: 0 });
+  const [pickerClickPos, setPickerClickPos] = useState({ x: 0, y: 0 });
   const activeNode = menuOpen || pickerOpen ? lockedNode : currentNode;
   const activePos = menuOpen || pickerOpen ? lockedPos : currentNodePos;
 
@@ -103,9 +105,10 @@ export function BlockHandleContent({
 
   /* ── + Button: open block picker ── */
 
-  const handleAddBlock = useCallback(() => {
+  const handleAddBlock = useCallback((e?: React.MouseEvent) => {
     setLockedNode(currentNode);
     setLockedPos(currentNodePos);
+    if (e) setPickerClickPos({ x: e.clientX, y: e.clientY });
     setPickerQuery("");
     setPickerIndex(0);
     setPickerOpen(true);
@@ -159,6 +162,7 @@ export function BlockHandleContent({
     e.preventDefault();
     setLockedNode(currentNode);
     setLockedPos(currentNodePos);
+    setMenuClickPos({ x: e.clientX, y: e.clientY });
     setMenuOpen(true);
     setMenuSub("main");
   }, [currentNode, currentNodePos]);
@@ -233,7 +237,7 @@ export function BlockHandleContent({
       {/* + Add block */}
       <button
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        onClick={handleAddBlock}
+        onClick={(e) => handleAddBlock(e)}
         className="flex h-7 w-7 items-center justify-center rounded-md text-black/35 dark:text-white/35 hover:text-black/70 dark:hover:text-white/70 hover:bg-black/[0.08] dark:hover:bg-white/[0.08] transition-colors"
         title="Add block below"
       >
@@ -249,11 +253,15 @@ export function BlockHandleContent({
         <GripVertical className="h-4 w-4" />
       </div>
 
-      {/* Right-click menu */}
+      {/* Right-click menu — fixed position at click coordinates */}
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute top-8 left-0 z-50 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl py-1.5 w-52"
+          className="fixed z-[100] rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl py-1.5 w-52"
+          style={{
+            left: Math.min(menuClickPos.x, window.innerWidth - 220),
+            top: Math.min(menuClickPos.y, window.innerHeight - 350),
+          }}
         >
           {menuSub === "turnInto" ? (
             <>
@@ -295,7 +303,11 @@ export function BlockHandleContent({
 
       {/* Block picker */}
       {pickerOpen && (
-        <div ref={pickerRef} className="absolute top-8 left-0 z-50 w-72 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl animate-fade-in-up overflow-hidden">
+        <div ref={pickerRef} className="fixed z-[100] w-72 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl animate-fade-in-up overflow-hidden"
+          style={{
+            left: Math.min(pickerClickPos.x, window.innerWidth - 300),
+            top: Math.min(pickerClickPos.y + 10, window.innerHeight - 400),
+          }}>
           <div className="px-3 pt-3 pb-2">
             <input ref={pickerInputRef} type="text" value={pickerQuery} onChange={(e) => { setPickerQuery(e.target.value); setPickerIndex(0); }}
               onKeyDown={(e) => {
