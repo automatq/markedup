@@ -29,6 +29,8 @@ import { Callout } from "./extensions/callout";
 import { Backlink } from "./extensions/backlink";
 import { Toggle } from "./extensions/toggle";
 import { KeyboardShortcuts } from "./extensions/keyboard-shortcuts";
+import { Embed } from "./extensions/embed";
+import { Bookmark } from "./extensions/bookmark";
 import { SlashCommandExtension } from "./extensions/slash-command-extension";
 import {
   SlashCommandMenu,
@@ -40,6 +42,8 @@ import {
 } from "./menus/slash-command";
 import { BlockToolbar } from "./menus/BlockToolbar";
 import { BlockHandleContent } from "./menus/BlockHandle";
+import { AIBubbleMenu } from "./menus/AIBubbleMenu";
+import { EditorContextMenu } from "./menus/EditorContextMenu";
 import { createLowlight, common } from "lowlight";
 
 const lowlight = createLowlight(common);
@@ -123,6 +127,8 @@ export function MarkedUpEditor({
       Backlink,
       Toggle,
       KeyboardShortcuts,
+      Embed,
+      Bookmark,
 
       // Slash commands
       SlashCommandExtension.configure({
@@ -226,6 +232,8 @@ export function MarkedUpEditor({
         </DragHandle>
       )}
 
+      {editor && <AIBubbleMenu editor={editor} />}
+      {editor && <EditorContextMenu editor={editor} />}
       {editor && <BlockToolbar editor={editor} />}
       <FloatingComposer editor={editor} />
       <FloatingThreads editor={editor} threads={threads} />

@@ -149,6 +149,48 @@ export const slashCommandItems: SlashCommandItem[] = [
       editor.chain().focus().deleteRange(range).toggleHighlight({ color: "#fef08a" }).run();
     },
   },
+
+  // Embeds
+  {
+    title: "Embed",
+    description: "Embed YouTube, Figma, Loom, and more",
+    icon: "Code",
+    command: ({ editor, range }) => {
+      const url = window.prompt("Paste embed URL (YouTube, Figma, Loom, etc.):");
+      if (!url) return;
+      editor.chain().focus().deleteRange(range).run();
+      // Dynamic import to avoid circular dependency
+      import("../extensions/embed").then(({ detectProvider }) => {
+        const provider = detectProvider(url);
+        if (provider) {
+          editor.chain().focus().insertContent({
+            type: "embed",
+            attrs: { src: provider.embedUrl, originalUrl: url, provider: provider.name },
+          }).run();
+        } else {
+          // Fallback to bookmark
+          editor.chain().focus().insertContent({
+            type: "bookmark",
+            attrs: { url, title: "", description: "", image: "", favicon: "" },
+          }).run();
+        }
+      });
+    },
+  },
+  {
+    title: "Web Bookmark",
+    description: "Create a rich preview of a web link",
+    icon: "ImageIcon",
+    command: ({ editor, range }) => {
+      const url = window.prompt("Paste URL for bookmark preview:");
+      if (!url) return;
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().insertContent({
+        type: "bookmark",
+        attrs: { url, title: "", description: "", image: "", favicon: "" },
+      }).run();
+    },
+  },
 ];
 
 export function filterSlashCommands(query: string): SlashCommandItem[] {
