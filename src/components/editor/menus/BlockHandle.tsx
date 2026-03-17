@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Editor } from "@tiptap/core";
 import { Node as PmNode } from "@tiptap/pm/model";
 import {
@@ -253,8 +254,8 @@ export function BlockHandleContent({
         <GripVertical className="h-4 w-4" />
       </div>
 
-      {/* Right-click menu — fixed position at click coordinates */}
-      {menuOpen && (
+      {/* Right-click menu — portaled to body so it's outside DragHandle's transform */}
+      {menuOpen && createPortal(
         <div
           ref={menuRef}
           className="fixed z-[100] rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl py-1.5 w-52"
@@ -298,11 +299,12 @@ export function BlockHandleContent({
               <MenuBtn onClick={handleMoveDown}><ArrowDown className="h-4 w-4 text-black/40 dark:text-white/40" /> Move down <span className="ml-auto text-[10px] text-black/25 dark:text-white/25">⌘⇧↓</span></MenuBtn>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Block picker */}
-      {pickerOpen && (
+      {/* Block picker — portaled to body */}
+      {pickerOpen && createPortal(
         <div ref={pickerRef} className="fixed z-[100] w-72 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-2xl animate-fade-in-up overflow-hidden"
           style={{
             left: Math.min(pickerClickPos.x, window.innerWidth - 300),
@@ -340,7 +342,8 @@ export function BlockHandleContent({
             <span className="text-[10px] text-black/25 dark:text-white/25">Close menu</span>
             <kbd className="text-[10px] text-black/25 dark:text-white/25 rounded border border-black/10 dark:border-white/10 px-1.5 py-0.5">esc</kbd>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
