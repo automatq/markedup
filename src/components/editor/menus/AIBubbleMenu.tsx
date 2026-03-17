@@ -166,6 +166,7 @@ export function AIBubbleMenu({ editor }: { editor: Editor }) {
               <AIBtn icon={Minimize2} label="Shorter" onClick={() => runAction("shorter")} />
               <AIBtn icon={Maximize2} label="Longer" onClick={() => runAction("longer")} />
               <AIBtn icon={ListChecks} label="Actions" onClick={() => runAction("action-items")} />
+              <AIBtn icon={Sparkles} label="Ghost Write" onClick={() => runAction("ghost-write")} />
 
               <div className="w-px h-5 bg-black/8 dark:bg-white/8 mx-0.5" />
 

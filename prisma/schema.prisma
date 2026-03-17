@@ -198,6 +198,7 @@ model AgentConfig {
   updatedAt   DateTime  @updatedAt
   trainingDocs AgentTrainingDoc[]
   assignments  RoleAssignment[]
+  watchers     DocumentWatcher[]
 
   @@unique([workspaceId, roleId])
   @@index([workspaceId])
@@ -380,4 +381,49 @@ model OperationsDigest {
   @@unique([workspaceId, period, periodStart])
   @@index([workspaceId, period])
   @@index([workspaceId, periodStart])
+}
+
+/// Auto-extracted action items from documents, calls, breakouts, and agent reports
+model ActionItem {
+  id          String    @id @default(cuid())
+  workspaceId String
+  title       String
+  description String?
+  /// Where this action was extracted from
+  sourceType  String    // "document" | "call" | "breakout" | "agent_report" | "manual"
+  sourceId    String?   // ID of the source record
+  sourceTitle String?   // Title of the source for display
+  status      String    @default("pending") // "pending" | "in_progress" | "completed" | "dismissed"
+  priority    String    @default("medium")  // "low" | "medium" | "high" | "urgent"
+  assignedTo  String?   // Clerk user ID
+  dueDate     DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, assignedTo])
+  @@index([workspaceId, createdAt])
+}
+
+/// Agent Watcher — links an agent to a specific document for continuous monitoring
+model DocumentWatcher {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  documentId    String
+  agentConfigId String
+  agentConfig   AgentConfig @relation(fields: [agentConfigId], references: [id], onDelete: Cascade)
+  /// What to watch for
+  watchFor      Json        @default("[\"changes\",\"action-items\",\"risks\"]")
+  /// Latest analysis result
+  lastAnalysis  Json?
+  lastAnalyzedAt DateTime?
+  enabled       Boolean     @default(true)
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([documentId, agentConfigId])
+  @@index([workspaceId])
+  @@index([documentId])
 }

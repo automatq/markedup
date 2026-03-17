@@ -150,6 +150,27 @@ export const slashCommandItems: SlashCommandItem[] = [
     },
   },
 
+  // AI
+  {
+    title: "AI Ghost Writer",
+    description: "AI continues writing from cursor position",
+    icon: "Highlighter",
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      // Trigger ghost writer via custom event
+      window.dispatchEvent(new CustomEvent("markedup:ghost-write"));
+    },
+  },
+  {
+    title: "Extract Actions",
+    description: "AI finds action items in this document",
+    icon: "CheckSquare",
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      window.dispatchEvent(new CustomEvent("markedup:extract-actions"));
+    },
+  },
+
   // Embeds
   {
     title: "Embed",
