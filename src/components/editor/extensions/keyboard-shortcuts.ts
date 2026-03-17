@@ -54,6 +54,14 @@ export const KeyboardShortcuts = Extension.create({
       "Mod-Shift-h": ({ editor }) =>
         editor.chain().focus().toggleHighlight().run(),
 
+      /* ── Undo / Redo (explicit — ensures Yjs undo works) ── */
+
+      "Mod-z": ({ editor }) => editor.commands.undo(),
+
+      "Shift-Mod-z": ({ editor }) => editor.commands.redo(),
+
+      "Mod-y": ({ editor }) => editor.commands.redo(),
+
       /* ── Block manipulation ── */
 
       // Duplicate block — must return true to prevent browser "Add Bookmark"
