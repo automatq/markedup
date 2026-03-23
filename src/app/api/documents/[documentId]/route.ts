@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { getAuth, canAccessWorkspace } from "@/lib/auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await getAuth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -22,12 +22,8 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Verify user owns the workspace this document belongs to
-    const workspace = await db.workspace.findFirst({
-      where: { id: document.workspaceId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!workspace) {
+    const hasAccess = await canAccessWorkspace(document.workspaceId, userId, orgId);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -43,14 +39,13 @@ export async function PATCH(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await getAuth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { documentId } = await params;
 
-    // Verify ownership
     const existing = await db.document.findUnique({
       where: { id: documentId },
       select: { workspaceId: true },
@@ -58,11 +53,8 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    const workspace = await db.workspace.findFirst({
-      where: { id: existing.workspaceId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!workspace) {
+    const hasAccess = await canAccessWorkspace(existing.workspaceId, userId, orgId);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -92,14 +84,13 @@ export async function DELETE(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await getAuth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { documentId } = await params;
 
-    // Verify ownership
     const existing = await db.document.findUnique({
       where: { id: documentId },
       select: { workspaceId: true },
@@ -107,11 +98,8 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    const workspace = await db.workspace.findFirst({
-      where: { id: existing.workspaceId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!workspace) {
+    const hasAccess = await canAccessWorkspace(existing.workspaceId, userId, orgId);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

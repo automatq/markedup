@@ -100,6 +100,18 @@ export function EditorToolbar({ editor }: ToolbarProps) {
     ],
     [
       {
+        icon: Undo2,
+        title: "Undo",
+        action: () => editor.commands.undo(),
+      },
+      {
+        icon: Redo2,
+        title: "Redo",
+        action: () => editor.commands.redo(),
+      },
+    ],
+    [
+      {
         icon: MessageSquare,
         title: "Add comment",
         action: () => {

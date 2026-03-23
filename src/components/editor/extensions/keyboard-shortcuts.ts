@@ -55,12 +55,14 @@ export const KeyboardShortcuts = Extension.create({
         editor.chain().focus().toggleHighlight().run(),
 
       /* ── Undo / Redo (explicit — ensures Yjs undo works) ── */
+      /* Always return true to block browser-native undo on the contentEditable,
+         which would corrupt Yjs-managed state. */
 
-      "Mod-z": ({ editor }) => editor.commands.undo(),
+      "Mod-z": ({ editor }) => { editor.commands.undo(); return true; },
 
-      "Shift-Mod-z": ({ editor }) => editor.commands.redo(),
+      "Shift-Mod-z": ({ editor }) => { editor.commands.redo(); return true; },
 
-      "Mod-y": ({ editor }) => editor.commands.redo(),
+      "Mod-y": ({ editor }) => { editor.commands.redo(); return true; },
 
       /* ── Block manipulation ── */
 

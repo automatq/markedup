@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { getAuth, canAccessWorkspace } from "@/lib/auth";
 
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await getAuth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -22,11 +22,8 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const workspace = await db.workspace.findFirst({
-      where: { id: existing.workspaceId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!workspace) {
+    const hasAccess = await canAccessWorkspace(existing.workspaceId, userId, orgId);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

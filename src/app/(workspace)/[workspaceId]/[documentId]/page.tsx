@@ -418,6 +418,18 @@ function DocumentInner({
               <h1
                 contentEditable={!locked}
                 suppressContentEditableWarning
+                onKeyDown={(e) => {
+                  // Let browser-native undo/redo work in the title, but stop
+                  // propagation so it never reaches the TipTap editor
+                  if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "y")) {
+                    e.stopPropagation();
+                  }
+                  // Enter in title → move focus to the editor
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    editorRef.current?.commands.focus("start");
+                  }
+                }}
                 onBlur={(e) => {
                   const newTitle = e.currentTarget.textContent || "Untitled";
                   setTitle(newTitle);
@@ -425,7 +437,9 @@ function DocumentInner({
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ title: newTitle }),
-                  }).catch(() => {});
+                  }).then((res) => {
+                    if (!res.ok) console.error("Failed to save title");
+                  }).catch(() => console.error("Failed to save title"));
                 }}
                 className="text-2xl font-semibold text-black dark:text-white tracking-tight outline-none"
                 data-placeholder="Untitled"
