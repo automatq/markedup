@@ -22,6 +22,8 @@ import {
   Plug,
   Sparkles,
   FileStack,
+  List as ListIcon,
+  ArrowUpLeft as ArrowUpLeftIcon,
 } from "lucide-react";
 
 interface PageActionsMenuProps {
@@ -57,7 +59,9 @@ const menuItems: MenuItem[] = [
   { icon: BarChart3, label: "Updates & analytics", action: "analytics" },
   { icon: History, label: "Version history", action: "version-history" },
   { icon: Bell, label: "Notify me", action: "notify" },
-  { icon: Plug, label: "Connections", action: "connections", dividerAfter: true },
+  { icon: Plug, label: "Connections", action: "connections" },
+  { icon: ListIcon, label: "Outline", action: "outline" },
+  { icon: ArrowUpLeftIcon, label: "Backlinks", action: "backlinks", dividerAfter: true },
   { icon: Sparkles, label: "AI Agents", action: "agents" },
   { icon: FileStack, label: "Breakout Files", action: "breakouts" },
 ];

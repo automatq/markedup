@@ -36,6 +36,11 @@ import { NotificationsPanel } from "@/components/panels/NotificationsPanel";
 import { AgentsPanel } from "@/components/panels/AgentsPanel";
 import { BreakoutPanel } from "@/components/panels/BreakoutPanel";
 import { PresentationMode } from "@/components/PresentationMode";
+import { OutlinePanel } from "@/components/panels/OutlinePanel";
+import { BacklinksPanel } from "@/components/panels/BacklinksPanel";
+import { EditorStatusBar } from "@/components/editor/EditorStatusBar";
+import { SearchReplaceBar } from "@/components/editor/SearchReplaceBar";
+import { Breadcrumbs } from "@/components/editor/Breadcrumbs";
 import { PenLine, Grid3X3, ArrowUpRight } from "lucide-react";
 
 /**
@@ -121,6 +126,8 @@ function DocumentInner({
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [breakoutsOpen, setBreakoutsOpen] = useState(false);
   const [presentationOpen, setPresentationOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [backlinksOpen, setBacklinksOpen] = useState(false);
 
   // Record document view
   useEffect(() => {
@@ -313,6 +320,14 @@ function DocumentInner({
           setBreakoutsOpen((p) => !p);
           break;
 
+        case "outline":
+          setOutlineOpen(true);
+          break;
+
+        case "backlinks":
+          setBacklinksOpen(true);
+          break;
+
         default:
           break;
       }
@@ -407,11 +422,18 @@ function DocumentInner({
               style={{ width: `${scrollProgress}%` }}
             />
           </div>
+
+          <SearchReplaceBar editor={editorRef.current} />
           <div
             className={`mx-auto w-full ${agentsOpen || breakoutsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10 ${activeFontClass}`}
           >
-            {/* Icon + Title */}
+            {/* Breadcrumbs + Icon + Title */}
             <div className="mb-6 px-4">
+              <Breadcrumbs
+                documentId={documentId}
+                workspaceId={workspaceId}
+                onNavigate={(id) => router.push(`/${workspaceId}/${id}`)}
+              />
               {customization.icon && (
                 <div className="text-4xl mb-2">{customization.icon}</div>
               )}
@@ -497,6 +519,8 @@ function DocumentInner({
               onEditorReady={handleEditorReady}
             />
           </div>
+
+          <EditorStatusBar editor={editorRef.current} />
         </div>
 
         {/* Inline agents panel — pushes editor left */}
@@ -584,6 +608,19 @@ function DocumentInner({
         onMarkRead={(id) => markNotificationRead(id)}
         onMarkAllRead={() => markAllRead()}
         onClearAll={() => deleteAllNotifications()}
+      />
+
+      <OutlinePanel
+        open={outlineOpen}
+        onClose={() => setOutlineOpen(false)}
+        editor={editorRef.current}
+      />
+
+      <BacklinksPanel
+        open={backlinksOpen}
+        onClose={() => setBacklinksOpen(false)}
+        documentId={documentId}
+        onNavigate={(id) => router.push(`/${workspaceId}/${id}`)}
       />
 
       {/* Presentation mode overlay */}

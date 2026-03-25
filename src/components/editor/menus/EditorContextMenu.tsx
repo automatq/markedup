@@ -5,9 +5,8 @@ import { Editor } from "@tiptap/core";
 import { Node as PmNode } from "@tiptap/pm/model";
 import {
   Trash2, Copy, ClipboardPaste, Scissors, Link2,
-  Sparkles, Wand2, SpellCheck, Minimize2, Maximize2,
-  Languages, FileText, Lightbulb, ListChecks,
-  Type, Palette, MessageSquare, ChevronRight,
+  Sparkles, Wand2, SpellCheck, Minimize2,
+  Type, Palette,
 } from "lucide-react";
 import { COLORS, TURN_INTO, turnBlockInto, setBlockColor, deleteBlock, duplicateBlock } from "./block-actions";
 
@@ -21,7 +20,7 @@ interface ContextMenuState {
 
 export function EditorContextMenu({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
-  const [sub, setSub] = useState<"main" | "turnInto" | "color" | "ai" | "translate">("main");
+  const [sub, setSub] = useState<"main" | "turnInto" | "color" | "ai">("main");
   const [aiLoading, setAiLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +73,7 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
   const close = useCallback(() => { setMenu(null); setSub("main"); }, []);
 
   // AI action on selected text
-  const runAI = useCallback(async (action: string, opts?: { targetLang?: string }) => {
+  const runAI = useCallback(async (action: string) => {
     const { from, to } = editor.state.selection;
     const text = editor.state.doc.textBetween(from, to, " ");
     if (!text.trim()) { close(); return; }
@@ -84,7 +83,7 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
       const res = await fetch("/api/ai/text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, action, ...opts }),
+        body: JSON.stringify({ text, action }),
       });
       if (res.ok) {
         const result = await res.text();
@@ -151,24 +150,8 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
               <CtxBtn onClick={() => runAI("improve")}><Wand2 className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Improve writing</CtxBtn>
               <CtxBtn onClick={() => runAI("fix-spelling")}><SpellCheck className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Fix spelling & grammar</CtxBtn>
               <CtxBtn onClick={() => runAI("shorter")}><Minimize2 className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Make shorter</CtxBtn>
-              <CtxBtn onClick={() => runAI("longer")}><Maximize2 className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Make longer</CtxBtn>
-              <CtxBtn onClick={() => runAI("summarize")}><FileText className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Summarize</CtxBtn>
-              <CtxBtn onClick={() => runAI("explain")}><Lightbulb className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Explain</CtxBtn>
-              <CtxBtn onClick={() => runAI("action-items")}><ListChecks className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Find action items</CtxBtn>
-              <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
-              <CtxBtn onClick={() => setSub("translate")}><Languages className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Translate <span className="ml-auto text-[10px] text-black/25 dark:text-white/25">→</span></CtxBtn>
             </>
           )}
-        </>
-      ) : sub === "translate" ? (
-        <>
-          <CtxBtn onClick={() => setSub("ai")} dim>← Back</CtxBtn>
-          <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
-          {["Spanish", "French", "German", "Portuguese", "Italian", "Japanese", "Chinese", "Korean", "Arabic", "Russian"].map((lang) => (
-            <CtxBtn key={lang} onClick={() => runAI("translate", { targetLang: lang })}>
-              <Languages className="h-3.5 w-3.5 text-black/30 dark:text-white/30" /> {lang}
-            </CtxBtn>
-          ))}
         </>
       ) : sub === "turnInto" ? (
         <>

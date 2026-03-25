@@ -70,6 +70,7 @@ model Document {
   breakouts     Breakout[]
   views         DocumentView[]
   agentTraining AgentTrainingDoc[]
+  favorites     Favorite[]
 
   @@index([workspaceId])
   @@index([workspaceId, deletedAt])
@@ -426,4 +427,16 @@ model DocumentWatcher {
   @@unique([documentId, agentConfigId])
   @@index([workspaceId])
   @@index([documentId])
+}
+
+/// User favorites — star documents for quick access
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, documentId])
+  @@index([userId])
 }

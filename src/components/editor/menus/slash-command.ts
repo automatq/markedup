@@ -1,18 +1,21 @@
 import { Editor, Range } from "@tiptap/core";
+import { openInputDialog } from "@/components/dialogs/InputDialog";
 
 export interface SlashCommandItem {
   title: string;
   description: string;
   icon: string;
+  category: "text" | "lists" | "blocks" | "media" | "advanced";
   command: (props: { editor: Editor; range: Range }) => void;
 }
 
 export const slashCommandItems: SlashCommandItem[] = [
-  // Text blocks
+  // Text
   {
     title: "Heading 1",
     description: "Large section heading",
     icon: "Heading1",
+    category: "text",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode("heading", { level: 1 }).run();
     },
@@ -21,6 +24,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Heading 2",
     description: "Medium section heading",
     icon: "Heading2",
+    category: "text",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode("heading", { level: 2 }).run();
     },
@@ -29,6 +33,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Heading 3",
     description: "Small section heading",
     icon: "Heading3",
+    category: "text",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode("heading", { level: 3 }).run();
     },
@@ -39,6 +44,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Bullet List",
     description: "Create a simple bullet list",
     icon: "List",
+    category: "lists",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().toggleBulletList().run();
@@ -48,6 +54,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Numbered List",
     description: "Create a numbered list",
     icon: "ListOrdered",
+    category: "lists",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().toggleOrderedList().run();
@@ -57,17 +64,19 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "To-do List",
     description: "Track tasks with checkboxes",
     icon: "CheckSquare",
+    category: "lists",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().toggleTaskList().run();
     },
   },
 
-  // Rich blocks
+  // Blocks
   {
     title: "Table",
     description: "Insert a table with rows and columns",
     icon: "Table",
+    category: "blocks",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
@@ -77,6 +86,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Toggle",
     description: "Collapsible section",
     icon: "ChevronRight",
+    category: "blocks",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().insertContent({
@@ -90,6 +100,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Callout",
     description: "Highlighted information block",
     icon: "Info",
+    category: "blocks",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().insertContent({
@@ -102,6 +113,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Blockquote",
     description: "Add a quote block",
     icon: "Quote",
+    category: "blocks",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.commands.insertContent("<blockquote><p></p></blockquote>");
@@ -111,9 +123,20 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Code Block",
     description: "Add a code snippet with syntax highlighting",
     icon: "Code",
+    category: "blocks",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.chain().focus().toggleCodeBlock().run();
+    },
+  },
+  {
+    title: "Divider",
+    description: "Insert a horizontal rule",
+    icon: "Minus",
+    category: "blocks",
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().setHorizontalRule().run();
     },
   },
 
@@ -122,79 +145,46 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Image",
     description: "Insert an image from URL",
     icon: "ImageIcon",
-    command: ({ editor, range }) => {
-      const url = window.prompt("Image URL:");
-      if (url) {
-        editor.chain().focus().deleteRange(range).run();
-        editor.chain().focus().setImage({ src: url }).run();
-      }
-    },
-  },
-
-  // Formatting
-  {
-    title: "Divider",
-    description: "Insert a horizontal rule",
-    icon: "Minus",
+    category: "media",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
-      editor.chain().focus().setHorizontalRule().run();
+      openInputDialog({
+        title: "Insert Image",
+        placeholder: "Paste image URL...",
+        confirmLabel: "Insert",
+        onConfirm: (url) => {
+          editor.chain().focus().setImage({ src: url }).run();
+        },
+      });
     },
   },
-  {
-    title: "Highlight",
-    description: "Highlight selected text in yellow",
-    icon: "Highlighter",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleHighlight({ color: "#fef08a" }).run();
-    },
-  },
-
-  // AI
-  {
-    title: "AI Ghost Writer",
-    description: "AI continues writing from cursor position",
-    icon: "Highlighter",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).run();
-      // Trigger ghost writer via custom event
-      window.dispatchEvent(new CustomEvent("markedup:ghost-write"));
-    },
-  },
-  {
-    title: "Extract Actions",
-    description: "AI finds action items in this document",
-    icon: "CheckSquare",
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).run();
-      window.dispatchEvent(new CustomEvent("markedup:extract-actions"));
-    },
-  },
-
-  // Embeds
   {
     title: "Embed",
     description: "Embed YouTube, Figma, Loom, and more",
     icon: "Code",
+    category: "media",
     command: ({ editor, range }) => {
-      const url = window.prompt("Paste embed URL (YouTube, Figma, Loom, etc.):");
-      if (!url) return;
       editor.chain().focus().deleteRange(range).run();
-      // Dynamic import to avoid circular dependency
-      import("../extensions/embed").then(({ detectProvider }) => {
-        const provider = detectProvider(url);
-        if (provider) {
-          editor.chain().focus().insertContent({
-            type: "embed",
-            attrs: { src: provider.embedUrl, originalUrl: url, provider: provider.name },
-          }).run();
-        } else {
-          // Fallback to bookmark
-          editor.chain().focus().insertContent({
-            type: "bookmark",
-            attrs: { url, title: "", description: "", image: "", favicon: "" },
-          }).run();
-        }
+      openInputDialog({
+        title: "Insert Embed",
+        placeholder: "Paste URL (YouTube, Figma, Loom, etc.)...",
+        confirmLabel: "Embed",
+        onConfirm: (url) => {
+          import("../extensions/embed").then(({ detectProvider }) => {
+            const provider = detectProvider(url);
+            if (provider) {
+              editor.chain().focus().insertContent({
+                type: "embed",
+                attrs: { src: provider.embedUrl, originalUrl: url, provider: provider.name },
+              }).run();
+            } else {
+              editor.chain().focus().insertContent({
+                type: "bookmark",
+                attrs: { url, title: "", description: "", image: "", favicon: "" },
+              }).run();
+            }
+          });
+        },
       });
     },
   },
@@ -202,14 +192,42 @@ export const slashCommandItems: SlashCommandItem[] = [
     title: "Web Bookmark",
     description: "Create a rich preview of a web link",
     icon: "ImageIcon",
+    category: "media",
     command: ({ editor, range }) => {
-      const url = window.prompt("Paste URL for bookmark preview:");
-      if (!url) return;
       editor.chain().focus().deleteRange(range).run();
-      editor.chain().focus().insertContent({
-        type: "bookmark",
-        attrs: { url, title: "", description: "", image: "", favicon: "" },
-      }).run();
+      openInputDialog({
+        title: "Insert Bookmark",
+        placeholder: "Paste URL for bookmark preview...",
+        confirmLabel: "Insert",
+        onConfirm: (url) => {
+          editor.chain().focus().insertContent({
+            type: "bookmark",
+            attrs: { url, title: "", description: "", image: "", favicon: "" },
+          }).run();
+        },
+      });
+    },
+  },
+
+  // Advanced
+  {
+    title: "Table of Contents",
+    description: "Auto-generated list of headings",
+    icon: "List",
+    category: "advanced",
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      editor.chain().focus().insertContent({ type: "tableOfContents" }).run();
+    },
+  },
+  {
+    title: "AI Ghost Writer",
+    description: "AI continues writing from cursor position",
+    icon: "Sparkles",
+    category: "advanced",
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      window.dispatchEvent(new CustomEvent("markedup:ghost-write"));
     },
   },
 ];

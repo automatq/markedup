@@ -9,7 +9,7 @@ import {
   Strikethrough,
   Code,
   Highlighter,
-  Link,
+  Link2,
   List,
   ListOrdered,
   CheckSquare,
@@ -18,6 +18,7 @@ import {
   Redo2,
   MessageSquare,
 } from "lucide-react";
+import { openLinkDialog } from "@/components/dialogs/LinkDialog";
 
 interface ToolbarProps {
   editor: Editor | null;
@@ -70,6 +71,33 @@ export function EditorToolbar({ editor }: ToolbarProps) {
         title: "Highlight",
         action: () => editor.chain().focus().toggleHighlight().run(),
         isActive: editor.isActive("highlight"),
+      },
+      {
+        icon: Link2,
+        title: "Insert link",
+        action: () => {
+          if (editor.isActive("link")) {
+            editor.chain().focus().unsetLink().run();
+            return;
+          }
+          const { from, to } = editor.state.selection;
+          const selectedText = from !== to ? editor.state.doc.textBetween(from, to) : "";
+          openLinkDialog({
+            initialText: selectedText,
+            onConfirm: (url, text) => {
+              if (selectedText) {
+                editor.chain().focus().setLink({ href: url }).run();
+              } else {
+                editor.chain().focus().insertContent({
+                  type: "text",
+                  marks: [{ type: "link", attrs: { href: url } }],
+                  text: text || url,
+                }).run();
+              }
+            },
+          });
+        },
+        isActive: editor.isActive("link"),
       },
     ],
     [

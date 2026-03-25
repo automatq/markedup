@@ -4,39 +4,25 @@ import React, { useCallback, useRef, useState } from "react";
 import { type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import {
-  Sparkles,
   Wand2,
   SpellCheck,
   Minimize2,
-  Maximize2,
-  Languages,
-  FileText,
-  Lightbulb,
-  MessageSquare,
-  ChevronDown,
   Loader2,
   Check,
   X,
-  ListChecks,
 } from "lucide-react";
 
 type AIState = "idle" | "loading" | "preview";
 
-const LANGUAGES = [
-  "Spanish", "French", "German", "Portuguese", "Italian",
-  "Japanese", "Chinese", "Korean", "Arabic", "Hindi", "Russian",
-];
-
 export function AIBubbleMenu({ editor }: { editor: Editor }) {
   const [state, setState] = useState<AIState>("idle");
   const [result, setResult] = useState("");
-  const [openDropdown, setOpenDropdown] = useState<"tone" | "more" | null>(null);
   const [customPrompt, setCustomPrompt] = useState("");
   const originalText = useRef("");
   const abortRef = useRef<AbortController | null>(null);
 
   const runAction = useCallback(
-    async (action: string, opts?: { targetLang?: string; customPrompt?: string }) => {
+    async (action: string, opts?: { customPrompt?: string }) => {
       const { from, to } = editor.state.selection;
       const text = editor.state.doc.textBetween(from, to, " ");
       if (!text.trim()) return;
@@ -44,7 +30,6 @@ export function AIBubbleMenu({ editor }: { editor: Editor }) {
       originalText.current = text;
       setState("loading");
       setResult("");
-      setOpenDropdown(null);
 
       try {
         abortRef.current = new AbortController();
@@ -93,7 +78,6 @@ export function AIBubbleMenu({ editor }: { editor: Editor }) {
     abortRef.current?.abort();
     setState("idle");
     setResult("");
-    setOpenDropdown(null);
   }, []);
 
   const handleCustomSubmit = useCallback(() => {
@@ -158,102 +142,29 @@ export function AIBubbleMenu({ editor }: { editor: Editor }) {
 
         {/* Idle state — action buttons */}
         {state === "idle" && (
-          <div className="flex items-center">
-            {/* Primary actions */}
-            <div className="flex items-center gap-0.5 px-1.5 py-1.5">
-              <AIBtn icon={Wand2} label="Improve" onClick={() => runAction("improve")} />
-              <AIBtn icon={SpellCheck} label="Fix" onClick={() => runAction("fix-spelling")} />
-              <AIBtn icon={Minimize2} label="Shorter" onClick={() => runAction("shorter")} />
-              <AIBtn icon={Maximize2} label="Longer" onClick={() => runAction("longer")} />
-              <AIBtn icon={ListChecks} label="Actions" onClick={() => runAction("action-items")} />
-              <AIBtn icon={Sparkles} label="Ghost Write" onClick={() => runAction("ghost-write")} />
+          <div className="flex items-center gap-0.5 px-1.5 py-1.5">
+            <AIBtn icon={Wand2} label="Improve" onClick={() => runAction("improve")} />
+            <AIBtn icon={SpellCheck} label="Fix" onClick={() => runAction("fix-spelling")} />
+            <AIBtn icon={Minimize2} label="Shorter" onClick={() => runAction("shorter")} />
 
-              <div className="w-px h-5 bg-black/8 dark:bg-white/8 mx-0.5" />
+            <div className="w-px h-5 bg-black/8 dark:bg-white/8 mx-0.5" />
 
-              {/* Tone dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setOpenDropdown(openDropdown === "tone" ? null : "tone")}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                >
-                  Tone <ChevronDown className="h-3 w-3" />
-                </button>
-                {openDropdown === "tone" && (
-                  <div className="absolute top-full left-0 mt-1 z-50 w-40 rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-xl py-1">
-                    {(["professional", "casual", "friendly", "direct"] as const).map((tone) => (
-                      <button
-                        key={tone}
-                        onClick={() => runAction(tone)}
-                        className="flex w-full px-3 py-1.5 text-xs text-black/70 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/5 capitalize transition-colors"
-                      >
-                        {tone}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* More dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setOpenDropdown(openDropdown === "more" ? null : "more")}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-[#c9a84c] dark:text-[#d4af37] hover:bg-[#c9a84c]/10 dark:hover:bg-[#d4af37]/10 transition-colors"
-                >
-                  <Sparkles className="h-3.5 w-3.5" /> AI <ChevronDown className="h-3 w-3" />
-                </button>
-                {openDropdown === "more" && (
-                  <div className="absolute top-full right-0 mt-1 z-50 w-56 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a1a1c] shadow-xl py-1 overflow-hidden">
-                    <button onClick={() => runAction("summarize")} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-black/70 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                      <FileText className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Summarize
-                    </button>
-                    <button onClick={() => runAction("explain")} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-black/70 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                      <Lightbulb className="h-3.5 w-3.5 text-black/40 dark:text-white/40" /> Explain
-                    </button>
-
-                    <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
-
-                    {/* Translate submenu */}
-                    <p className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
-                      Translate to
-                    </p>
-                    <div className="max-h-32 overflow-y-auto">
-                      {LANGUAGES.map((lang) => (
-                        <button
-                          key={lang}
-                          onClick={() => runAction("translate", { targetLang: lang })}
-                          className="flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                        >
-                          <Languages className="h-3 w-3 text-black/30 dark:text-white/30" /> {lang}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="h-px bg-black/6 dark:bg-white/6 my-1" />
-
-                    {/* Custom prompt */}
-                    <div className="px-3 py-2">
-                      <p className="text-[10px] font-medium text-black/30 dark:text-white/30 mb-1.5">Custom instruction</p>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          value={customPrompt}
-                          onChange={(e) => setCustomPrompt(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleCustomSubmit(); }}
-                          placeholder="e.g. Make it funnier"
-                          className="flex-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.04] px-2.5 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none border border-transparent focus:border-black/10 dark:focus:border-white/10"
-                        />
-                        <button
-                          onClick={handleCustomSubmit}
-                          disabled={!customPrompt.trim()}
-                          className="rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
-                        >
-                          Go
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCustomSubmit(); }}
+                placeholder="Ask AI anything..."
+                className="w-36 rounded-lg bg-black/[0.04] dark:bg-white/[0.04] px-2.5 py-1.5 text-xs text-black dark:text-white placeholder:text-black/25 dark:placeholder:text-white/25 outline-none border border-transparent focus:border-black/10 dark:focus:border-white/10"
+              />
+              <button
+                onClick={handleCustomSubmit}
+                disabled={!customPrompt.trim()}
+                className="rounded-lg bg-[#c9a84c] dark:bg-[#d4af37] px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+              >
+                Go
+              </button>
             </div>
           </div>
         )}

@@ -553,6 +553,28 @@
   font-size: inherit;
 }
 
+/* ── Search & Replace highlights ── */
+
+.search-result {
+  background: rgba(250, 204, 21, 0.25);
+  border-radius: 2px;
+}
+
+.dark .search-result {
+  background: rgba(250, 204, 21, 0.2);
+}
+
+.search-result-current {
+  background: rgba(250, 140, 0, 0.4);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(250, 140, 0, 0.6);
+}
+
+.dark .search-result-current {
+  background: rgba(250, 140, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(250, 140, 0, 0.5);
+}
+
 /* ── Highlight mark ── */
 
 .ProseMirror mark {

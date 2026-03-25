@@ -28,6 +28,8 @@ import {
   BarChart3,
   LogIn,
   ArrowLeft,
+  Star,
+  CalendarDays,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams, usePathname } from "next/navigation";
@@ -520,6 +522,8 @@ export function Sidebar({
   const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false);
   const authorDropdownRef = useRef<HTMLDivElement>(null);
   const [orgMembers, setOrgMembers] = useState<{ userId: string; name: string }[]>([]);
+  const [favorites, setFavorites] = useState<{ documentId: string; document: { id: string; title: string } }[]>([]);
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
 
   useEffect(() => {
     if (!authorDropdownOpen) return;
@@ -558,6 +562,17 @@ export function Sidebar({
       } catch {}
     })();
   }, [workspaces, params?.workspaceId]);
+
+  // Fetch favorites
+  useEffect(() => {
+    if (!params?.workspaceId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/favorites?workspaceId=${params.workspaceId}`);
+        if (res.ok) setFavorites(await res.json());
+      } catch {}
+    })();
+  }, [params?.workspaceId, documents]);
 
   const [textIntensity, setTextIntensity] = useState(0.85);
   const [fontScale, setFontScale] = useState(1);
@@ -956,14 +971,53 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* New Document */}
-      <div className="px-3 pb-2">
+      {/* New Document + Today */}
+      <div className="px-3 pb-2 flex gap-1.5">
         <button
           onClick={onCreateDocument}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 hover:bg-black/[0.06] dark:hover:border-white/25 dark:hover:bg-white/[0.07] transition-all"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 hover:bg-black/[0.06] dark:hover:border-white/25 dark:hover:bg-white/[0.07] transition-all"
         >
           <Plus className="h-3.5 w-3.5" />
-          New Document
+          New
+        </button>
+        <button
+          onClick={async () => {
+            const today = new Date().toLocaleDateString("en-US", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            });
+            // Check if today's note already exists
+            const existing = documents.find(
+              (d) => d.title === today
+            );
+            if (existing) {
+              onSelectDocument(existing.id);
+              return;
+            }
+            // Create a new daily note
+            try {
+              const res = await fetch("/api/documents", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  workspaceId: params?.workspaceId,
+                  title: today,
+                  sourceType: "daily-note",
+                }),
+              });
+              if (res.ok) {
+                const doc = await res.json();
+                onSelectDocument(doc.id);
+              }
+            } catch {}
+          }}
+          title="Open today's note"
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 hover:bg-black/[0.06] dark:hover:border-white/25 dark:hover:bg-white/[0.07] transition-all"
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          Today
         </button>
       </div>
 
@@ -1081,6 +1135,38 @@ export function Sidebar({
           setDraggingId(null);
         }}
       >
+        {/* Favorites section */}
+        {favorites.length > 0 && (
+          <div className="mb-2">
+            <button
+              onClick={() => setFavoritesOpen(!favoritesOpen)}
+              className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50 transition-colors"
+            >
+              <ChevronRight className={`h-3 w-3 transition-transform ${favoritesOpen ? "rotate-90" : ""}`} />
+              <Star className="h-3 w-3" />
+              Favorites
+            </button>
+            {favoritesOpen && (
+              <div className="space-y-0.5">
+                {favorites.map((fav) => (
+                  <button
+                    key={fav.documentId}
+                    onClick={() => onSelectDocument(fav.documentId)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
+                      activeDocumentId === fav.documentId
+                        ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white font-medium"
+                        : "text-black/60 dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <Star className="h-3 w-3 text-[#c9a84c] dark:text-[#d4af37] fill-current" />
+                    <span className="truncate">{fav.document.title || "Untitled"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {(() => {
           const isTeam = currentWorkspace && !currentWorkspace.isPersonal;
           const currentUserId = user?.id;
