@@ -6,51 +6,41 @@ import { Editor } from "@tiptap/core";
 import { Node as PmNode } from "@tiptap/pm/model";
 import {
   GripVertical, Plus, Trash2, Copy, ArrowUp, ArrowDown,
+  Palette, Type, type LucideIcon,
   Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare,
-  Quote, Code, Type, Palette, Table, ChevronRight, Info,
-  ImageIcon, Minus, Highlighter, type LucideIcon,
+  Quote, Code, Code2, Table, ChevronRight, Info, ImageIcon, Minus,
+  Highlighter, Sparkles, Bold, Italic, Underline, Strikethrough,
+  Sigma, GitBranch, Columns2, Columns3, Smile, Calendar,
+  Music, Film, FileText, AtSign, LayoutTemplate,
 } from "lucide-react";
-import { filterSlashCommands, type SlashCommandItem } from "./slash-command";
+import {
+  filterSlashCommands,
+  executeCommandOnBlock,
+  type SlashCommandItem,
+} from "./slash-command";
+import {
+  COLORS, TURN_INTO, findBlockPos, turnBlockInto,
+} from "./block-actions";
 
-/* ── Constants ── */
-
-const COLORS = [
-  { name: "Default", value: "" }, { name: "Gray", value: "#9ca3af" },
-  { name: "Brown", value: "#a87652" }, { name: "Red", value: "#ef4444" },
-  { name: "Orange", value: "#f97316" }, { name: "Yellow", value: "#eab308" },
-  { name: "Green", value: "#22c55e" }, { name: "Blue", value: "#3b82f6" },
-  { name: "Purple", value: "#a855f7" }, { name: "Pink", value: "#ec4899" },
-];
-
-const TURN_INTO = [
-  { type: "paragraph", label: "Text", icon: Type },
-  { type: "h1", label: "Heading 1", icon: Heading1 },
-  { type: "h2", label: "Heading 2", icon: Heading2 },
-  { type: "h3", label: "Heading 3", icon: Heading3 },
-  { type: "bulletList", label: "Bullet List", icon: List },
-  { type: "orderedList", label: "Numbered List", icon: ListOrdered },
-  { type: "taskList", label: "To-do List", icon: CheckSquare },
-  { type: "blockquote", label: "Quote", icon: Quote },
-  { type: "codeBlock", label: "Code", icon: Code },
-];
+/* ── Icon map for block picker ── */
 
 const BLOCK_ICON_MAP: Record<string, LucideIcon> = {
   Heading1, Heading2, Heading3, List, ListOrdered, Quote, CheckSquare,
-  Table, ChevronRight, Highlighter, Code, Info, ImageIcon, Minus,
+  Table, ChevronRight, Highlighter, Code, Code2, Info, ImageIcon, Minus,
+  Sparkles, Type, Bold, Italic, Underline, Strikethrough,
+  Sigma, GitBranch, Columns2, Columns3, Smile, Calendar,
+  Music, Film, FileText, AtSign, LayoutTemplate, Palette,
 };
 
-/* ── Helper: find block pos by walking doc nodes ── */
-
-function findBlockPos(editor: Editor, node: PmNode | null): number | null {
-  if (!node) return null;
-  let pos = 0;
-  for (let i = 0; i < editor.state.doc.childCount; i++) {
-    const child = editor.state.doc.child(i);
-    if (child === node) return pos;
-    pos += child.nodeSize;
-  }
-  return null;
-}
+const CATEGORY_LABELS: Record<string, string> = {
+  text: "Text",
+  lists: "Lists",
+  blocks: "Blocks",
+  media: "Media",
+  advanced: "Advanced",
+  inline: "Inline",
+  color: "Colors",
+};
 
 /**
  * BlockHandleContent — Pure UI rendered inside Tiptap's DragHandle.
@@ -116,43 +106,9 @@ export function BlockHandleContent({
     setTimeout(() => pickerInputRef.current?.focus(), 50);
   }, [currentNode, currentNodePos]);
 
-  const executeBlockCommand = useCallback((item: SlashCommandItem) => {
+  const handleExecuteCommand = useCallback((item: SlashCommandItem) => {
     if (activePos < 0 || !activeNode) return;
-    const title = item.title.toLowerCase();
-
-    editor.chain().focus().setTextSelection(activePos + 1).run();
-
-    if (title.includes("heading 1")) editor.chain().focus().setHeading({ level: 1 }).run();
-    else if (title.includes("heading 2")) editor.chain().focus().setHeading({ level: 2 }).run();
-    else if (title.includes("heading 3")) editor.chain().focus().setHeading({ level: 3 }).run();
-    else if (title.includes("bullet")) editor.chain().focus().toggleBulletList().run();
-    else if (title.includes("numbered")) editor.chain().focus().toggleOrderedList().run();
-    else if (title.includes("to-do")) editor.chain().focus().toggleTaskList().run();
-    else if (title.includes("blockquote")) editor.chain().focus().toggleBlockquote().run();
-    else if (title.includes("code")) editor.chain().focus().toggleCodeBlock().run();
-    else if (title.includes("highlight")) editor.chain().focus().toggleHighlight({ color: "#fef08a" }).run();
-    else {
-      const isEmpty = activeNode.textContent.trim() === "";
-      const endPos = activePos + activeNode.nodeSize;
-
-      if (title.includes("table")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
-        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-      } else if (title.includes("toggle")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
-        editor.chain().focus().insertContentAt(isEmpty ? activePos : endPos, { type: "toggle", attrs: { open: true }, content: [{ type: "paragraph" }] }).run();
-      } else if (title.includes("callout")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
-        editor.chain().focus().insertContentAt(isEmpty ? activePos : endPos, { type: "callout", content: [{ type: "paragraph" }] }).run();
-      } else if (title.includes("divider")) {
-        if (isEmpty) editor.chain().focus().deleteRange({ from: activePos, to: endPos }).run();
-        editor.chain().focus().insertContentAt(isEmpty ? activePos : endPos, { type: "horizontalRule" }).run();
-      } else if (title.includes("image")) {
-        const url = window.prompt("Image URL:");
-        if (url) editor.chain().focus().setImage({ src: url }).run();
-      }
-    }
-
+    executeCommandOnBlock(editor, item, activePos, activeNode);
     setPickerOpen(false);
     setPickerQuery("");
   }, [editor, activeNode, activePos]);
@@ -210,18 +166,7 @@ export function BlockHandleContent({
 
   const handleTurnInto = useCallback((type: string) => {
     if (activePos < 0) return;
-    editor.chain().focus().setTextSelection(activePos + 1).run();
-    switch (type) {
-      case "paragraph": editor.chain().focus().setParagraph().run(); break;
-      case "h1": editor.chain().focus().setHeading({ level: 1 }).run(); break;
-      case "h2": editor.chain().focus().setHeading({ level: 2 }).run(); break;
-      case "h3": editor.chain().focus().setHeading({ level: 3 }).run(); break;
-      case "bulletList": editor.chain().focus().toggleBulletList().run(); break;
-      case "orderedList": editor.chain().focus().toggleOrderedList().run(); break;
-      case "taskList": editor.chain().focus().toggleTaskList().run(); break;
-      case "blockquote": editor.chain().focus().toggleBlockquote().run(); break;
-      case "codeBlock": editor.chain().focus().toggleCodeBlock().run(); break;
-    }
+    turnBlockInto(editor, activePos, type);
     closeMenu();
   }, [editor, activePos, closeMenu]);
 
@@ -232,6 +177,19 @@ export function BlockHandleContent({
   }, [editor, activeNode, activePos, closeMenu]);
 
   /* ── Render ── */
+
+  // Group picker items by category
+  const pickerItems = filterSlashCommands(pickerQuery);
+  const grouped: { category: string; items: { item: SlashCommandItem; globalIndex: number }[] }[] = [];
+  let lastCat = "";
+  pickerItems.forEach((item, index) => {
+    const cat = item.category ?? "blocks";
+    if (cat !== lastCat) {
+      grouped.push({ category: cat, items: [] });
+      lastCat = cat;
+    }
+    grouped[grouped.length - 1].items.push({ item, globalIndex: index });
+  });
 
   return (
     <>
@@ -313,30 +271,43 @@ export function BlockHandleContent({
           <div className="px-3 pt-3 pb-2">
             <input ref={pickerInputRef} type="text" value={pickerQuery} onChange={(e) => { setPickerQuery(e.target.value); setPickerIndex(0); }}
               onKeyDown={(e) => {
-                const items = filterSlashCommands(pickerQuery);
-                if (e.key === "ArrowDown") { e.preventDefault(); setPickerIndex((pickerIndex + 1) % Math.max(items.length, 1)); }
-                else if (e.key === "ArrowUp") { e.preventDefault(); setPickerIndex((pickerIndex + items.length - 1) % Math.max(items.length, 1)); }
-                else if (e.key === "Enter") { e.preventDefault(); if (items[pickerIndex]) executeBlockCommand(items[pickerIndex]); }
+                if (e.key === "ArrowDown") { e.preventDefault(); setPickerIndex((pickerIndex + 1) % Math.max(pickerItems.length, 1)); }
+                else if (e.key === "ArrowUp") { e.preventDefault(); setPickerIndex((pickerIndex + pickerItems.length - 1) % Math.max(pickerItems.length, 1)); }
+                else if (e.key === "Enter") { e.preventDefault(); if (pickerItems[pickerIndex]) handleExecuteCommand(pickerItems[pickerIndex]); }
                 else if (e.key === "Escape") { e.preventDefault(); setPickerOpen(false); setPickerQuery(""); }
               }}
               placeholder="Type to filter..." className="w-full rounded-lg bg-black/[0.04] dark:bg-white/[0.04] px-3 py-2 text-sm text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 outline-none border border-transparent focus:border-black/10 dark:focus:border-white/10 transition-colors" />
           </div>
           <div className="max-h-[320px] overflow-y-auto px-1.5 pb-1.5">
-            <p className="px-2 pt-1 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">Basic blocks</p>
-            {(() => {
-              const items = filterSlashCommands(pickerQuery);
-              if (items.length === 0) return <p className="px-3 py-4 text-xs text-black/30 dark:text-white/30 text-center">No blocks found</p>;
-              return items.map((item, index) => {
-                const Icon = BLOCK_ICON_MAP[item.icon];
-                return (
-                  <button key={item.title} onMouseDown={(e) => e.preventDefault()} onClick={() => executeBlockCommand(item)} onMouseEnter={() => setPickerIndex(index)}
-                    className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${index === pickerIndex ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white" : "text-black/70 dark:text-white/70 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"}`}>
-                    {Icon && <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${index === pickerIndex ? "bg-black/10 text-black/80 dark:bg-white/10 dark:text-white" : "bg-black/[0.04] text-black/35 dark:bg-white/[0.04] dark:text-white/35"}`}><Icon className="h-4 w-4" /></div>}
-                    <div><p className="text-[13px] font-medium">{item.title}</p><p className="text-[10px] text-black/40 dark:text-white/40">{item.description}</p></div>
-                  </button>
-                );
-              });
-            })()}
+            {pickerItems.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-black/30 dark:text-white/30 text-center">No blocks found</p>
+            ) : (
+              grouped.map((group) => (
+                <div key={group.category}>
+                  <p className="px-2 pt-1 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-black/30 dark:text-white/30">
+                    {CATEGORY_LABELS[group.category] ?? group.category}
+                  </p>
+                  {group.items.map(({ item, globalIndex }) => {
+                    const Icon = BLOCK_ICON_MAP[item.icon];
+                    return (
+                      <button key={item.title} onMouseDown={(e) => e.preventDefault()} onClick={() => handleExecuteCommand(item)} onMouseEnter={() => setPickerIndex(globalIndex)}
+                        className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${globalIndex === pickerIndex ? "bg-black/[0.06] dark:bg-white/[0.07] text-black dark:text-white" : "text-black/70 dark:text-white/70 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"}`}>
+                        {Icon && <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${globalIndex === pickerIndex ? "bg-black/10 text-black/80 dark:bg-white/10 dark:text-white" : "bg-black/[0.04] text-black/35 dark:bg-white/[0.04] dark:text-white/35"}`}><Icon className="h-4 w-4" /></div>}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium">{item.title}</p>
+                          <p className="text-[10px] text-black/40 dark:text-white/40">{item.description}</p>
+                        </div>
+                        {item.shortcut && (
+                          <span className="shrink-0 text-[10px] text-black/20 dark:text-white/20">
+                            {item.shortcut}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
+            )}
           </div>
           <div className="border-t border-black/6 dark:border-white/6 px-3 py-2 flex items-center justify-between">
             <span className="text-[10px] text-black/25 dark:text-white/25">Close menu</span>

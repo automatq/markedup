@@ -2,7 +2,7 @@ import { Editor } from "@tiptap/core";
 import { Node as PmNode } from "@tiptap/pm/model";
 import {
   Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare,
-  Quote, Code, Type, type LucideIcon,
+  Quote, Code, Type, ChevronRight, Info, type LucideIcon,
 } from "lucide-react";
 
 export const COLORS = [
@@ -23,6 +23,8 @@ export const TURN_INTO: { type: string; label: string; icon: LucideIcon }[] = [
   { type: "taskList", label: "To-do List", icon: CheckSquare },
   { type: "blockquote", label: "Quote", icon: Quote },
   { type: "codeBlock", label: "Code", icon: Code },
+  { type: "toggle", label: "Toggle", icon: ChevronRight },
+  { type: "callout", label: "Callout", icon: Info },
 ];
 
 /** Walk top-level doc nodes and match by PmNode reference. */
@@ -49,6 +51,19 @@ export function turnBlockInto(editor: Editor, pos: number, type: string) {
     case "taskList": editor.chain().focus().toggleTaskList().run(); break;
     case "blockquote": editor.chain().focus().toggleBlockquote().run(); break;
     case "codeBlock": editor.chain().focus().toggleCodeBlock().run(); break;
+    case "toggle":
+      editor.chain().focus().insertContent({
+        type: "toggle",
+        attrs: { open: true },
+        content: [{ type: "paragraph" }],
+      }).run();
+      break;
+    case "callout":
+      editor.chain().focus().insertContent({
+        type: "callout",
+        content: [{ type: "paragraph" }],
+      }).run();
+      break;
   }
 }
 

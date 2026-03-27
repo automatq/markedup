@@ -15,6 +15,7 @@ import {
   ListOrdered,
   Quote,
   Code,
+  Code2,
   Info,
   ImageIcon,
   Minus,
@@ -23,6 +24,23 @@ import {
   ChevronRight,
   Highlighter,
   Sparkles,
+  Type,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Sigma,
+  GitBranch,
+  Columns2,
+  Columns3,
+  Smile,
+  Calendar,
+  Music,
+  Film,
+  FileText,
+  AtSign,
+  LayoutTemplate,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,11 +56,28 @@ const iconMap: Record<string, LucideIcon> = {
   ChevronRight,
   Highlighter,
   Code,
+  Code2,
   Info,
   ImageIcon,
   Minus,
   Sparkles,
-  // List is already mapped above
+  Type,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Sigma,
+  GitBranch,
+  Columns2,
+  Columns3,
+  Smile,
+  Calendar,
+  Music,
+  Film,
+  FileText,
+  AtSign,
+  LayoutTemplate,
+  Palette,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -51,6 +86,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   blocks: "Blocks",
   media: "Media",
   advanced: "Advanced",
+  inline: "Inline",
+  color: "Colors",
 };
 
 export interface SlashCommandMenuRef {
@@ -91,7 +128,13 @@ export const SlashCommandMenu = forwardRef<
     },
   }));
 
-  if (!items.length) return null;
+  if (!items.length) {
+    return (
+      <div className="z-50 w-72 rounded-xl border border-black/8 dark:border-white/10 bg-white dark:bg-black p-4 shadow-lg animate-fade-in-up">
+        <p className="text-xs text-black/30 dark:text-white/30 text-center">No matching commands</p>
+      </div>
+    );
+  }
 
   // Group items by category, preserving order
   const grouped: { category: string; items: { item: SlashCommandItem; globalIndex: number }[] }[] = [];
@@ -135,12 +178,17 @@ export const SlashCommandMenu = forwardRef<
                     <Icon className="h-3.5 w-3.5" />
                   </div>
                 )}
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{item.title}</p>
                   <p className="text-[10px] text-black/40 dark:text-white/40">
                     {item.description}
                   </p>
                 </div>
+                {item.shortcut && (
+                  <span className="shrink-0 text-[10px] text-black/20 dark:text-white/20">
+                    {item.shortcut}
+                  </span>
+                )}
               </button>
             );
           })}

@@ -33,6 +33,13 @@ import { Embed } from "./extensions/embed";
 import { Bookmark } from "./extensions/bookmark";
 import { SearchReplace } from "./extensions/search-replace";
 import { TableOfContents } from "./extensions/table-of-contents";
+import { MathBlock } from "./extensions/math-block";
+import { MermaidBlock } from "./extensions/mermaid-block";
+import { Columns, Column } from "./extensions/columns";
+import { AudioBlock } from "./extensions/audio-block";
+import { VideoBlock } from "./extensions/video-block";
+import { PdfBlock } from "./extensions/pdf-block";
+import Mathematics from "@tiptap/extension-mathematics";
 import { SlashCommandExtension } from "./extensions/slash-command-extension";
 import {
   SlashCommandMenu,
@@ -135,6 +142,14 @@ export function MarkedUpEditor({
       Bookmark,
       SearchReplace,
       TableOfContents,
+      MathBlock,
+      MermaidBlock,
+      Columns,
+      Column,
+      AudioBlock,
+      VideoBlock,
+      PdfBlock,
+      Mathematics,
 
       // Slash commands
       SlashCommandExtension.configure({
