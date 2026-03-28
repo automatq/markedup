@@ -29,12 +29,12 @@ import {
   LogIn,
   ArrowLeft,
   Star,
-  CalendarDays,
 } from "lucide-react";
 import { useUser, useClerk, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
+import { DailyNotes } from "./DailyNotes";
 
 export interface SidebarDocument {
   id: string;
@@ -971,55 +971,21 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* New Document + Today */}
-      <div className="px-3 pb-2 flex gap-1.5">
+      {/* New Document + Daily Notes */}
+      <div className="px-3 pb-2">
         <button
           onClick={onCreateDocument}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 hover:bg-black/[0.06] dark:hover:border-white/25 dark:hover:bg-white/[0.07] transition-all"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 hover:bg-black/[0.06] dark:hover:border-white/25 dark:hover:bg-white/[0.07] transition-all"
         >
           <Plus className="h-3.5 w-3.5" />
-          New
-        </button>
-        <button
-          onClick={async () => {
-            const today = new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            });
-            // Check if today's note already exists
-            const existing = documents.find(
-              (d) => d.title === today
-            );
-            if (existing) {
-              onSelectDocument(existing.id);
-              return;
-            }
-            // Create a new daily note
-            try {
-              const res = await fetch("/api/documents", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  workspaceId: params?.workspaceId,
-                  title: today,
-                  sourceType: "daily-note",
-                }),
-              });
-              if (res.ok) {
-                const doc = await res.json();
-                onSelectDocument(doc.id);
-              }
-            } catch {}
-          }}
-          title="Open today's note"
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-black/8 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3 py-2 text-xs font-medium text-black/60 dark:text-white/60 hover:border-black/20 hover:bg-black/[0.06] dark:hover:border-white/25 dark:hover:bg-white/[0.07] transition-all"
-        >
-          <CalendarDays className="h-3.5 w-3.5" />
-          Today
+          New Page
         </button>
       </div>
+      <DailyNotes
+        workspaceId={params?.workspaceId as string}
+        documents={documents}
+        onSelectDocument={onSelectDocument}
+      />
 
       {/* Author Filter Dropdown (team workspaces only) */}
       {(() => {

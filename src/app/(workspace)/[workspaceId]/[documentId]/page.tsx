@@ -17,6 +17,8 @@ import { MarkedUpEditor } from "@/components/editor/Editor";
 import { Room } from "@/components/Room";
 import { DocumentHeader } from "@/components/DocumentHeader";
 import { toMarkdown } from "@/lib/export/to-markdown";
+import { toDocx } from "@/lib/export/to-docx";
+import { printDocument, downloadBlob } from "@/lib/export/to-pdf";
 
 // Dialogs
 import { MoveToDialog } from "@/components/dialogs/MoveToDialog";
@@ -162,9 +164,20 @@ function DocumentInner({
   }, []);
 
   const handleExport = useCallback(
-    (format: "markdown" | "html") => {
+    async (format: "markdown" | "html" | "pdf" | "docx") => {
       const editor = editorRef.current;
       if (!editor) return;
+
+      if (format === "pdf") {
+        printDocument(title);
+        return;
+      }
+
+      if (format === "docx") {
+        const blob = await toDocx(editor.getJSON(), title);
+        downloadBlob(blob, `${title}.docx`);
+        return;
+      }
 
       let content: string;
       let mimeType: string;
@@ -181,12 +194,7 @@ function DocumentInner({
       }
 
       const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title}.${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${title}.${ext}`);
     },
     [title]
   );
@@ -286,6 +294,14 @@ function DocumentInner({
 
         case "export":
           handleExport("markdown");
+          break;
+
+        case "export-pdf":
+          handleExport("pdf");
+          break;
+
+        case "export-docx":
+          handleExport("docx");
           break;
 
         case "turn-wiki":

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuth, canAccessWorkspace } from "@/lib/auth";
+import { extractText } from "@/lib/extract-text";
 
 export async function GET(
   _request: NextRequest,
@@ -63,7 +64,11 @@ export async function PATCH(
 
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
-    if (content !== undefined) data.content = content;
+    if (content !== undefined) {
+      data.content = content;
+      // Extract plain text for full-text search indexing
+      data.searchContent = extractText(content);
+    }
     if (parentId !== undefined) data.parentId = parentId ?? null;
 
     const document = await db.document.update({

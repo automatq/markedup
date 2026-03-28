@@ -225,6 +225,7 @@ export default function WorkspaceLayoutPage({
           handleTemplateSelect({ title });
           setQuickSwitcherOpen(false);
         }}
+        workspaceId={workspaceId}
       />
 
       {/* Template Picker */}

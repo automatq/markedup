@@ -516,6 +516,32 @@ export const slashCommandItems: SlashCommandItem[] = [
     },
   },
 
+  {
+    title: "Footnote",
+    description: "Add a numbered footnote reference",
+    icon: "Superscript",
+    category: "advanced",
+    aliases: ["footnote", "reference", "citation", "note", "endnote"],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent({
+        type: "footnote",
+        attrs: { content: "" },
+      }).run();
+    },
+  },
+  {
+    title: "Page Break",
+    description: "Insert a page break for printing/PDF",
+    icon: "FileBreak",
+    category: "advanced",
+    aliases: ["break", "newpage", "page", "print break"],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent({
+        type: "pageBreak",
+      }).run();
+    },
+  },
+
   // ── Inline ──
 
   {
@@ -795,6 +821,11 @@ export function executeCommandOnBlock(
     case "Table of Contents":
       editor.chain().focus().insertContentAt(insertPos - (isEmpty ? blockPos : 0), {
         type: "tableOfContents",
+      }).run();
+      break;
+    case "Page Break":
+      editor.chain().focus().insertContentAt(insertPos - (isEmpty ? blockPos : 0), {
+        type: "pageBreak",
       }).run();
       break;
     case "Image":

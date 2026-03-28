@@ -39,6 +39,8 @@ import { Columns, Column } from "./extensions/columns";
 import { AudioBlock } from "./extensions/audio-block";
 import { VideoBlock } from "./extensions/video-block";
 import { PdfBlock } from "./extensions/pdf-block";
+import { Footnote } from "./extensions/footnote";
+import { PageBreak } from "./extensions/page-break";
 import Mathematics from "@tiptap/extension-mathematics";
 import { SlashCommandExtension } from "./extensions/slash-command-extension";
 import {
@@ -149,6 +151,8 @@ export function MarkedUpEditor({
       AudioBlock,
       VideoBlock,
       PdfBlock,
+      Footnote,
+      PageBreak,
       Mathematics,
 
       // Slash commands

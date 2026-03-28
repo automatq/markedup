@@ -71,8 +71,34 @@ function nodeToMarkdown(node: JSONContent, depth = 0): string {
     case "horizontalRule":
       return "---";
 
+    case "pageBreak":
+      return "\n---\n<!-- page-break -->\n";
+
     case "backlink":
       return `[[${node.attrs?.title ?? ""}]]`;
+
+    case "mathBlock":
+      return `$$\n${node.attrs?.content ?? ""}\n$$`;
+
+    case "mermaidBlock":
+      return `\`\`\`mermaid\n${node.attrs?.content ?? ""}\n\`\`\``;
+
+    case "toggle": {
+      const inner =
+        node.content?.map((child) => nodeToMarkdown(child)).join("\n\n") ?? "";
+      return `<details>\n<summary>Toggle</summary>\n\n${inner}\n</details>`;
+    }
+
+    case "columns": {
+      return (
+        node.content
+          ?.map(
+            (col, i) =>
+              `<!-- column ${i + 1} -->\n${col.content?.map((child) => nodeToMarkdown(child)).join("\n\n") ?? ""}`
+          )
+          .join("\n\n") ?? ""
+      );
+    }
 
     default:
       return inlineToMarkdown(node.content);
@@ -98,6 +124,9 @@ function inlineToMarkdown(content?: JSONContent[]): string {
     .map((node) => {
       if (node.type === "backlink") {
         return `[[${node.attrs?.title ?? ""}]]`;
+      }
+      if (node.type === "footnote") {
+        return `[^${node.attrs?.content ?? ""}]`;
       }
 
       let text = node.text ?? "";

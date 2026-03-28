@@ -41,6 +41,8 @@ import {
   AtSign,
   LayoutTemplate,
   Palette,
+  Superscript,
+  SeparatorHorizontal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -78,6 +80,9 @@ const iconMap: Record<string, LucideIcon> = {
   AtSign,
   LayoutTemplate,
   Palette,
+  Superscript,
+  SeparatorHorizontal,
+  FileBreak: SeparatorHorizontal,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {

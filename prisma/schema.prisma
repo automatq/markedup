@@ -48,6 +48,9 @@ model Document {
   /// TipTap JSONContent stored as JSON
   content Json?
 
+  /// Plain text extracted from content for full-text search
+  searchContent String?
+
   /// Yjs document state as a binary blob (reserved for future collab)
   yjsState Bytes?
 
