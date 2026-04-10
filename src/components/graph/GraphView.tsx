@@ -19,7 +19,7 @@ export interface GraphEdge {
   source: string;
   target: string;
   label: string;
-  type?: "parent" | "backlink";
+  type?: string; // "parent" | "backlink" | "depends_on" | "blocks" | "related"
 }
 
 interface GraphViewProps {
@@ -305,7 +305,12 @@ export function GraphView({
       const tgt = nodes.find((n) => n.id === edge.target);
       if (!src || !tgt) continue;
 
-      const isParent = edge.type === "parent";
+      const edgeType = edge.type || "backlink";
+      const isParent = edgeType === "parent";
+      const isDependency = edgeType === "depends_on";
+      const isBlocking = edgeType === "blocks";
+      const isRelated = edgeType === "related";
+      const hasArrow = isParent || isDependency || isBlocking;
       const isHighlighted =
         hoveredNode === src.id ||
         hoveredNode === tgt.id ||
@@ -318,12 +323,19 @@ export function GraphView({
         // Curved parent-child edges
         const mx = (src.x + tgt.x) / 2;
         const my = (src.y + tgt.y) / 2;
-        const dx = tgt.x - src.x;
-        const dy = tgt.y - src.y;
-        const cx = mx - dy * 0.15;
-        const cy = my + dx * 0.15;
+        const dx2 = tgt.x - src.x;
+        const dy2 = tgt.y - src.y;
+        const cx = mx - dy2 * 0.15;
+        const cy = my + dx2 * 0.15;
         ctx.moveTo(src.x, src.y);
         ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y);
+      } else if (isRelated) {
+        ctx.setLineDash([2, 3]);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
+      } else if (isDependency || isBlocking) {
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
       } else {
         // Dashed backlink edges
         ctx.setLineDash([4, 4]);
@@ -331,20 +343,43 @@ export function GraphView({
         ctx.lineTo(tgt.x, tgt.y);
       }
 
+      // Color by edge type
+      const edgeColors: Record<string, { normal: string; highlighted: string }> = {
+        parent: {
+          normal: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)",
+          highlighted: isDark ? "rgba(99,102,241,0.5)" : "rgba(99,102,241,0.4)",
+        },
+        backlink: {
+          normal: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)",
+          highlighted: isDark ? "rgba(168,85,247,0.5)" : "rgba(168,85,247,0.4)",
+        },
+        depends_on: {
+          normal: isDark ? "rgba(249,115,22,0.2)" : "rgba(249,115,22,0.25)",
+          highlighted: isDark ? "rgba(249,115,22,0.6)" : "rgba(249,115,22,0.5)",
+        },
+        blocks: {
+          normal: isDark ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.25)",
+          highlighted: isDark ? "rgba(239,68,68,0.6)" : "rgba(239,68,68,0.5)",
+        },
+        related: {
+          normal: isDark ? "rgba(59,130,246,0.15)" : "rgba(59,130,246,0.2)",
+          highlighted: isDark ? "rgba(59,130,246,0.5)" : "rgba(59,130,246,0.4)",
+        },
+      };
+
+      const colors = edgeColors[edgeType] || edgeColors.backlink;
       if (isHighlighted) {
-        ctx.strokeStyle = isParent
-          ? isDark ? "rgba(99,102,241,0.5)" : "rgba(99,102,241,0.4)"
-          : isDark ? "rgba(168,85,247,0.5)" : "rgba(168,85,247,0.4)";
+        ctx.strokeStyle = colors.highlighted;
         ctx.lineWidth = 2;
       } else {
-        ctx.strokeStyle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+        ctx.strokeStyle = colors.normal;
         ctx.lineWidth = 1;
       }
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Arrow for parent edges
-      if (isParent) {
+      // Arrow for directional edges
+      if (hasArrow) {
         const tgtR = getNodeRadius(tgt.connections || 0);
         const angle = Math.atan2(tgt.y - src.y, tgt.x - src.x);
         const arrowX = tgt.x - Math.cos(angle) * (tgtR + 4);
@@ -361,9 +396,7 @@ export function GraphView({
           arrowY - arrowSize * Math.sin(angle + Math.PI / 6)
         );
         ctx.closePath();
-        ctx.fillStyle = isHighlighted
-          ? isDark ? "rgba(99,102,241,0.5)" : "rgba(99,102,241,0.4)"
-          : isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+        ctx.fillStyle = isHighlighted ? colors.highlighted : colors.normal;
         ctx.fill();
       }
     }
@@ -618,6 +651,18 @@ export function GraphView({
               <span className="flex items-center gap-1.5">
                 <span className="w-4 h-px border-t border-dashed border-purple-500/50" />
                 backlink
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-px bg-orange-500/50" />
+                depends
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-px bg-red-500/50" />
+                blocks
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-px border-t border-dotted border-blue-500/50" />
+                related
               </span>
             </div>
 

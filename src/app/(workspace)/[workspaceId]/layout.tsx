@@ -7,6 +7,7 @@ import { TemplatePicker } from "@/components/TemplatePicker";
 import { GraphView } from "@/components/graph/GraphView";
 import { TrashDialog } from "@/components/dialogs/TrashDialog";
 import { useRouter, useParams } from "next/navigation";
+import { SessionBriefing } from "@/components/SessionBriefing";
 
 interface DocEntry {
   id: string;
@@ -14,6 +15,8 @@ interface DocEntry {
   parentId?: string | null;
   createdBy?: string | null;
   authorName?: string | null;
+  tags?: string | null;
+  sourceType?: string | null;
 }
 
 export default function WorkspaceLayoutPage({
@@ -31,6 +34,7 @@ export default function WorkspaceLayoutPage({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [graphViewOpen, setGraphViewOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [sessionBriefing, setSessionBriefing] = useState<any>(null);
 
   const refreshDocuments = useCallback(async () => {
     if (!workspaceId) return;
@@ -88,6 +92,23 @@ export default function WorkspaceLayoutPage({
     return () => clearInterval(presencePollRef.current);
   }, [documents]);
 
+  // Session check — show "welcome back" briefing if returning after 30+ minutes
+  useEffect(() => {
+    if (!workspaceId) return;
+    fetch("/api/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId }),
+    })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.isNewSession && data?.briefing) {
+          setSessionBriefing(data.briefing);
+        }
+      })
+      .catch(() => {});
+  }, [workspaceId]);
+
   // Cmd+K to open Quick Switcher, Cmd+G for graph
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -126,6 +147,7 @@ export default function WorkspaceLayoutPage({
             title: template.title || "Untitled",
             content: template.content || undefined,
             parentId: template.parentId || undefined,
+            sourceType: template.sourceType || undefined,
           }),
         });
         if (res.ok) {
@@ -242,6 +264,18 @@ export default function WorkspaceLayoutPage({
         workspaceId={workspaceId}
         onRestored={refreshDocuments}
       />
+
+      {/* Session briefing (welcome back) */}
+      {sessionBriefing && (
+        <SessionBriefing
+          briefing={sessionBriefing}
+          onClose={() => setSessionBriefing(null)}
+          onNavigate={(id) => {
+            handleSelectDocument(id);
+            setSessionBriefing(null);
+          }}
+        />
+      )}
 
       {/* Graph View (Cmd+G) */}
       <GraphView

@@ -14,8 +14,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "documentId required" }, { status: 400 });
     }
 
+    const typeFilter = request.nextUrl.searchParams.get("type");
+
     const backlinks = await db.node.findMany({
-      where: { targetDocumentId: documentId },
+      where: {
+        targetDocumentId: documentId,
+        ...(typeFilter ? { type: typeFilter } : {}),
+      },
       include: {
         sourceDocument: {
           select: { id: true, title: true },

@@ -42,6 +42,8 @@ export interface SidebarDocument {
   parentId?: string | null;
   createdBy?: string | null;
   authorName?: string | null;
+  tags?: string | null;
+  sourceType?: string | null;
 }
 
 interface PresenceInfo {

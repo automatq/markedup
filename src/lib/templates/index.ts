@@ -9,6 +9,7 @@ export interface DocumentTemplate {
   color: string;
   preview: string[];
   content: JSONContent;
+  sourceType?: string;
 }
 
 // ── Helper builders ──────────────────────────────────────────────
@@ -1373,6 +1374,46 @@ export const templates: DocumentTemplate[] = [
           h3("Screening Survey Results"),
           p("[Link or summary]"),
         ),
+      ],
+    },
+  },
+
+  // ── Execution Plan ──
+  {
+    id: "execution-plan",
+    title: "Execution Plan",
+    description: "Structured project plan with tasks, dependencies & agent assignments",
+    icon: "Crosshair",
+    category: "work",
+    color: "#f97316",
+    preview: ["Tasks with dependencies", "Agent assignments", "Progress tracking"],
+    sourceType: "execution-plan",
+    content: {
+      type: "doc",
+      content: [
+        h1("Execution Plan"),
+        callout(
+          bold("Owner: ", "___"),
+          bold("Target Date: ", "___"),
+          bold("Status: ", "Not Started"),
+        ),
+        hr(),
+        h2("Objective"),
+        p("What does success look like? Define the end state clearly."),
+        pEmpty(),
+        h2("Tasks"),
+        p("Manage tasks in the Execution Plan panel (open from the page menu or it opens automatically)."),
+        pEmpty(),
+        h2("Dependencies & Risks"),
+        bullet(
+          "Dependency: [Document or external blocker]",
+          "Risk: [What could go wrong]",
+          "Mitigation: [How to address]",
+        ),
+        pEmpty(),
+        h2("Handoff Notes"),
+        p("Context for the next session — what was done, what's next, key decisions made."),
+        pEmpty(),
       ],
     },
   },

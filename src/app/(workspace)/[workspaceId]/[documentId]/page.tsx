@@ -40,6 +40,7 @@ import { BreakoutPanel } from "@/components/panels/BreakoutPanel";
 import { PresentationMode } from "@/components/PresentationMode";
 import { OutlinePanel } from "@/components/panels/OutlinePanel";
 import { BacklinksPanel } from "@/components/panels/BacklinksPanel";
+import { ExecutionPlanPanel } from "@/components/panels/ExecutionPlanPanel";
 import { EditorStatusBar } from "@/components/editor/EditorStatusBar";
 import { SearchReplaceBar } from "@/components/editor/SearchReplaceBar";
 import { Breadcrumbs } from "@/components/editor/Breadcrumbs";
@@ -130,6 +131,7 @@ function DocumentInner({
   const [presentationOpen, setPresentationOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(false);
+  const [executionPlanOpen, setExecutionPlanOpen] = useState(sourceType === "execution-plan");
 
   // Record document view
   useEffect(() => {
@@ -344,6 +346,10 @@ function DocumentInner({
           setBacklinksOpen(true);
           break;
 
+        case "execution-plan":
+          setExecutionPlanOpen((p) => !p);
+          break;
+
         default:
           break;
       }
@@ -441,7 +447,7 @@ function DocumentInner({
 
           <SearchReplaceBar editor={editorRef.current} />
           <div
-            className={`mx-auto w-full ${agentsOpen || breakoutsOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10 ${activeFontClass}`}
+            className={`mx-auto w-full ${agentsOpen || breakoutsOpen || executionPlanOpen ? "max-w-full px-8" : layoutClass(customization.layout)} py-10 ${activeFontClass}`}
           >
             {/* Breadcrumbs + Icon + Title */}
             <div className="mb-6 px-4">
@@ -563,6 +569,15 @@ function DocumentInner({
             documentTitle={title}
             getDocumentContent={() => editorRef.current?.getText() ?? ""}
             workspaceId={workspaceId}
+          />
+        )}
+
+        {/* Inline execution plan panel */}
+        {executionPlanOpen && (
+          <ExecutionPlanPanel
+            open={executionPlanOpen}
+            onClose={() => setExecutionPlanOpen(false)}
+            documentId={documentId}
           />
         )}
       </div>

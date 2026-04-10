@@ -66,6 +66,7 @@ const menuItems: MenuItem[] = [
   { icon: ArrowUpLeftIcon, label: "Backlinks", action: "backlinks", dividerAfter: true },
   { icon: Sparkles, label: "AI Agents", action: "agents" },
   { icon: FileStack, label: "Breakout Files", action: "breakouts" },
+  { icon: ListIcon, label: "Execution Plan", action: "execution-plan" },
 ];
 
 export function PageActionsMenu({ open, onClose, onAction }: PageActionsMenuProps) {

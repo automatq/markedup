@@ -54,8 +54,11 @@ model Document {
   /// Yjs document state as a binary blob (reserved for future collab)
   yjsState Bytes?
 
-  /// Origin type: "spreadsheet", "markerboard", or null for regular docs
+  /// Origin type: "spreadsheet", "markerboard", "execution-plan", or null for regular docs
   sourceType String?
+
+  /// Comma-separated tags for categorization (e.g. "engineering,product")
+  tags String?
 
   /// Clerk user ID of who deleted this document
   deletedBy  String?
@@ -92,11 +95,14 @@ model Node {
   targetDocument   Document @relation("TargetDocument", fields: [targetDocumentId], references: [id], onDelete: Cascade)
 
   linkText  String
+  /// Relationship type: "backlink" | "depends_on" | "blocks" | "related"
+  type      String   @default("backlink")
   createdAt DateTime @default(now())
 
   @@unique([sourceDocumentId, targetDocumentId, linkText])
   @@index([sourceDocumentId])
   @@index([targetDocumentId])
+  @@index([type])
 }
 
 /// AI agent breakout files — role-specific action plans generated from a document
@@ -196,6 +202,8 @@ model AgentConfig {
   description String
   /// System prompt for AI interactions
   systemPrompt String
+  /// Optional department tags this agent focuses on (comma-separated)
+  tags         String?
   /// Who created this agent
   createdBy   String
   createdAt   DateTime  @default(now())
@@ -442,4 +450,46 @@ model Favorite {
 
   @@unique([userId, documentId])
   @@index([userId])
+}
+
+/// Tasks within an execution plan document
+model ExecutionPlanTask {
+  id            String    @id @default(cuid())
+  /// The document that IS the execution plan
+  documentId    String
+  /// Sort order within the plan
+  sortOrder     Int       @default(0)
+  title         String
+  description   String?
+  /// "not_started" | "in_progress" | "completed" | "blocked"
+  status        String    @default("not_started")
+  /// Agent config ID assigned to this task
+  agentConfigId String?
+  /// Clerk user ID assigned to this task
+  assignedTo    String?
+  /// IDs of other tasks in this plan that block this one (JSON array)
+  blockedBy     Json      @default("[]")
+  dueDate       DateTime?
+  completedAt   DateTime?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([documentId])
+  @@index([documentId, sortOrder])
+}
+
+/// Tracks user sessions for "welcome back" briefing
+model SessionLog {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  userId       String
+  /// Last activity timestamp (updated on each action)
+  lastActiveAt DateTime @default(now())
+  /// Session start time
+  startedAt    DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
 }

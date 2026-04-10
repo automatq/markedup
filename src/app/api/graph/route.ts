@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         title: true,
         parentId: true,
         sourceType: true,
+        tags: true,
         updatedAt: true,
         createdBy: true,
       },
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
         sourceDocumentId: true,
         targetDocumentId: true,
         linkText: true,
+        type: true,
       },
     });
 
@@ -57,11 +59,12 @@ export async function GET(request: NextRequest) {
       title: doc.title,
       type: doc.sourceType || "document",
       parentId: doc.parentId,
+      tags: doc.tags,
       updatedAt: doc.updatedAt,
     }));
 
     // Build edges: parent-child + backlinks
-    const edges: { source: string; target: string; type: "parent" | "backlink"; label: string }[] = [];
+    const edges: { source: string; target: string; type: string; label: string }[] = [];
 
     // Parent-child edges
     for (const doc of documents) {
@@ -80,7 +83,7 @@ export async function GET(request: NextRequest) {
       edges.push({
         source: link.sourceDocumentId,
         target: link.targetDocumentId,
-        type: "backlink",
+        type: link.type || "backlink",
         label: link.linkText,
       });
     }
