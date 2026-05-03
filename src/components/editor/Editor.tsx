@@ -41,6 +41,9 @@ import { VideoBlock } from "./extensions/video-block";
 import { PdfBlock } from "./extensions/pdf-block";
 import { Footnote } from "./extensions/footnote";
 import { PageBreak } from "./extensions/page-break";
+import { SuggestionMark } from "./extensions/suggestion-mark";
+import { SyncedBlock } from "./extensions/synced-block";
+import { DatabaseBlock } from "./extensions/database-block";
 import Mathematics from "@tiptap/extension-mathematics";
 import { SlashCommandExtension } from "./extensions/slash-command-extension";
 import {
@@ -153,6 +156,9 @@ export function MarkedUpEditor({
       PdfBlock,
       Footnote,
       PageBreak,
+      SuggestionMark,
+      SyncedBlock,
+      DatabaseBlock,
       Mathematics,
 
       // Slash commands

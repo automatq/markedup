@@ -341,11 +341,20 @@ model ShareLink {
   permission String   @default("view")
   /// Whether the link is active
   enabled    Boolean  @default(true)
+  /// True = published as a public page (with SEO slug), false = private share link
+  published  Boolean  @default(false)
+  /// SEO-friendly slug for /p/[slug] (only when published=true)
+  slug       String?  @unique
+  /// SEO title override
+  seoTitle   String?
+  /// Meta description for SEO
+  seoDescription String?
   createdAt  DateTime @default(now())
   expiresAt  DateTime?
 
   @@index([token])
   @@index([documentId])
+  @@index([slug])
 }
 
 /// Maps team members to agent roles (e.g. Chris = CTO, Dylan = CEO)
@@ -477,6 +486,85 @@ model ExecutionPlanTask {
 
   @@index([documentId])
   @@index([documentId, sortOrder])
+}
+
+/// Notion-style structured data collection — table/board/calendar/gallery/list views
+model Database {
+  id          String             @id @default(cuid())
+  workspaceId String
+  /// If embedded inline in a doc, this is the host document
+  documentId  String?
+  title       String             @default("Untitled Database")
+  icon        String?            @default("Table2")
+  createdBy   String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  properties  DatabaseProperty[]
+  rows        DatabaseRow[]
+  views       DatabaseView[]
+
+  @@index([workspaceId])
+  @@index([documentId])
+}
+
+model DatabaseProperty {
+  id         String   @id @default(cuid())
+  databaseId String
+  database   Database @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  /// "title" | "text" | "number" | "date" | "select" | "multi_select" | "url" | "checkbox" | "status" | "person"
+  type       String
+  name       String
+  /// JSON config — select options, number format, etc.
+  config     Json     @default("{}")
+  sortOrder  Int      @default(0)
+
+  @@index([databaseId])
+}
+
+model DatabaseRow {
+  id         String   @id @default(cuid())
+  databaseId String
+  database   Database @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  /// { propertyId: value } — flat JSON for fast reads
+  values     Json     @default("{}")
+  /// Optional linked Document (for "open as page")
+  documentId String?
+  sortOrder  Int      @default(0)
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([databaseId])
+  @@index([databaseId, sortOrder])
+}
+
+model DatabaseView {
+  id         String   @id @default(cuid())
+  databaseId String
+  database   Database @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  /// "table" | "board" | "calendar" | "gallery" | "list" | "timeline"
+  type       String
+  name       String
+  /// JSON: { groupBy, sortBy, filters, hiddenProperties, datePropertyId, ... }
+  config     Json     @default("{}")
+  sortOrder  Int      @default(0)
+
+  @@index([databaseId])
+}
+
+/// Reusable content blocks — embed in multiple documents, edit once
+model SyncedBlock {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// TipTap JSONContent for the block
+  content     Json
+  /// Optional human-readable label for the block
+  label       String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 
 /// Tracks user sessions for "welcome back" briefing

@@ -515,6 +515,28 @@ export const slashCommandItems: SlashCommandItem[] = [
       window.dispatchEvent(new CustomEvent("markedup:insert-template"));
     },
   },
+  {
+    title: "Synced Block",
+    description: "Reusable content — edit once, sync everywhere",
+    icon: "Link2",
+    category: "advanced",
+    aliases: ["sync", "synced", "reusable", "shared block"],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      (editor as any).chain().focus().setSyncedBlock().run();
+    },
+  },
+  {
+    title: "Database",
+    description: "Inline database with table, board, calendar views",
+    icon: "Database",
+    category: "advanced",
+    aliases: ["database", "table", "kanban", "board", "collection"],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      (editor as any).chain().focus().setDatabaseBlock().run();
+    },
+  },
 
   {
     title: "Footnote",

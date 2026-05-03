@@ -41,6 +41,9 @@ import { PresentationMode } from "@/components/PresentationMode";
 import { OutlinePanel } from "@/components/panels/OutlinePanel";
 import { BacklinksPanel } from "@/components/panels/BacklinksPanel";
 import { ExecutionPlanPanel } from "@/components/panels/ExecutionPlanPanel";
+import { TagEditor } from "@/components/ui/TagEditor";
+import { PublishDialog } from "@/components/dialogs/PublishDialog";
+import { SuggestionControls } from "@/components/editor/menus/SuggestionControls";
 import { EditorStatusBar } from "@/components/editor/EditorStatusBar";
 import { SearchReplaceBar } from "@/components/editor/SearchReplaceBar";
 import { Breadcrumbs } from "@/components/editor/Breadcrumbs";
@@ -58,6 +61,7 @@ function DocumentInner({
   initialCreatedAt,
   initialContent,
   sourceType,
+  initialTags,
 }: {
   documentId: string;
   workspaceId: string;
@@ -66,6 +70,7 @@ function DocumentInner({
   initialCreatedAt?: Date;
   initialContent?: any;
   sourceType?: string | null;
+  initialTags?: string | null;
 }) {
   const router = useRouter();
   const { user } = useUser();
@@ -95,6 +100,9 @@ function DocumentInner({
   // Page state
   const [title, setTitle] = useState(initialTitle);
   const [lastEdited, setLastEdited] = useState<Date | undefined>(initialLastEdited);
+  const [tags, setTags] = useState<string[]>(
+    initialTags ? initialTags.split(",").map((t) => t.trim()).filter(Boolean) : []
+  );
   const [smallText, setSmallText] = useState(false);
   const [locked, setLocked] = useState(false);
   const [suggestEdits, setSuggestEdits] = useState(false);
@@ -132,6 +140,7 @@ function DocumentInner({
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(false);
   const [executionPlanOpen, setExecutionPlanOpen] = useState(sourceType === "execution-plan");
+  const [publishOpen, setPublishOpen] = useState(false);
 
   // Record document view
   useEffect(() => {
@@ -287,7 +296,17 @@ function DocumentInner({
           break;
 
         case "suggest-edits":
-          setSuggestEdits((p) => !p);
+          setSuggestEdits((p) => {
+            const next = !p;
+            const editor = editorRef.current;
+            if (editor) {
+              const userName = user
+                ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.emailAddresses[0]?.emailAddress || "User"
+                : "User";
+              (editor as any).commands.setSuggestingMode(next, user?.id ?? "", userName);
+            }
+            return next;
+          });
           break;
 
         case "import":
@@ -348,6 +367,10 @@ function DocumentInner({
 
         case "execution-plan":
           setExecutionPlanOpen((p) => !p);
+          break;
+
+        case "publish":
+          setPublishOpen(true);
           break;
 
         default:
@@ -490,6 +513,20 @@ function DocumentInner({
               >
                 {title}
               </h1>
+              <div className="mt-3">
+                <TagEditor
+                  tags={tags}
+                  onChange={(next) => {
+                    setTags(next);
+                    fetch(`/api/documents/${documentId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tags: next.join(",") }),
+                    }).catch(() => {});
+                  }}
+                  placeholder="Add tags (use / for hierarchy)..."
+                />
+              </div>
               <div className="mt-2 flex items-center gap-3 text-[10px] uppercase tracking-widest text-black/30 dark:text-white/30">
                 <span className="flex items-center gap-1">
                   <kbd className="rounded border border-black/10 dark:border-white/10 px-1 py-0.5 text-[9px] normal-case tracking-normal">
@@ -654,6 +691,18 @@ function DocumentInner({
         onNavigate={(id) => router.push(`/${workspaceId}/${id}`)}
       />
 
+      <PublishDialog
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        documentId={documentId}
+        documentTitle={title}
+      />
+
+      <SuggestionControls
+        editor={editorRef.current}
+        active={suggestEdits}
+      />
+
       {/* Presentation mode overlay */}
       {presentationOpen && (
         <PresentationMode
@@ -680,6 +729,7 @@ export default function DocumentPage() {
   const [initialCreatedAt, setInitialCreatedAt] = useState<Date | undefined>(undefined);
   const [initialContent, setInitialContent] = useState<any>(undefined);
   const [sourceType, setSourceType] = useState<string | null>(null);
+  const [initialTags, setInitialTags] = useState<string | null>(null);
   const [contentLoaded, setContentLoaded] = useState(false);
 
   // Load document metadata — reset state when documentId changes
@@ -691,6 +741,7 @@ export default function DocumentPage() {
     setInitialLastEdited(undefined);
     setInitialCreatedAt(undefined);
     setSourceType(null);
+    setInitialTags(null);
 
     (async () => {
       try {
@@ -709,6 +760,9 @@ export default function DocumentPage() {
           }
           if (doc.sourceType) {
             setSourceType(doc.sourceType);
+          }
+          if (doc.tags) {
+            setInitialTags(doc.tags);
           }
         }
       } catch (err) {
@@ -737,6 +791,7 @@ export default function DocumentPage() {
         initialCreatedAt={initialCreatedAt}
         initialContent={initialContent}
         sourceType={sourceType}
+        initialTags={initialTags}
       />
     </Room>
   );

@@ -43,6 +43,8 @@ import {
   Palette,
   Superscript,
   SeparatorHorizontal,
+  Link2,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 
@@ -82,6 +84,8 @@ const iconMap: Record<string, LucideIcon> = {
   Palette,
   Superscript,
   SeparatorHorizontal,
+  Link2,
+  Database,
   FileBreak: SeparatorHorizontal,
 };
 

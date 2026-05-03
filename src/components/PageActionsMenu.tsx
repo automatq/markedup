@@ -21,6 +21,7 @@ import {
   History,
   Plug,
   Sparkles,
+  Globe,
   FileStack,
   List as ListIcon,
   ArrowUpLeft as ArrowUpLeftIcon,
@@ -67,6 +68,7 @@ const menuItems: MenuItem[] = [
   { icon: Sparkles, label: "AI Agents", action: "agents" },
   { icon: FileStack, label: "Breakout Files", action: "breakouts" },
   { icon: ListIcon, label: "Execution Plan", action: "execution-plan" },
+  { icon: Globe, label: "Publish to web", action: "publish" },
 ];
 
 export function PageActionsMenu({ open, onClose, onAction }: PageActionsMenuProps) {

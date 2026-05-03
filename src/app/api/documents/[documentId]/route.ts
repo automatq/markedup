@@ -16,7 +16,7 @@ export async function GET(
     const { documentId } = await params;
     const document = await db.document.findUnique({
       where: { id: documentId },
-      select: { id: true, title: true, workspaceId: true, content: true, sourceType: true, createdAt: true, updatedAt: true },
+      select: { id: true, title: true, workspaceId: true, content: true, sourceType: true, tags: true, createdAt: true, updatedAt: true },
     });
 
     if (!document) {

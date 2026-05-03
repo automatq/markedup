@@ -35,6 +35,7 @@ import { useRouter, useParams, usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScribbleIcon } from "@/components/ScribbleIcon";
 import { DailyNotes } from "./DailyNotes";
+import { TagsPane, docMatchesTag } from "./TagsPane";
 
 export interface SidebarDocument {
   id: string;
@@ -526,6 +527,7 @@ export function Sidebar({
   const [orgMembers, setOrgMembers] = useState<{ userId: string; name: string }[]>([]);
   const [favorites, setFavorites] = useState<{ documentId: string; document: { id: string; title: string } }[]>([]);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authorDropdownOpen) return;
@@ -717,7 +719,8 @@ export function Sidebar({
   );
 
   const filtered = documents.filter((doc) =>
-    (doc.title ?? "Untitled").toLowerCase().includes(search.toLowerCase())
+    (doc.title ?? "Untitled").toLowerCase().includes(search.toLowerCase()) &&
+    docMatchesTag(doc, selectedTag)
   );
 
   if (collapsed) {
@@ -987,6 +990,13 @@ export function Sidebar({
         workspaceId={params?.workspaceId as string}
         documents={documents}
         onSelectDocument={onSelectDocument}
+      />
+
+      {/* Tag pane */}
+      <TagsPane
+        documents={documents}
+        selectedTag={selectedTag}
+        onSelectTag={setSelectedTag}
       />
 
       {/* Author Filter Dropdown (team workspaces only) */}
